@@ -38,6 +38,9 @@ msgstr "项目"
 msgid "plugins.paymethod.manual.purchase.fee"
 msgstr "费用"
 
+msgid "plugins.paymethod.manual.manualPaymentNotify.name"
+msgstr ""
+
 #~ msgid "plugins.paymethod.manual.settings.instructions"
 #~ msgstr "说明"
 

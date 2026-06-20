@@ -51,7 +51,6 @@ final class TransliterateTest extends \PHPUnit\Framework\TestCase
     {
         $testsStrict = [];
         if (\extension_loaded('intl') === true) {
-
             // ---
 
             $testString = \file_get_contents(__DIR__ . '/fixtures/sample-unicode-chart.txt');
@@ -301,5 +300,25 @@ final class TransliterateTest extends \PHPUnit\Framework\TestCase
         }
 
         static::assertSame('ahbk 😀 ♥ 𐎁 𠾴 ᎈ y', \strtolower(ASCII::to_transliterate('أحبك 😀 ♥ 𐎁 𠾴 ᎈ ý', null, false)));
+    }
+
+    public function specialCharacterProvider(): array
+    {
+        return [
+            ['ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ', 'abcdefghijklmnopqrstuvwxyz'],
+            ['⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳', '01234567891011121314151617181920'],
+            ['⓵⓶⓷⓸⓹⓺⓻⓼⓽⓾', '12345678910'],
+            ['⓿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴', '011121314151617181920'],
+            ['abcdefghijklmnopqrstuvwxyz', 'abcdefghijklmnopqrstuvwxyz'],
+            ['0123456789', '0123456789'],
+        ];
+    }
+
+    /**
+     * @dataProvider specialCharacterProvider
+     */
+    public function it_can_replace_special_characters(string $value, string $expected)
+    {
+        static::assertSame($expected, ASCII::to_transliterate($value));
     }
 }

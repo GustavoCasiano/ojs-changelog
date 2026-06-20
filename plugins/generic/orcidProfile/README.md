@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/pkp/orcidProfile.svg?branch=stable-3_3_0)](https://travis-ci.org/pkp/orcidProfile)
+[![Build Status](https://travis-ci.org/pkp/orcidProfile.svg?branch=main)](https://travis-ci.org/pkp/orcidProfile)
 
 Table of Contents
 =================
@@ -41,7 +41,7 @@ Licensed under GPLv3. See LICENSE.txt for details.
   * Extra e-mail template `ORCID_REQUEST_AUTHOR_AUTHORIZATION`  for requesting API access tokens.
   * Updated template text, e-mail templates for English and German locales.
   * Member API Email-Template activated upon selection of ORCID member API
-  * Support for synchronizing submission meta data to authorized records  in follwing stage changes:
+  * Support for synchronizing submission meta data to authorized records  in following stage changes:
     * Assign a submission to an already published issue
     * Publish a new issue
     * Author grants permission after the publication of the issue
@@ -58,18 +58,6 @@ Licensed under GPLv3. See LICENSE.txt for details.
 
 Use the Plugin Gallery from within your PKP application to install the plugin. For further information refer to [PKP|DOCS](https://docs.pkp.sfu.ca/orcid/en/installation-setup).
 
-### Setting a custom redirect URI
-
-In case your Orcid redirect URI does not correspond to your journal base Url (e.g. you may use a centralized redirect server if you have one institutional Orcid account but are running multiple journals on different domains)
-you may add a variable to the OJS config.inc.php file to overwrite the default redirect base Url as in the follwoing example
-
-
-```
-[orcid]
-orcid_redirect_base_url = "https://my_orcid_redirect.url/"
-
-```
-
 ## Debugging/Testing
 
 ### Settings
@@ -82,7 +70,7 @@ orcid_redirect_base_url = "https://my_orcid_redirect.url/"
 "orcid": {
 	"url": "https://sandbox.orcid.org",
 	"apiPath": "https://api.sandbox.orcid.org",
- 	"api Type": "Member Sandbox"
+ 	"api Type": "Member Sandbox",
 	"clientId": "APP-T0XXXXXXXXXXX",
 	"clientSecret": "288455445-a3e4-454-9783-454545555",
 	"email": "coauthor@mailinator.com",
@@ -90,25 +78,13 @@ orcid_redirect_base_url = "https://my_orcid_redirect.url/"
   },
 ```
 
-### Run  all tests
+### Run all tests
 
  Navigate to `OJS folder`
 * ` npx cypress run --config integrationFolder=plugins/generic/orcidProfile/cypress/tests/functional`
-
-### Run Plugin setup
-* `npx cypress run --config integrationFolder=plugins/generic/orcidProfile/cypress/tests/functional/ --spec plugins/generic/orcidProfile/cypress/tests/functional/01-Orcid-Setup.spec.js`
-
-### Run Authorization
-* `npx cypress run --config integrationFolder=plugins/generic/orcidProfile/cypress/tests/functional/ --spec plugins/generic/orcidProfile/cypress/tests/functional/02-Orcid-API.spec.js`
-
-
 
 ### Debug
 
 * Navigate to `OJS Folder`
 * Navigate to `cypress` folder
 * check `logs` and `screenshots` for errors
-
-
-
-

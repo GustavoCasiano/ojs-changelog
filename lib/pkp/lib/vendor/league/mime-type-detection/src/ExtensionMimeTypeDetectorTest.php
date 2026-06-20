@@ -11,6 +11,7 @@ class ExtensionMimeTypeDetectorTest extends TestCase
 {
     /**
      * @test
+     *
      * @dataProvider expectedLookupResults
      */
     public function looking_up_mimetype(string $path, ?string $expectedMimeType): void
@@ -28,14 +29,14 @@ class ExtensionMimeTypeDetectorTest extends TestCase
     {
         $detector = new ExtensionMimeTypeDetector();
         /** @var string $contents */
-        $contents = file_get_contents(__DIR__.'/../test_files/flysystem.svg');
+        $contents = file_get_contents(__DIR__ . '/../test_files/flysystem.svg');
 
         $mimeType = $detector->detectMimeTypeFromBuffer($contents);
 
         $this->assertNull($mimeType);
     }
 
-    public function expectedLookupResults(): Generator
+    public static function expectedLookupResults(): Generator
     {
         yield ['thing.jpg', 'image/jpeg'];
         yield ['file.svg', 'image/svg+xml'];

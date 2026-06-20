@@ -11,33 +11,33 @@
 <script type="text/javascript">
 	$(function() {ldelim}
 		// Handle moving the reviewer ID from the grid to the second form
-		$('#advancedReviewerSearch').pkpHandler('$.pkp.controllers.grid.users.reviewer.AdvancedReviewerSearchHandler');
+		$('#advancedReviewerSearch').pkpHandler(
+				'$.pkp.controllers.grid.users.reviewer.AdvancedReviewerSearchHandler',
+				{ldelim}
+					lastRoundReviewerIds: {$lastRoundReviewerIds|json_encode},
+					reviewerMessages: {$reviewerMessages|json_encode}
+				{rdelim}
+		);
 	{rdelim});
 </script>
 
 <div id="advancedReviewerSearch" class="pkp_form pkp_form_advancedReviewerSearch">
-
 	<div id="searchGridAndButton">
-
 		{assign var="uuid" value=""|uniqid|escape}
 		<div id="select-reviewer-{$uuid}">
-			<select-reviewer-list-panel
-				v-bind="components.selectReviewer"
-				@set="set"
-			/>
 		</div>
 		<script type="text/javascript">
-			pkp.registry.init('select-reviewer-{$uuid}', 'Container', {$selectReviewerListData|@json_encode});
+			pkp.registry.init('select-reviewer-{$uuid}', 'AdvancedSearchReviewerContainer', {$selectReviewerListData|@json_encode});
 		</script>
 
 		{** This button will get the reviewer selected in the grid and insert their ID into the form below **}
 		{fbvFormSection class="form_buttons"}
-			{foreach from=$reviewerActions item=action}
-				{if $action->getId() == 'advancedSearch'}
-					{continue}
-				{/if}
-				{include file="linkAction/linkAction.tpl" action=$action contextId="createReviewerForm"}
-			{/foreach}
+		{foreach from=$reviewerActions item=action}
+			{if $action->getId() == 'advancedSearch'}
+				{continue}
+			{/if}
+			{include file="linkAction/linkAction.tpl" action=$action contextId="createReviewerForm"}
+		{/foreach}
 		{/fbvFormSection}
 	</div>
 

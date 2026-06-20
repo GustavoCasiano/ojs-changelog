@@ -1,10 +1,11 @@
+# "Marie-Hélène Vézina [UdeMontréal]" <marie-helene.vezina@umontreal.ca>, 2023.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-09-30T06:56:45-07:00\n"
-"PO-Revision-Date: 2020-01-28 23:48+0000\n"
-"Last-Translator: Marie-Hélène Vézina [UdeMontréal] <marie-helene."
+"PO-Revision-Date: 2023-10-31 19:38+0000\n"
+"Last-Translator: \"Marie-Hélène Vézina [UdeMontréal]\" <marie-helene."
 "vezina@umontreal.ca>\n"
 "Language-Team: French (Canada) <http://translate.pkp.sfu.ca/projects/ojs/"
 "importexport-native/fr_CA/>\n"
@@ -13,7 +14,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Weblate 3.9.1\n"
+"X-Generator: Weblate 4.18.2\n"
 
 msgid "plugins.importexport.native.displayName"
 msgstr "Plugiciel XML natif d'OJS"
@@ -39,7 +40,7 @@ msgid "plugins.importexport.native.exportIssues"
 msgstr "Exporter les numéros"
 
 msgid "plugins.importexport.native.results"
-msgstr "Résultats"
+msgstr "Résultats de l'importation"
 
 msgid "plugins.inportexport.native.uploadFile"
 msgstr ""
@@ -50,6 +51,7 @@ msgstr ""
 "L'importation a été complétée avec succès. Les éléments suivants ont été "
 "importés :"
 
+#, fuzzy
 msgid "plugins.importexport.native.cliUsage"
 msgstr ""
 "Utilisation : {$scriptName} {$pluginName} [command] ...\n"
@@ -81,6 +83,7 @@ msgstr ""
 msgid "plugins.importexport.native.error.unknownSection"
 msgstr "Section {$param} inconnue"
 
+#, fuzzy
 msgid "plugins.importexport.native.error.unknownUser"
 msgstr "L'utilisateur-trice spécifié-e, « {$userName} », n'existe pas."
 
@@ -130,3 +133,11 @@ msgid "plugins.importexport.native.import.error.publishedDateMissing"
 msgstr ""
 "L'article intitulé « {$articleTitle} » se retrouve dans un numéro, mais n'a "
 "pas de date de publication."
+
+msgid "plugins.importexport.common.error.coverImageNameUnspecified"
+msgstr "Une image de couverture a été incorporée sans spécifier de nom."
+
+msgid "plugins.importexport.common.error.invalidFileExtension"
+msgstr ""
+"Une image de couverture avec une extension de fichier non valide a été "
+"spécifiée."

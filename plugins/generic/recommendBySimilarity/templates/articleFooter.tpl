@@ -8,16 +8,14 @@
  * A template to be included via Templates::Article::Footer::PageFooter hook.
  *}
 <div id="articlesBySimilarityList">
-	{assign var=recommendations value=$articlesBySimilarity->submissions}
-	{if !$recommendations->wasEmpty()}
+	{if !$articlesBySimilarity->submissions->isEmpty()}
 		<h3>
 			<a name="articlesBySimilarity">{translate key="plugins.generic.recommendBySimilarity.heading"}</a>
 		</h3>
 		<ul>
-
-			{iterate from="recommendations" item=submission}
+			{foreach from=$articlesBySimilarity->submissions item=submission}
 				{assign var=publication value=$submission->getCurrentPublication()}
-				{assign var=issue value=$articlesBySimilarity->plugin->getIssue((int) $publication->getData('issueId'))}
+				{assign var=issue value=$articlesBySimilarity->issues->get($publication->getData('issueId'))}
 
 				<li>
 					{foreach from=$publication->getData('authors') item=author}
@@ -32,18 +30,25 @@
 					</a>
 					{/if}
 				</li>
-			{/iterate}
+			{/foreach}
 		</ul>
 		<p id="articlesBySimilarityPages">
-			{page_links anchor="articlesBySimilarity" iterator=$recommendations name="articlesBySimilarity"}
+			{include
+				file="frontend/components/pagination.tpl"
+				prevUrl=$articlesBySimilarity->previousUrl
+				nextUrl=$articlesBySimilarity->nextUrl
+				showingStart=$articlesBySimilarity->start
+				showingEnd=$articlesBySimilarity->end
+				total=$articlesBySimilarity->total
+			}
 		</p>
 		<p id="articlesBySimilaritySearch">
-			{capture assign="advancedSearchLink"}{strip}
+			{capture assign="articlesBySimilaritySearchLink"}{strip}
 				<a href="{url page="search" op="search" query=$articlesBySimilarity->query}">
 					{translate key="plugins.generic.recommendBySimilarity.advancedSearch"}
 				</a>
 			{/strip}{/capture}
-			{translate key="plugins.generic.recommendBySimilarity.advancedSearchIntro" advancedSearchLink=$advancedSearchLink}
+			{translate key="plugins.generic.recommendBySimilarity.advancedSearchIntro" advancedSearchLink=$articlesBySimilaritySearchLink}
 		</p>
 	{/if}
 </div>

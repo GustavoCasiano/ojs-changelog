@@ -12,9 +12,9 @@
 
 {capture name=orcidButton assign=orcidButton}
 <button id="connect-orcid-button" class="cmp_button" onclick="return openORCID();">
-	{$orcidIcon}
-	{if $orcid && !$orcidAuthenticated}
-	{translate key='plugins.generic.orcidProfile.authorise'}
+	{if $orcid && $orcidAuthenticated }
+		{$orcidIcon}
+		{translate key='plugins.generic.orcidProfile.authorise'}
 	{else}
 	{translate key='plugins.generic.orcidProfile.connect'}
 	{/if}
@@ -66,9 +66,6 @@
 
 {if $targetOp eq 'register'}
 	{fbvElement type="hidden" name="orcid" id="orcid" value=$orcid maxlength="46"}
-	{fbvElement type="hidden" name="orcidAccessToken" id="orcidAccessToken" value=$orcidAccessToken}
-	{fbvElement type="hidden" name="orcidAccessScope" id="orcidAccessScope" value=$orcidAccessScope}
-	{fbvElement type="hidden" name="orcidRefreshToken" id="orcidRefreshToken" value=$orcidRefreshToken}
-	{fbvElement type="hidden" name="orcidAccessExpiresOn" id="orcidAccessExpiresOn" value=$orcidAccessExpiresOn}
 	{$orcidButton}
 {/if}
+

@@ -14,6 +14,8 @@ namespace Composer\Semver;
 use Composer\Semver\Constraint\MatchAllConstraint;
 use Composer\Semver\Constraint\MultiConstraint;
 use Composer\Semver\Constraint\Constraint;
+use Exception;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 
 class VersionParserTest extends TestCase
@@ -33,7 +35,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function numericAliasVersions()
+    public static function numericAliasVersions()
     {
         return array(
             array('0.x-dev', '0.'),
@@ -62,7 +64,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function successfulNormalizedVersions()
+    public static function successfulNormalizedVersions()
     {
         return array(
             'none' => array('1.0.0', '1.0.0.0'),
@@ -74,6 +76,7 @@ class VersionParserTest extends TestCase
             'patch replace' => array('1.0.0.pl3-dev', '1.0.0.0-patch3-dev'),
             'forces w.x.y.z' => array('1.0-dev', '1.0.0.0-dev'),
             'forces w.x.y.z/2' => array('0', '0.0.0.0'),
+            'forces w.x.y.z/maximum major' => array('99999', '99999.0.0.0'),
             'parses long' => array('10.4.13-beta', '10.4.13.0-beta'),
             'parses long/2' => array('10.4.13beta2', '10.4.13.0-beta2'),
             'parses long/semver' => array('10.4.13beta.2', '10.4.13.0-beta2'),
@@ -86,7 +89,16 @@ class VersionParserTest extends TestCase
             'parses dates w/ . as classical' => array('2010.01.02', '2010.01.02.0'),
             'parses dates y.m.Y as classical' => array('2010.1.555', '2010.1.555.0'),
             'parses dates y.m.Y/2 as classical' => array('2010.10.200', '2010.10.200.0'),
+            'parses CalVer YYYYMMDD (as MAJOR) versions' => array('20230131.0.0', '20230131.0.0'),
+            'parses CalVer YYYYMMDDhhmm (as MAJOR) versions' => array('202301310000.0.0', '202301310000.0.0'),
             'strips v/datetime' => array('v20100102', '20100102'),
+            'parses dates no delimiter' => array('20100102', '20100102'),
+            'parses dates no delimiter/2' => array('20100102.0', '20100102.0'),
+            'parses dates no delimiter/3' => array('20100102.1.0', '20100102.1.0'),
+            'parses dates no delimiter/4' => array('20100102.0.3', '20100102.0.3'),
+            'parses dates no delimiter/earliest year' => array('100000', '100000'),
+            'parses dates w/ - and .' => array('2010-01-02-10-20-30.0.3', '2010.01.02.10.20.30.0.3'),
+            'parses dates w/ - and ./2' => array('2010-01-02-10-20-30.5', '2010.01.02.10.20.30.5'),
             'parses dates w/ -' => array('2010-01-02', '2010.01.02'),
             'parses dates w/ .' => array('2012.06.07', '2012.06.07.0'),
             'parses numbers' => array('2010-01-02.5', '2010.01.02.5'),
@@ -147,7 +159,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function failingNormalizedVersions()
+    public static function failingNormalizedVersions()
     {
         return array(
             'empty ' => array(''),
@@ -170,6 +182,12 @@ class VersionParserTest extends TestCase
             'constraint' => array('~1'),
             'constraint/2' => array('^1'),
             'constraint/3' => array('1.*'),
+            'date versions with 4 bits' => array('20100102.0.3.4', '20100102.0.3.4'),
+            'date versions with 4 bits/earliest year' => array('100000.0.0.0', '100000.0.0.0'),
+            'invalid CalVer (as MAJOR) versions/YYYYMMD' => array('2023013.0.0', '2023013.0.0'),
+            'invalid CalVer (as MAJOR) versions/YYYYMMDDh' => array('202301311.0.0', '202301311.0.0'),
+            'invalid CalVer (as MAJOR) versions/YYYYMMDDhhm' => array('20230131000.0.0', '20230131000.0.0'),
+            'invalid CalVer (as MAJOR) versions/YYYYMMDDhhmmX' => array('2023013100000.0.0', '2023013100000.0.0'),
         );
     }
 
@@ -179,7 +197,9 @@ class VersionParserTest extends TestCase
      */
     public function testNormalizeFailsAndReportsAliasIssue($fullInput)
     {
-        preg_match('{^([^,\s#]+)(?:#[^ ]+)? +as +([^,\s]+)$}', $fullInput, $match);
+        if (!preg_match('{^([^,\s#]+)(?:#[^ ]+)? +as +([^,\s]+)$}', $fullInput, $match)) {
+            $this->fail($fullInput.' did not match the regex');
+        }
         $parser = new VersionParser();
         $parser->normalize($match[1], $fullInput);
         try {
@@ -192,7 +212,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function failingNormalizedVersionsWithBadAlias()
+    public static function failingNormalizedVersionsWithBadAlias()
     {
         return array(
             'Alias and caret' => array('1.0.0+foo as ^2.0'),
@@ -209,7 +229,9 @@ class VersionParserTest extends TestCase
      */
     public function testNormalizeFailsAndReportsAliaseeIssue($fullInput)
     {
-        preg_match('{^([^,\s#]+)(?:#[^ ]+)? +as +([^,\s]+)$}', $fullInput, $match);
+        if (!preg_match('{^([^,\s#]+)(?:#[^ ]+)? +as +([^,\s]+)$}', $fullInput, $match)) {
+            $this->fail($fullInput.' did not match the regex');
+        }
         $parser = new VersionParser();
         try {
             $parser->normalize($match[1], $fullInput);
@@ -222,7 +244,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function failingNormalizedVersionsWithBadAliasee()
+    public static function failingNormalizedVersionsWithBadAliasee()
     {
         return array(
             'Alias and caret' => array('^2.0 as 1.0.0+foo'),
@@ -248,7 +270,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function successfulNormalizedBranches()
+    public static function successfulNormalizedBranches()
     {
         return array(
             'parses x' => array('v1.x', '1.9999999.9999999.9999999-dev'),
@@ -317,7 +339,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function simpleConstraints()
+    public static function simpleConstraints()
     {
         return array(
             'match any' => array('*', new MatchAllConstraint()),
@@ -376,7 +398,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function wildcardConstraints()
+    public static function wildcardConstraints()
     {
         return array(
             array('v2.*', new Constraint('>=', '2.0.0.0-dev'), new Constraint('<', '3.0.0.0-dev')),
@@ -418,7 +440,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function tildeConstraints()
+    public static function tildeConstraints()
     {
         return array(
             array('~v1', new Constraint('>=', '1.0.0.0-dev'), new Constraint('<', '2.0.0.0-dev')),
@@ -465,7 +487,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function caretConstraints()
+    public static function caretConstraints()
     {
         return array(
             array('^v1', new Constraint('>=', '1.0.0.0-dev'), new Constraint('<', '2.0.0.0-dev')),
@@ -515,7 +537,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function hyphenConstraints()
+    public static function hyphenConstraints()
     {
         return array(
             array('v1 - v2', new Constraint('>=', '1.0.0.0-dev'), new Constraint('<', '3.0.0.0-dev')),
@@ -550,7 +572,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function constraintProvider()
+    public static function constraintProvider()
     {
         return array(
             // numeric branch
@@ -602,7 +624,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function multiConstraintProvider()
+    public static function multiConstraintProvider()
     {
         return array(
             array('>2.0,<=3.0'),
@@ -654,7 +676,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function multiConstraintProvider2()
+    public static function multiConstraintProvider2()
     {
         return array(
             array('>2.0,<2.0.5 | >2.0.6'),
@@ -708,7 +730,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function failingConstraints()
+    public static function failingConstraints()
     {
         return array(
             'empty ' => array(''),
@@ -767,7 +789,7 @@ class VersionParserTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function stabilityProvider()
+    public static function stabilityProvider()
     {
         return array(
             array('stable', '1'),
@@ -804,8 +826,8 @@ class VersionParserTest extends TestCase
 
         $this->assertSame($expectedValue, $result);
 
-        $stability = 'no-rc';
-        $expectedValue = $stability;
+        $stability = 'BeTa';
+        $expectedValue = 'beta';
         $result = $parser->normalizeStability($stability);
 
         $this->assertSame($expectedValue, $result);
@@ -835,7 +857,7 @@ class VersionParserTest extends TestCase
     }
 
     /**
-     * @param class-string $class
+     * @param class-string<Exception> $class
      * @param string|null $message
      * @return void
      */
@@ -846,9 +868,10 @@ class VersionParserTest extends TestCase
             if ($message) {
                 $this->expectExceptionMessage($message);
             }
-        } else {
-            // @phpstan-ignore-next-line
+        } elseif (method_exists($this, 'setExpectedException')) {
             $this->setExpectedException($class, $message);
+        } else {
+            throw new LogicException('Expected method "expectException" or "setExpectedException" to exist.');
         }
     }
 }

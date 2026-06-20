@@ -5,17 +5,17 @@ on:
   pull_request:
 
 jobs:
-  tests:
-    name: PHP ${{ matrix.php }}
-    runs-on: ubuntu-20.04
+  latest:
+    name: PHP ${{ matrix.php }} Latest
+    runs-on: ubuntu-22.04
 
     strategy:
       matrix:
-        php: ['5.5', '5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0']
+        php: ['7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -27,21 +27,44 @@ jobs:
       - name: Setup Problem Matchers
         run: echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
 
-      - name: Install PHP 5/7 Dependencies
-        uses: nick-invision/retry@v1
+      - name: Install Latest Dependencies
+        uses: nick-invision/retry@v2
         with:
           timeout_minutes: 5
           max_attempts: 5
           command: composer update --no-interaction --no-progress
-        if: "matrix.php < 8"
 
-      - name: Install PHP 8 Dependencies
-        uses: nick-invision/retry@v1
+      - name: Execute PHPUnit
+        run: vendor/bin/phpunit
+
+  lowest:
+    name: PHP ${{ matrix.php }} Lowest
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        php: ['7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Problem Matchers
+        run: echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
+
+      - name: Install Lowest Dependencies
+        uses: nick-invision/retry@v2
         with:
           timeout_minutes: 5
           max_attempts: 5
-          command: composer update --no-interaction --no-progress --ignore-platform-req=php
-        if: "matrix.php >= 8"
+          command: composer update --prefer-lowest --prefer-stable --no-interaction --no-progress
 
       - name: Execute PHPUnit
         run: vendor/bin/phpunit

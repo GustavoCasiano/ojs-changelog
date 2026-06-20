@@ -40,6 +40,11 @@
 	{rdelim});
 </script>
 
+{* Form for deleting the profile image (placed here to avoid nesting forms) *}
+<form type="post" action="{url op="deleteProfileImage"}" id="deleteProfileImageForm">
+	{csrf}
+</form>
+
 <form class="pkp_form" id="publicProfileForm" method="post" action="{url op="savePublicProfile"}" enctype="multipart/form-data">
 	{csrf}
 
@@ -50,7 +55,7 @@
 			{* Add a unique ID to prevent caching *}
 			<img src="{$baseUrl}/{$publicSiteFilesPath}/{$profileImage.uploadName}?{""|uniqid}" alt="{translate key="user.profile.form.profileImage"}" />
 			<div>
-				<a class="pkp_button pkp_button_offset" href="{url op="deleteProfileImage"}">{translate key="common.delete"}</a>
+				<button onclick="document.getElementById('deleteProfileImageForm').submit(); return false;" class="pkp_button pkp_button_offset">{translate key="common.delete"}</button>
 			</div>
 		{/if}
 	{/fbvFormSection}
@@ -65,13 +70,13 @@
 		{fbvElement type="text" label="user.url" name="userUrl" id="userUrl" value=$userUrl maxlength="255"}
 	{/fbvFormSection}
 	{fbvFormSection}
-		{fbvElement type="text" label="user.orcid" name="orcid" id="orcid" value=$orcid maxlength="37"}
+		{fbvElement type="text" label="user.orcid" name="orcid" id="orcid" value=$orcid maxlength="46"}
 	{/fbvFormSection}
 
 	{call_hook name="User::PublicProfile::AdditionalItems"}
 
 	<p>
-		{capture assign="privacyUrl"}{url router=$smarty.const.ROUTE_PAGE page="about" op="privacy"}{/capture}
+		{capture assign="privacyUrl"}{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
 		{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 	</p>
 

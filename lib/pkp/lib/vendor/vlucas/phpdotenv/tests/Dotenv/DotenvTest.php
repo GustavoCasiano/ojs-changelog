@@ -1,99 +1,118 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Dotenv\Tests;
 
 use Dotenv\Dotenv;
+use Dotenv\Exception\InvalidEncodingException;
+use Dotenv\Exception\InvalidPathException;
 use Dotenv\Loader\Loader;
+use Dotenv\Parser\Parser;
 use Dotenv\Repository\RepositoryBuilder;
 use Dotenv\Store\StoreBuilder;
 use PHPUnit\Framework\TestCase;
 
-class DotenvTest extends TestCase
+final class DotenvTest extends TestCase
 {
     /**
      * @var string
      */
-    private $folder;
-
-    public function setUp()
-    {
-        $this->folder = dirname(__DIR__).'/fixtures/env';
-    }
+    private static $folder;
 
     /**
-     * @expectedException \Dotenv\Exception\InvalidPathException
-     * @expectedExceptionMessage Unable to read any of the environment file(s) at
+     * @beforeClass
+     *
+     * @return void
      */
+    public static function setFolder()
+    {
+        self::$folder = \dirname(__DIR__).'/fixtures/env';
+    }
+
     public function testDotenvThrowsExceptionIfUnableToLoadFile()
     {
-        $dotenv = Dotenv::createImmutable(__DIR__);
+        $dotenv = Dotenv::createMutable(__DIR__);
+
+        $this->expectException(InvalidPathException::class);
+        $this->expectExceptionMessage('Unable to read any of the environment file(s) at');
+
         $dotenv->load();
     }
 
-    /**
-     * @expectedException \Dotenv\Exception\InvalidPathException
-     * @expectedExceptionMessage Unable to read any of the environment file(s) at
-     */
     public function testDotenvThrowsExceptionIfUnableToLoadFiles()
     {
-        $dotenv = Dotenv::createImmutable([__DIR__, __DIR__.'/foo/bar']);
+        $dotenv = Dotenv::createMutable([__DIR__, __DIR__.'/foo/bar']);
+
+        $this->expectException(InvalidPathException::class);
+        $this->expectExceptionMessage('Unable to read any of the environment file(s) at');
+
         $dotenv->load();
     }
 
-    /**
-     * @expectedException \Dotenv\Exception\InvalidPathException
-     * @expectedExceptionMessage At least one environment file path must be provided.
-     */
     public function testDotenvThrowsExceptionWhenNoFiles()
     {
-        $dotenv = Dotenv::createImmutable([]);
+        $dotenv = Dotenv::createMutable([]);
+
+        $this->expectException(InvalidPathException::class);
+        $this->expectExceptionMessage('At least one environment file path must be provided.');
+
         $dotenv->load();
     }
 
     public function testDotenvTriesPathsToLoad()
     {
-        $dotenv = Dotenv::createImmutable([__DIR__, $this->folder]);
+        $dotenv = Dotenv::createMutable([__DIR__, self::$folder]);
         self::assertCount(4, $dotenv->load());
+    }
+
+    public function testDotenvTriesPathsToLoadTwice()
+    {
+        $dotenv = Dotenv::createMutable([__DIR__, self::$folder]);
+        self::assertCount(4, $dotenv->load());
+
+        $dotenv = Dotenv::createImmutable([__DIR__, self::$folder]);
+        self::assertCount(0, $dotenv->load());
     }
 
     public function testDotenvTriesPathsToSafeLoad()
     {
-        $dotenv = Dotenv::createImmutable([__DIR__, $this->folder]);
+        $dotenv = Dotenv::createMutable([__DIR__, self::$folder]);
         self::assertCount(4, $dotenv->safeLoad());
     }
 
     public function testDotenvSkipsLoadingIfFileIsMissing()
     {
-        $dotenv = Dotenv::createImmutable(__DIR__);
+        $dotenv = Dotenv::createMutable(__DIR__);
         self::assertSame([], $dotenv->safeLoad());
     }
 
     public function testDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder);
+        $dotenv = Dotenv::createMutable(self::$folder);
         self::assertSame(
             ['FOO' => 'bar', 'BAR' => 'baz', 'SPACED' => 'with spaces', 'NULL' => ''],
             $dotenv->load()
         );
-        self::assertSame('bar', getenv('FOO'));
-        self::assertSame('baz', getenv('BAR'));
-        self::assertSame('with spaces', getenv('SPACED'));
-        self::assertEmpty(getenv('NULL'));
-    }
-
-    public function testDotenvLoadsEnvironmentVarsMultipleNotShortCircuitMode()
-    {
-        $dotenv = Dotenv::createImmutable($this->folder, ['.env', 'example.env']);
-
-        self::assertSame(
-            ['FOO' => 'bar', 'BAR' => 'baz', 'SPACED' => 'with spaces', 'NULL' => ''],
-            $dotenv->load()
-        );
+        self::assertSame('bar', $_SERVER['FOO']);
+        self::assertSame('baz', $_SERVER['BAR']);
+        self::assertSame('with spaces', $_SERVER['SPACED']);
+        self::assertEmpty($_SERVER['NULL']);
     }
 
     public function testDotenvLoadsEnvironmentVarsMultipleWithShortCircuitMode()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, ['.env', 'example.env'], false);
+        $dotenv = Dotenv::createMutable(self::$folder, ['.env', 'example.env']);
+
+        self::assertSame(
+            ['FOO' => 'bar', 'BAR' => 'baz', 'SPACED' => 'with spaces', 'NULL' => ''],
+            $dotenv->load()
+        );
+    }
+
+    public function testDotenvLoadsEnvironmentVarsMultipleWithoutShortCircuitMode()
+    {
+        $dotenv = Dotenv::createMutable(self::$folder, ['.env', 'example.env'], false);
 
         self::assertSame(
             ['FOO' => 'bar', 'BAR' => 'baz', 'SPACED' => 'with spaces', 'NULL' => '', 'EG' => 'example'],
@@ -103,63 +122,101 @@ class DotenvTest extends TestCase
 
     public function testCommentedDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'commented.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'commented.env');
         $dotenv->load();
-        self::assertSame('bar', getenv('CFOO'));
-        self::assertFalse(getenv('CBAR'));
-        self::assertFalse(getenv('CZOO'));
-        self::assertSame('with spaces', getenv('CSPACED'));
-        self::assertSame('a value with a # character', getenv('CQUOTES'));
-        self::assertSame('a value with a # character & a quote " character inside quotes', getenv('CQUOTESWITHQUOTE'));
-        self::assertEmpty(getenv('CNULL'));
-        self::assertEmpty(getenv('EMPTY'));
-        self::assertEmpty(getenv('EMPTY2'));
-        self::assertSame('foo', getenv('FOOO'));
+        self::assertSame('bar', $_SERVER['CFOO']);
+        self::assertFalse(isset($_SERVER['CBAR']));
+        self::assertFalse(isset($_SERVER['CZOO']));
+        self::assertSame('with spaces', $_SERVER['CSPACED']);
+        self::assertSame('a value with a # character', $_SERVER['CQUOTES']);
+        self::assertSame('a value with a # character & a quote " character inside quotes', $_SERVER['CQUOTESWITHQUOTE']);
+        self::assertEmpty($_SERVER['CNULL']);
+        self::assertEmpty($_SERVER['EMPTY']);
+        self::assertEmpty($_SERVER['EMPTY2']);
+        self::assertSame('foo', $_SERVER['FOOO']);
     }
 
     public function testQuotedDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'quoted.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'quoted.env');
         $dotenv->load();
-        self::assertSame('bar', getenv('QFOO'));
-        self::assertSame('baz', getenv('QBAR'));
-        self::assertSame('with spaces', getenv('QSPACED'));
-        self::assertEmpty(getenv('QNULL'));
+        self::assertSame('bar', $_SERVER['QFOO']);
+        self::assertSame('baz', $_SERVER['QBAR']);
+        self::assertSame('with spaces', $_SERVER['QSPACED']);
+        self::assertEmpty(\getenv('QNULL'));
 
-        self::assertSame('pgsql:host=localhost;dbname=test', getenv('QEQUALS'));
-        self::assertSame('test some escaped characters like a quote (") or maybe a backslash (\\)', getenv('QESCAPED'));
-        self::assertSame('iiiiviiiixiiiiviiii\\n', getenv('QSLASH'));
-        self::assertSame('iiiiviiiixiiiiviiii\\\\n', getenv('SQSLASH'));
+        self::assertSame('pgsql:host=localhost;dbname=test', $_SERVER['QEQUALS']);
+        self::assertSame('test some escaped characters like a quote (") or maybe a backslash (\\)', $_SERVER['QESCAPED']);
+        self::assertSame('iiiiviiiixiiiiviiii\\n', $_SERVER['QSLASH']);
+        self::assertSame('iiiiviiiixiiiiviiii\\\\n', $_SERVER['SQSLASH']);
     }
 
     public function testLargeDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'large.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'large.env');
         $dotenv->load();
-        self::assertNotEmpty(getenv('LARGE'));
+        self::assertSame(2730, \strlen($_SERVER['LARGE']));
+        self::assertSame(8192, \strlen($_SERVER['HUGE']));
+    }
+
+    public function testDotenvLoadsMultibyteVars()
+    {
+        $dotenv = Dotenv::createMutable(self::$folder, 'multibyte.env');
+        $dotenv->load();
+        self::assertSame('Ā ā Ă ă Ą ą Ć ć Ĉ ĉ Ċ ċ Č č Ď ď Đ đ Ē ē Ĕ ĕ Ė ė Ę ę Ě ě', $_SERVER['MB1']);
+        self::assertSame('行内支付', $_SERVER['MB2']);
+        self::assertSame('🚀', $_SERVER['APP_ENV']);
+    }
+
+    public function testDotenvLoadsMultibyteUTF8Vars()
+    {
+        $dotenv = Dotenv::createMutable(self::$folder, 'multibyte.env', false, 'UTF-8');
+        $dotenv->load();
+        self::assertSame('Ā ā Ă ă Ą ą Ć ć Ĉ ĉ Ċ ċ Č č Ď ď Đ đ Ē ē Ĕ ĕ Ė ė Ę ę Ě ě', $_SERVER['MB1']);
+        self::assertSame('行内支付', $_SERVER['MB2']);
+        self::assertSame('🚀', $_SERVER['APP_ENV']);
+    }
+
+    public function testDotenvLoadWithInvalidEncoding()
+    {
+        $dotenv = Dotenv::createMutable(self::$folder, 'multibyte.env', false, 'UTF-88');
+
+        $this->expectException(InvalidEncodingException::class);
+        $this->expectExceptionMessage('Illegal character encoding [UTF-88] specified.');
+
+        $dotenv->load();
+    }
+
+    public function testDotenvLoadsMultibyteWindowsVars()
+    {
+        $dotenv = Dotenv::createMutable(self::$folder, 'windows.env', false, 'Windows-1252');
+        $dotenv->load();
+        self::assertSame('ñá', $_SERVER['MBW']);
     }
 
     public function testMultipleDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'multiple.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'multiple.env');
         $dotenv->load();
-        self::assertSame('bar', getenv('MULTI1'));
-        self::assertSame('foo', getenv('MULTI2'));
+        self::assertSame('bar', $_SERVER['MULTI1']);
+        self::assertSame('foo', $_SERVER['MULTI2']);
     }
 
     public function testExportedDotenvLoadsEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'exported.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'exported.env');
         $dotenv->load();
-        self::assertSame('bar', getenv('EFOO'));
-        self::assertSame('baz', getenv('EBAR'));
-        self::assertSame('with spaces', getenv('ESPACED'));
-        self::assertEmpty(getenv('ENULL'));
+        self::assertSame('bar', $_SERVER['EFOO']);
+        self::assertSame('baz', $_SERVER['EBAR']);
+        self::assertSame('with spaces', $_SERVER['ESPACED']);
+        self::assertSame('123', $_SERVER['EDQUOTED']);
+        self::assertSame('456', $_SERVER['ESQUOTED']);
+        self::assertEmpty($_SERVER['ENULL']);
     }
 
     public function testDotenvLoadsEnvGlobals()
     {
-        $dotenv = Dotenv::createImmutable($this->folder);
+        $dotenv = Dotenv::createMutable(self::$folder);
         $dotenv->load();
         self::assertSame('bar', $_SERVER['FOO']);
         self::assertSame('baz', $_SERVER['BAR']);
@@ -169,7 +226,7 @@ class DotenvTest extends TestCase
 
     public function testDotenvLoadsServerGlobals()
     {
-        $dotenv = Dotenv::createImmutable($this->folder);
+        $dotenv = Dotenv::createMutable(self::$folder);
         $dotenv->load();
         self::assertSame('bar', $_ENV['FOO']);
         self::assertSame('baz', $_ENV['BAR']);
@@ -179,10 +236,10 @@ class DotenvTest extends TestCase
 
     public function testDotenvNestedEnvironmentVars()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'nested.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'nested.env');
         $dotenv->load();
         self::assertSame('{$NVAR1} {$NVAR2}', $_ENV['NVAR3']); // not resolved
-        self::assertSame('Hello World!', $_ENV['NVAR4']);
+        self::assertSame('Hellō World!', $_ENV['NVAR4']);
         self::assertSame('$NVAR1 {NVAR2}', $_ENV['NVAR5']); // not resolved
         self::assertSame('Special Value', $_ENV['N.VAR6']); // new '.' (dot) in var name
         self::assertSame('Special Value', $_ENV['NVAR7']);  // nested '.' (dot) variable
@@ -190,7 +247,7 @@ class DotenvTest extends TestCase
         self::assertSame('', $_ENV['NVAR9']); // nested variable is empty string
         self::assertSame('${NVAR888}', $_ENV['NVAR10']); // nested variable is not set
         self::assertSame('NVAR1', $_ENV['NVAR11']);
-        self::assertSame('Hello', $_ENV['NVAR12']);
+        self::assertSame('Hellō', $_ENV['NVAR12']);
         self::assertSame('${${NVAR11}}', $_ENV['NVAR13']); // single quotes
         self::assertSame('${NVAR1} ${NVAR2}', $_ENV['NVAR14']); // single quotes
         self::assertSame('${NVAR1} ${NVAR2}', $_ENV['NVAR15']); // escaped
@@ -198,9 +255,9 @@ class DotenvTest extends TestCase
 
     public function testDotenvNullFileArgumentUsesDefault()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, null);
+        $dotenv = Dotenv::createMutable(self::$folder, null);
         $dotenv->load();
-        self::assertSame('bar', getenv('FOO'));
+        self::assertSame('bar', $_SERVER['FOO']);
     }
 
     /**
@@ -210,96 +267,88 @@ class DotenvTest extends TestCase
      */
     public function testDotenvTrimmedKeys()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'quoted.env');
+        $dotenv = Dotenv::createMutable(self::$folder, 'quoted.env');
         $dotenv->load();
-        self::assertSame('no space', getenv('QWHITESPACE'));
+        self::assertSame('no space', $_SERVER['QWHITESPACE']);
     }
 
     public function testDotenvLoadDoesNotOverwriteEnv()
     {
-        putenv('IMMUTABLE=true');
-        $dotenv = Dotenv::createImmutable($this->folder, 'immutable.env');
+        \putenv('IMMUTABLE=true');
+        $dotenv = Dotenv::createImmutable(self::$folder, 'immutable.env');
         $dotenv->load();
-        self::assertSame('true', getenv('IMMUTABLE'));
+        self::assertSame('true', \getenv('IMMUTABLE'));
     }
 
     public function testDotenvLoadAfterOverload()
     {
-        putenv('IMMUTABLE=true');
-        $dotenv = Dotenv::createMutable($this->folder, 'immutable.env');
+        \putenv('IMMUTABLE=true');
+        $dotenv = Dotenv::createUnsafeMutable(self::$folder, 'immutable.env');
         $dotenv->load();
-        self::assertSame('false', getenv('IMMUTABLE'));
+        self::assertSame('false', \getenv('IMMUTABLE'));
     }
 
     public function testDotenvOverloadAfterLoad()
     {
-        putenv('IMMUTABLE=true');
-        $dotenv = Dotenv::createImmutable($this->folder, 'immutable.env');
+        \putenv('IMMUTABLE=true');
+        $dotenv = Dotenv::createUnsafeImmutable(self::$folder, 'immutable.env');
         $dotenv->load();
-        self::assertSame('true', getenv('IMMUTABLE'));
+        self::assertSame('true', \getenv('IMMUTABLE'));
     }
 
     public function testDotenvOverloadDoesOverwriteEnv()
     {
-        $dotenv = Dotenv::createMutable($this->folder, 'mutable.env');
+        $dotenv = Dotenv::createUnsafeMutable(self::$folder, 'mutable.env');
         $dotenv->load();
-        self::assertSame('true', getenv('MUTABLE'));
+        self::assertSame('true', \getenv('MUTABLE'));
     }
 
     public function testDotenvAllowsSpecialCharacters()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'specialchars.env');
+        $dotenv = Dotenv::createUnsafeMutable(self::$folder, 'specialchars.env');
         $dotenv->load();
-        self::assertSame('$a6^C7k%zs+e^.jvjXk', getenv('SPVAR1'));
-        self::assertSame('?BUty3koaV3%GA*hMAwH}B', getenv('SPVAR2'));
-        self::assertSame('jdgEB4{QgEC]HL))&GcXxokB+wqoN+j>xkV7K?m$r', getenv('SPVAR3'));
-        self::assertSame('22222:22#2^{', getenv('SPVAR4'));
-        self::assertSame('test some escaped characters like a quote " or maybe a backslash \\', getenv('SPVAR5'));
-        self::assertSame('secret!@', getenv('SPVAR6'));
-        self::assertSame('secret!@#', getenv('SPVAR7'));
-        self::assertSame('secret!@#', getenv('SPVAR8'));
+        self::assertSame('$a6^C7k%zs+e^.jvjXk', \getenv('SPVAR1'));
+        self::assertSame('?BUty3koaV3%GA*hMAwH}B', \getenv('SPVAR2'));
+        self::assertSame('jdgEB4{QgEC]HL))&GcXxokB+wqoN+j>xkV7K?m$r', \getenv('SPVAR3'));
+        self::assertSame('22222:22#2^{', \getenv('SPVAR4'));
+        self::assertSame('test some escaped characters like a quote " or maybe a backslash \\', \getenv('SPVAR5'));
+        self::assertSame('secret!@', \getenv('SPVAR6'));
+        self::assertSame('secret!@#', \getenv('SPVAR7'));
+        self::assertSame('secret!@#', \getenv('SPVAR8'));
     }
 
-    public function testMutlilineLoading()
+    public function testMultilineLoading()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'multiline.env');
+        $dotenv = Dotenv::createUnsafeMutable(self::$folder, 'multiline.env');
         $dotenv->load();
-        self::assertSame("test\n     test\"test\"\n     test", getenv('TEST'));
-        self::assertSame("test\ntest", getenv('TEST_ND'));
-        self::assertSame('test\\ntest', getenv('TEST_NS'));
+        self::assertSame("test\n     test\"test\"\n     test", \getenv('TEST'));
+        self::assertSame("test\ntest", \getenv('TEST_ND'));
+        self::assertSame('test\\ntest', \getenv('TEST_NS'));
 
-        self::assertSame('https://vision.googleapis.com/v1/images:annotate?key=', getenv('TEST_EQD'));
-        self::assertSame('https://vision.googleapis.com/v1/images:annotate?key=', getenv('TEST_EQS'));
+        self::assertSame('https://vision.googleapis.com/v1/images:annotate?key=', \getenv('TEST_EQD'));
+        self::assertSame('https://vision.googleapis.com/v1/images:annotate?key=', \getenv('TEST_EQS'));
     }
 
     public function testEmptyLoading()
     {
-        $dotenv = Dotenv::createImmutable($this->folder, 'empty.env');
+        $dotenv = Dotenv::createImmutable(self::$folder, 'empty.env');
         self::assertSame(['EMPTY_VAR' => null], $dotenv->load());
     }
 
-    public function testLegacyConstructor()
+    public function testUnicodeVarNames()
     {
-        $loader = new Loader();
-        $repository = RepositoryBuilder::create()->immutable()->make();
-
-        $dotenv = new Dotenv($loader, $repository, [$this->folder.DIRECTORY_SEPARATOR.'.env']);
-
-        self::assertSame([
-            'FOO'    => 'bar',
-            'BAR'    => 'baz',
-            'SPACED' => 'with spaces',
-            'NULL'   => '',
-        ], $dotenv->load());
+        $dotenv = Dotenv::createImmutable(self::$folder, 'unicodevarnames.env');
+        $dotenv->load();
+        self::assertSame('Skybert', $_SERVER['AlbertÅberg']);
+        self::assertSame('2022-04-01T00:00', $_SERVER['ДатаЗакрытияРасчетногоПериода']);
     }
 
-    public function testLatestConstructor()
+    public function testDirectConstructor()
     {
-        $loader = new Loader();
-        $repository = RepositoryBuilder::create()->immutable()->make();
-        $store = StoreBuilder::create()->withPaths($this->folder)->make();
+        $repository = RepositoryBuilder::createWithDefaultAdapters()->make();
+        $store = StoreBuilder::createWithDefaultName()->addPath(self::$folder)->make();
 
-        $dotenv = new Dotenv($loader, $repository, $store);
+        $dotenv = new Dotenv($store, new Parser(), new Loader(), $repository);
 
         self::assertSame([
             'FOO'    => 'bar',

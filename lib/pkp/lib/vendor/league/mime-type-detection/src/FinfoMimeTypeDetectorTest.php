@@ -21,6 +21,16 @@ class FinfoMimeTypeDetectorTest extends TestCase
     /**
      * @test
      */
+    public function detecting_a_csv(): void
+    {
+        $mimeType = $this->detector->detectMimeType('something.csv', '');
+
+        $this->assertEquals('text/csv', $mimeType);
+    }
+
+    /**
+     * @test
+     */
     public function detecting_mime_type_from_a_path(): void
     {
         $mimeType = $this->detector->detectMimeTypeFromPath('something.svg');
@@ -34,7 +44,7 @@ class FinfoMimeTypeDetectorTest extends TestCase
     public function detecting_mime_type_from_contents(): void
     {
         /** @var string $contents */
-        $contents = file_get_contents(__DIR__.'/../test_files/flysystem.svg');
+        $contents = file_get_contents(__DIR__ . '/../test_files/flysystem.svg');
 
         $mimeType = $this->detector->detectMimeType('flysystem.svg', $contents);
 
@@ -47,7 +57,21 @@ class FinfoMimeTypeDetectorTest extends TestCase
     public function detecting_mime_type_from_buffer(): void
     {
         /** @var string $contents */
-        $contents = file_get_contents(__DIR__.'/../test_files/flysystem.svg');
+        $contents = file_get_contents(__DIR__ . '/../test_files/flysystem.svg');
+
+        $mimeType = $this->detector->detectMimeTypeFromBuffer($contents);
+
+        $this->assertStringStartsWith('image/svg', $mimeType);
+    }
+
+    /**
+     * @test
+     */
+    public function detecting_mime_type_from_sampled_buffer(): void
+    {
+        $this->detector = new FinfoMimeTypeDetector('', null, 5);
+        /** @var string $contents */
+        $contents = file_get_contents(__DIR__ . '/../test_files/flysystem.svg');
 
         $mimeType = $this->detector->detectMimeTypeFromBuffer($contents);
 
@@ -69,9 +93,9 @@ class FinfoMimeTypeDetectorTest extends TestCase
      */
     public function detecting_from_a_file_location(): void
     {
-        $mimeType = $this->detector->detectMimeTypeFromFile(__DIR__.'/../test_files/flysystem.svg');
+        $mimeType = $this->detector->detectMimeTypeFromFile(__DIR__ . '/../test_files/flysystem.svg');
 
-        $this->assertEquals('image/svg', $mimeType);
+        $this->assertStringStartsWith('image/svg', $mimeType);
     }
 
     /**
@@ -80,7 +104,7 @@ class FinfoMimeTypeDetectorTest extends TestCase
     public function detecting_uses_extensions_when_a_resource_is_presented(): void
     {
         /** @var resource $handle */
-        $handle = fopen(__DIR__.'/../test_files/flysystem.svg', 'r+');
+        $handle = fopen(__DIR__ . '/../test_files/flysystem.svg', 'r+');
         fclose($handle);
 
         $mimeType = $this->detector->detectMimeType('flysystem.svg', $handle);

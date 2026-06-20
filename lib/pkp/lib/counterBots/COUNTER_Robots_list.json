@@ -4,10 +4,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "^Buck\\/[0-9]",
-    "last_changed": "2019-11-19"
-  },
-  {
     "pattern": "spider",
     "last_changed": "2017-08-08"
   },
@@ -32,6 +28,10 @@
     "last_changed": "2017-08-08"
   },
   {
+    "pattern": "^voyager\\/",
+    "last_changed": "2017-08-08"
+  },
+  {
     "pattern": "^@ozilla\\/\\d",
     "last_changed": "2017-08-08"
   },
@@ -48,8 +48,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "A6-Indexer",
-    "last_changed": "2019-11-19",
+    "pattern": "A6\\-Indexer",
+    "last_changed": "2018-09-05",
     "description": "A6 Corp's bot"
   },
   {
@@ -121,12 +121,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "axios\\/\\d",
-    "last_changed": "2022-03-04",
-    "description": "Promise based HTTP client for the browser and Node.js",
-    "url": "https://github.com/axios/axios"
-  },
-  {
     "pattern": "BDFetch",
     "last_changed": "2017-08-08"
   },
@@ -159,8 +153,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "blaiz-bee",
-    "last_changed": "2019-11-19"
+    "pattern": "blaiz\\-bee",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "bloglines",
@@ -171,12 +165,12 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "boitho\\.com-dc",
-    "last_changed": "2019-11-19"
+    "pattern": "boitho\\.com\\-dc",
+    "last_changed": "2017-08-08"
   },
   {
-    "pattern": "bookmark-manager",
-    "last_changed": "2019-11-19"
+    "pattern": "bookmark\\-manager",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "Brutus\\/AET",
@@ -215,11 +209,6 @@
   {
     "pattern": "China\\sLocal\\sBrowse\\s2\\.6",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "Citoid",
-    "last_changed": "2020-02-25",
-    "url": "https://www.mediawiki.org/wiki/Citoid"
   },
   {
     "pattern": "cloakDetect",
@@ -266,20 +255,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Cortana",
-    "last_changed": "2019-10-30",
-    "description": "Cortana is a virtual assistant created by Microsoft",
-    "url": "https://www.microsoft.com/en-us/cortana"
-  },
-  {
     "pattern": "CoverScout",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "crusty\\/\\d",
-    "last_changed": "2021-07-05",
-    "description": "Crusty web crawler",
-    "url": "https://github.com/let4be/crusty"
   },
   {
     "pattern": "curl\\/",
@@ -298,9 +275,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "daum(oa)?",
-    "last_changed": "2020-09-10",
-    "url": "https://cs.daum.net/faq/15/4118.html?faqId=28966"
+    "pattern": "daumoa",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "^\\%?default\\%?$",
@@ -329,11 +305,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Drupal",
-    "last_changed": "2020-07-20",
-    "description": "Drupal is a content management system. Some Drupal instances perform harvesting or crawling of web resources and should be ignored."
-  },
-  {
     "pattern": "DSurf",
     "last_changed": "2017-08-08"
   },
@@ -355,10 +326,6 @@
   {
     "pattern": "EBSCO\\sEJS\\sContent\\sServer",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "EcoSearch",
-    "last_changed": "2020-07-02"
   },
   {
     "pattern": "ELinks\\/",
@@ -389,17 +356,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Faveeo\\/\\d",
-    "last_changed": "2022-03-04",
-    "url": "https://www.faveeo.com"
-  },
-  {
     "pattern": "FDM(\\s|\\+)\\d",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "Feedbin",
-    "last_changed": "2019-01-22"
   },
   {
     "pattern": "feedburner",
@@ -468,10 +426,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "GigablastOpenSource",
-    "last_changed": "2020-07-02"
-  },  
-  {
     "pattern": "G-i-g-a-b-o-t",
     "last_changed": "2018-02-15",
     "description": "Self-explanatory!"
@@ -493,12 +447,6 @@
     "last_changed": "2018-02-15",
     "description": "Grammarly/1.0 bot is a web scraping bot used by the writing tool Grammarly. Grammarly allows users to upload written pieces of work and then scrapes the content looking for grammar mistakes. Grammarly makes sure that everything users type is easy to read, effective, and mistake-free.",
     "url": "https://www.distilnetworks.com/bot-directory/bot/grammarly1-0/"
-  },
-  {
-    "pattern": "GroupHigh\\/\\d",
-    "last_changed": "2022-03-04",
-    "description": "GroupHigh is an essential content marketing tool",
-    "url": "https://www.grouphigh.com"
   },
   {
     "pattern": "grub",
@@ -533,12 +481,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "HeadlessChrome",
-    "last_changed": "2021-12-07",
-    "description": "Headless Chrome is used to automate Chrome requests for testing purposes.",
-    "url": "https://developers.google.com/web/updates/2017/04/headless-chrome"
-  },
-  {
     "pattern": "HttpComponents\\/1.1",
     "last_changed": "2017-08-08"
   },
@@ -553,11 +495,6 @@
   {
     "pattern": "httpget",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "httpx",
-    "last_changed": "2021-11-23",
-    "url": "https://github.com/projectdiscovery/httpx"
   },
   {
     "pattern": "httrack",
@@ -612,18 +549,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Jersey\\/\\d",
-    "last_changed": "2020-02-07"
-  },
-  {
     "pattern": "jobo",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "Koha",
-    "last_changed": "2021-12-29",
-    "description": "Scan all URLs found in of Koha records and displays if resources are available or not.",
-    "url": "https://wiki.koha-community.org/wiki/Check-url_enhancements"
   },
   {
     "pattern": "kyluka",
@@ -648,10 +575,6 @@
   {
     "pattern": "lilina",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "^LinkAnalyser",
-    "last_changed": "2019-11-19"
   },
   {
     "pattern": "link.?check",
@@ -712,22 +635,16 @@
     "last_changed": "2018-12-13"
   },
   {
-    "pattern": "MaCoCu",
-    "last_changed": "2021-11-23",
-    "url": "https://www.clarin.si/info/macocu-massive-collection-and-curation-of-monolingual-and-bilingual-data/"
-  },
-  {
-    "pattern": "mail\\.ru",
-    "url": "https://help.mail.ru/webmaster/indexing/robots.txt/rules/user-agent",
+    "pattern": "mail.ru",
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "MarcEdit",
-    "last_changed": "2019-12-12"
+    "pattern": "MarcEdit.5.2.Web.Client",
+    "last_changed": "2017-08-08"
   },
   {
-    "pattern": "mediapartners-google",
-    "last_changed": "2019-11-19"
+    "pattern": "mediapartners\\-google",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "megite",
@@ -834,18 +751,12 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "newspaper\\/\\d",
-    "last_changed": "2021-07-05",
-    "description": "Python 3 library for news, full-text, and article metadata extraction.",
-    "url": "https://github.com/codelucas/newspaper"
-  },
-  {
     "pattern": "ng\\/2\\.",
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "^Ning\\/\\d",
-    "last_changed": "2019-08-06"
+    "pattern": "Ning",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "no_user_agent",
@@ -874,12 +785,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "OgScrper",
-    "last_changed": "2020-07-02"
-  }, 
-  {
-    "pattern": "okhttp",
-    "last_changed": "2020-02-25",
+    "pattern": "^okhttp$",
+    "last_changed": "2018-02-15",
     "description": "okhttp is a Java HTTP client library.",
     "url": "http://square.github.io/okhttp/"
   },
@@ -904,16 +811,11 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "^Pattern\\/\\d",
-    "last_changed": "2020-02-25",
-    "url": "https://www.clips.uantwerpen.be/pattern"
+    "pattern": "Pcore\\-HTTP",
+    "last_changed": "2018-07-12"
   },
   {
-    "pattern": "Pcore-HTTP",
-    "last_changed": "2019-11-19"
-  },
-  {
-    "pattern": "pear\\.php\\.net",
+    "pattern": "pear.php.net",
     "last_changed": "2017-08-08"
   },
   {
@@ -923,12 +825,6 @@
   {
     "pattern": "PHP\\/",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "pidcheck",
-    "last_changed": "2019-10-18",
-    "description": "PidCheck is a generic crawler for extracting data about PiD's from landing pages and doing some calculation on the health of the link",
-    "url": "https://github.com/datacite/pidcheck"
   },
   {
     "pattern": "pioneer",
@@ -969,10 +865,6 @@
   {
     "pattern": "rambler",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "ReactorNetty\\/\\d",
-    "last_changed": "2020-02-07"
   },
   {
     "pattern": "Readpaper",
@@ -1017,11 +909,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "ScoutJet",
-    "last_changed": "2019-02-12",
-    "url": "http://www.scoutjet.com/"
-  },
-  {
     "pattern": "^scrutiny\\/\\d",
     "last_changed": "2017-08-08"
   },
@@ -1032,10 +919,6 @@
   {
     "pattern": "shoutcast",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "Site24x7",
-    "last_changed": "2020-02-14"
   },
   {
     "pattern": "SkypeUriPreview",
@@ -1052,16 +935,6 @@
   {
     "pattern": "speedy",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "sqlmap",
-    "last_changed": "2020-02-25",
-    "url": "https://github.com/sqlmapproject/sqlmap"
-  },
-  {
-    "pattern": "SrceDAMP",
-    "last_changed": "2020-10-20",
-    "url": "https://haw.nsk.hr/en/frequently-asked-questions/"
   },
   {
     "pattern": "Strider",
@@ -1096,8 +969,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "The[\\+\\s]Knowledge[\\+\\s]AI",
-    "last_changed": "2021-11-23",
+    "pattern": "The\\+Knowledge\\+AI",
+    "last_changed": "2018-09-05",
     "url": "https://www.webmasterworld.com/search_engine_spiders/4896765.htm"
   },
   {
@@ -1109,27 +982,12 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Trello",
-    "last_changed": "2021-03-30"
-  },
-  {
     "pattern": "Trove",
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Turnitin",
-    "last_changed": "2020-07-01",
-    "description": "This robot collects content from the Internet for the sole purpose of helping educational institutions prevent plagiarism.",
-    "url": "https://turnitin.com/robot/crawlerinfo.html"
-  },
-  {
     "pattern": "twiceler",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "Typhoeus",
-    "last_changed": "2020-02-25",
-    "url": "https://github.com/typhoeus/typhoeus"
   },
   {
     "pattern": "ucsd",
@@ -1148,10 +1006,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Unpaywall",
-    "last_changed": "2019-07-31"
-  },
-  {
     "pattern": "URL2File",
     "last_changed": "2017-08-08"
   },
@@ -1166,10 +1020,6 @@
   {
     "pattern": "^user.?agent$",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "^User-Agent",
-    "last_changed": "2019-11-19"
   },
   {
     "pattern": "validator",
@@ -1192,9 +1042,7 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "w3af\\.org",
-    "description": "Web Application Attack and Audit Framework",
-    "url": "https://w3af.org/",
+    "pattern": "w3af.org",
     "last_changed": "2017-08-08"
   },
   {
@@ -1238,10 +1086,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "weborama-fetcher",
-    "last_changed": "2019-11-19"
-  },
-  {
     "pattern": "webreaper",
     "last_changed": "2017-08-08"
   },
@@ -1258,10 +1102,6 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "WhatsApp",
-    "last_changed": "2021-03-30"
-  },
-  {
     "pattern": "wordpress",
     "last_changed": "2017-08-08"
   },
@@ -1274,8 +1114,8 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "WWW-Mechanize",
-    "last_changed": "2019-11-19"
+    "pattern": "WWW\\-Mechanize",
+    "last_changed": "2017-08-08"
   },
   {
     "pattern": "xenu",
@@ -1298,32 +1138,11 @@
     "last_changed": "2017-08-08"
   },
   {
-    "pattern": "Yeti\\/\\d",
-    "last_changed": "2019-02-12",
-    "url": "http://naver.me/spd"
-  },
-  {
-    "pattern": "Zabbix",
-    "last_changed": "2021-11-23",
-    "url": "https://github.com/zabbix/zabbix"
-  },
-  {
-    "pattern": "ZoteroTranslationServer",
-    "last_changed": "2022-03-04",
-    "description": "A Node.js-based server to run Zotero translators",
-    "url": "https://github.com/zotero/translation-server"
-  },
-  {
     "pattern": "zeus",
     "last_changed": "2017-08-08"
   },
   {
     "pattern": "zyborg",
     "last_changed": "2017-08-08"
-  },
-  {
-    "pattern": "7siters",
-    "last_changed": "2020-02-25",
-    "url": "https://7ooo.ru/siters"
   }
 ]

@@ -12,23 +12,22 @@ Loads environment variables from `.env` to `getenv()`, `$_ENV` and `$_SERVER` au
 </p>
 
 
-Why .env?
----------
+## Why .env?
 
 **You should never store sensitive credentials in your code**. Storing
-[configuration in the environment](http://www.12factor.net/config) is one of
-the tenets of a [twelve-factor app](http://www.12factor.net/). Anything that is
-likely to change between deployment environments – such as database credentials
-or credentials for 3rd party services – should be extracted from the code into
-environment variables.
+[configuration in the environment](https://www.12factor.net/config) is one of
+the tenets of a [twelve-factor app](https://www.12factor.net/). Anything that
+is likely to change between deployment environments – such as database
+credentials or credentials for 3rd party services – should be extracted from
+the code into environment variables.
 
 Basically, a `.env` file is an easy way to load custom configuration variables
 that your application needs without having to modify .htaccess files or
 Apache/nginx virtual hosts. This means you won't have to edit any files outside
 the project, and all the environment variables are always set no matter how you
-run your project - Apache, Nginx, CLI, and even PHP 5.4's built-in webserver.
-It's WAY easier than all the other ways you know of to set environment
-variables, and you're going to love it!
+run your project - Apache, Nginx, CLI, and even PHP's built-in webserver. It's
+WAY easier than all the other ways you know of to set environment variables,
+and you're going to love it!
 
 * NO editing virtual hosts in Apache or Nginx
 * NO adding `php_value` flags to .htaccess files
@@ -39,8 +38,7 @@ PHP dotenv is a PHP version of the original [Ruby
 dotenv](https://github.com/bkeepers/dotenv).
 
 
-Installation with Composer
---------------------------
+## Installation
 
 Installation is super-easy via [Composer](https://getcomposer.org/):
 
@@ -51,44 +49,14 @@ $ composer require vlucas/phpdotenv
 or add it by hand to your `composer.json` file.
 
 
-UPGRADING FROM V3
------------------
+## Upgrading
 
-Version 4 sees some refactoring, and support for escaping dollars in values
-(https://github.com/vlucas/phpdotenv/pull/380). It is no longer possible to
-change immutability on the fly, and the `Loader` no longer is responsible for
-tracking immutability. It is now the responsibility of "repositories" to track
-this. One must explicitly decide if they want (im)mutability when constructing
-an instance of `Dotenv\Dotenv`.
-
-For more details, please see the
-[release notes](https://github.com/vlucas/phpdotenv/releases/tag/v4.0.0) and
-the [upgrading guide](UPGRADING.md).
+We follow [semantic versioning](https://semver.org/), which means breaking
+changes may occur between major releases. We have upgrading guides available
+for V2 to V3, V3 to V4 and V4 to V5 available [here](UPGRADING.md).
 
 
-UPGRADING FROM V2
------------------
-
-New in Version 3 is first-class support for multiline variables
-([#301](https://github.com/vlucas/phpdotenv/pull/301)) and much more
-flexibility in terms of which parts of the environment we try to read and
-modify ([#300](https://github.com/vlucas/phpdotenv/pull/300)). Consequently,
-you will need to replace any occurrences of `new Dotenv(...)` with
-`Dotenv::create(...)`, since our new native constructor takes a `Loader`
-instance now, so that it can be truly customized if required. Finally, one
-should note that the loader will no longer be trimming values
-([#302](https://github.com/vlucas/phpdotenv/pull/302)), moreover
-`Loader::load()` and its callers now return an associative array of the
-variables loaded with their values, rather than an array of raw lines from the
-environment file ([#306](https://github.com/vlucas/phpdotenv/pull/306)).
-
-For more details, please see the
-[release notes](https://github.com/vlucas/phpdotenv/releases/tag/v3.0.0) and
-the [upgrading guide](UPGRADING.md).
-
-
-Usage
------
+## Usage
 
 The `.env` file is generally kept out of version control since it can contain
 sensitive API keys and passwords. A separate `.env.example` file is created
@@ -130,15 +98,38 @@ $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 ```
 
-Optionally you can pass in a filename as the second parameter, if you would like to use something other than `.env`
+To suppress the exception that is thrown when there is no `.env` file, you can:
+
+```php
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->safeLoad();
+```
+
+Optionally you can pass in a filename as the second parameter, if you would
+like to use something other than `.env`:
 
 ```php
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__, 'myconfig');
 $dotenv->load();
 ```
 
-All of the defined variables are now accessible with the `getenv`
-method, and are available in the `$_ENV` and `$_SERVER` super-globals.
+All of the defined variables are now available in the `$_ENV` and `$_SERVER`
+super-globals.
+
+```php
+$s3_bucket = $_ENV['S3_BUCKET'];
+$s3_bucket = $_SERVER['S3_BUCKET'];
+```
+
+
+### Putenv and Getenv
+
+Using `getenv()` and `putenv()` is strongly discouraged due to the fact that
+these functions are not thread safe, however it is still possible to instruct
+PHP dotenv to use these functions. Instead of calling
+`Dotenv::createImmutable`, one can call `Dotenv::createUnsafeImmutable`, which
+will add the `PutenvAdapter` behind the scenes. Your environment variables will
+now be available using the `getenv` method, as well as the super-globals:
 
 ```php
 $s3_bucket = getenv('S3_BUCKET');
@@ -146,15 +137,6 @@ $s3_bucket = $_ENV['S3_BUCKET'];
 $s3_bucket = $_SERVER['S3_BUCKET'];
 ```
 
-You should also be able to access them using your framework's Request
-class (if you are using a framework).
-
-```php
-$s3_bucket = $request->env('S3_BUCKET');
-$s3_bucket = $request->getEnv('S3_BUCKET');
-$s3_bucket = $request->server->get('S3_BUCKET');
-$s3_bucket = env('S3_BUCKET');
-```
 
 ### Nesting Variables
 
@@ -168,6 +150,7 @@ BASE_DIR="/var/webroot/project-root"
 CACHE_DIR="${BASE_DIR}/cache"
 TMP_DIR="${BASE_DIR}/tmp"
 ```
+
 
 ### Immutability and Repository Customization
 
@@ -186,14 +169,9 @@ values by default, which is relevant if one is calling the "create" method
 using the `RepositoryBuilder` to construct a more custom repository:
 
 ```php
-$repository = Dotenv\Repository\RepositoryBuilder::create()
-    ->withReaders([
-        new Dotenv\Repository\Adapter\EnvConstAdapter(),
-    ])
-    ->withWriters([
-        new Dotenv\Repository\Adapter\EnvConstAdapter(),
-        new Dotenv\Repository\Adapter\PutenvAdapter(),
-    ])
+$repository = Dotenv\Repository\RepositoryBuilder::createWithNoAdapters()
+    ->addAdapter(Dotenv\Repository\Adapter\EnvConstAdapter::class)
+    ->addWriter(Dotenv\Repository\Adapter\PutenvAdapter::class)
     ->immutable()
     ->make();
 
@@ -205,12 +183,24 @@ The above example will write loaded values to `$_ENV` and `putenv`, but when
 interpolating environment variables, we'll only read from `$_ENV`. Moreover, it
 will never replace any variables already set before loading the file.
 
+By means of another example, one can also specify a set of variables to be
+allow listed. That is, only the variables in the allow list will be loaded:
 
-Requiring Variables to be Set
------------------------------
+```php
+$repository = Dotenv\Repository\RepositoryBuilder::createWithDefaultAdapters()
+    ->allowList(['FOO', 'BAR'])
+    ->make();
 
-Using Dotenv, you can require specific ENV vars to be defined ($_ENV, $_SERVER or getenv()) - throws an exception otherwise.
-Note: It does not check for existence of a variable in a '.env' file. This is particularly useful to let people know any explicit required variables that your app will not work without.
+$dotenv = Dotenv\Dotenv::create($repository, __DIR__);
+$dotenv->load();
+```
+
+
+### Requiring Variables to be Set
+
+PHP dotenv has built in validation functionality, including for enforcing the
+presence of an environment variable. This is particularly useful to let people
+know any explicit required variables that your app will not work without.
 
 You can use a single string:
 
@@ -230,6 +220,7 @@ If any ENV vars are missing, Dotenv will throw a `RuntimeException` like this:
 One or more environment variables failed assertions: DATABASE_DSN is missing
 ```
 
+
 ### Empty Variables
 
 Beyond simply requiring a variable to be set, you might also need to ensure the
@@ -245,9 +236,11 @@ If the environment variable is empty, you'd get an Exception:
 One or more environment variables failed assertions: DATABASE_DSN is empty
 ```
 
+
 ### Integer Variables
 
-You might also need to ensure that the variable is of an integer value. You may do the following:
+You might also need to ensure that the variable is of an integer value. You may
+do the following:
 
 ```php
 $dotenv->required('FOO')->isInteger();
@@ -256,12 +249,22 @@ $dotenv->required('FOO')->isInteger();
 If the environment variable is not an integer, you'd get an Exception:
 
 ```
-One or more environment variables failed assertions: FOO is not an integer
+One or more environment variables failed assertions: FOO is not an integer.
 ```
+
+One may only want to enforce validation rules when a variable is set. We
+support this too:
+
+```php
+$dotenv->ifPresent('FOO')->isInteger();
+```
+
 
 ### Boolean Variables
 
-You may need to ensure a variable is in the form of a boolean, accepting "true", "false", "On", "1", "Yes", "Off", "0" and "No". You may do the following:
+You may need to ensure a variable is in the form of a boolean, accepting
+"true", "false", "On", "1", "Yes", "Off", "0" and "No". You may do the
+following:
 
 ```php
 $dotenv->required('FOO')->isBoolean();
@@ -270,8 +273,15 @@ $dotenv->required('FOO')->isBoolean();
 If the environment variable is not a boolean, you'd get an Exception:
 
 ```
-One or more environment variables failed assertions: FOO is not a boolean
+One or more environment variables failed assertions: FOO is not a boolean.
 ```
+
+Similarly, one may write:
+
+```php
+$dotenv->ifPresent('FOO')->isBoolean();
+```
+
 
 ### Allowed Values
 
@@ -287,14 +297,14 @@ If the environment variable wasn't in this list of allowed values, you'd get a
 similar Exception:
 
 ```
-One or more environment variables failed assertions: SESSION_STORE is not an
-allowed value
+One or more environment variables failed assertions: SESSION_STORE is not an allowed value.
 ```
 
 It is also possible to define a regex that your environment variable should be.
 ```php
 $dotenv->required('FOO')->allowedRegexValues('([[:lower:]]{3})');
 ```
+
 
 ### Comments
 
@@ -306,28 +316,47 @@ VAR="value" # comment
 VAR=value # comment
 ```
 
-Usage Notes
------------
+
+### Parsing Without Loading
+
+Sometimes you just wanna parse the file and resolve the nested environment variables, by giving us a string, and have an array returned back to you. While this is already possible, it is a little fiddly, so we have provided a direct way to do this:
+
+```php
+// ['FOO' => 'Bar', 'BAZ' => 'Hello Bar']
+Dotenv\Dotenv::parse("FOO=Bar\nBAZ=\"Hello \${FOO}\"");
+```
+
+This is exactly the same as:
+
+```php
+Dotenv\Dotenv::createArrayBacked(__DIR__)->load();
+```
+
+only, instead of providing the directory to find the file, you have directly provided the file contents.
+
+
+### Usage Notes
 
 When a new developer clones your codebase, they will have an additional
-**one-time step** to manually copy the `.env.example` file to `.env` and fill-in
+one-time step to manually copy the `.env.example` file to `.env` and fill-in
 their own values (or get any sensitive values from a project co-worker).
 
 
-Security
---------
+### Troubleshooting
 
-If you discover a security vulnerability within this package, please send an email to Graham Campbell at graham@alt-three.com. All security vulnerabilities will be promptly addressed. You may view our full security policy [here](https://github.com/vlucas/phpdotenv/security/policy).
+In certain server setups (most commonly found in shared hosting), PHP might deactivate superglobals like `$_ENV` or `$_SERVER`. If these variables are not set, review the `variables_order` in the `php.ini` file. See [php.net/manual/en/ini.core.php#ini.variables-order](https://www.php.net/manual/en/ini.core.php#ini.variables-order).
+
+## Security
+
+If you discover a security vulnerability within this package, please send an email to security@tidelift.com. All security vulnerabilities will be promptly addressed. You may view our full security policy [here](https://github.com/vlucas/phpdotenv/security/policy).
 
 
-License
--------
+## License
 
 PHP dotenv is licensed under [The BSD 3-Clause License](LICENSE).
 
 
-For Enterprise
---------------
+## For Enterprise
 
 Available as part of the Tidelift Subscription
 

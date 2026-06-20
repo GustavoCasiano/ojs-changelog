@@ -6,7 +6,7 @@
  * Copyright (c) 2018-2019 University Library Heidelberg
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
- * Page template to display from the OrcidHandler to show ORCID verification success or failure.
+ * Page template to display from the OrcidProfileHandler to show ORCID verification success or failure.
  *}
 {include file="frontend/components/header.tpl"}
 
@@ -46,12 +46,12 @@
             {elseif $duplicateOrcid}
                 {translate key="plugins.generic.orcidProfile.verify.duplicateOrcid"}
             {elseif $denied}
-                {translate key="plugins.generic.orcidProfile.authDenied"}
-            {elseif $authFailure}
-                {translate key="plugins.generic.orcidProfile.authFailure"}
-            {else}
-                {translate key="plugins.generic.orcidProfile.verify.failure"}
-            {/if}
+			{translate key="plugins.generic.orcidProfile.authDenied"}
+		{elseif $authFailure}
+			{translate key="plugins.generic.orcidProfile.authFailure"}
+		{else}
+			{translate key="plugins.generic.orcidProfile.verify.failure"}
+		{/if}
 		</div>
 		{translate key="plugins.generic.orcidProfile.failure.contact"}
 	{/if}

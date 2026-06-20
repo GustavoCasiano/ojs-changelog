@@ -11,6 +11,8 @@
 
 namespace Composer\Semver\Constraint;
 
+use Exception;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 use Composer\Semver\Intervals;
 
@@ -25,7 +27,11 @@ class ConstraintTest extends TestCase
      */
     protected $versionProvide;
 
-    protected function setUp()
+    /**
+     * @before
+     * @return void
+     */
+    public function setUpTestCase()
     {
         $this->constraint = new Constraint('==', '1');
         $this->versionProvide = new Constraint('==', 'dev-foo');
@@ -373,33 +379,29 @@ class ConstraintTest extends TestCase
     public function testInverseMatchingOtherConstraints()
     {
         $constraint = new Constraint('>', '1.0.0');
+        $otherConstraintClasses = array(
+            'Composer\Semver\Constraint\MultiConstraint',
+            'Composer\Semver\Constraint\MatchAllConstraint'
+        );
 
-        $multiConstraint = $this
-            ->getMockBuilder('Composer\Semver\Constraint\MultiConstraint')
-            ->disableOriginalConstructor()
-            ->setMethods(array('matches'))
-            ->getMock()
-        ;
-
-        $matchAllConstraint = $this
-            ->getMockBuilder('Composer\Semver\Constraint\MatchAllConstraint')
-            ->setMethods(array('matches'))
-            ->getMock()
-        ;
-
-        foreach (array($multiConstraint, $matchAllConstraint) as $mock) {
-            $mock
+        foreach ($otherConstraintClasses as $otherConstraintClass) {
+            $otherConstraintMockBuilder =  $this->getMockBuilder($otherConstraintClass);
+            $otherConstraintMockBuilder->disableOriginalConstructor();
+            if (method_exists($otherConstraintMockBuilder, 'onlyMethods')) {
+                $otherConstraintMockBuilder->onlyMethods(array('matches'));
+            } elseif (method_exists($otherConstraintMockBuilder, 'setMethods')) {
+                $otherConstraintMockBuilder->setMethods(array('matches'));
+            }
+            $otherConstraintMock = $otherConstraintMockBuilder->getMock();
+            $otherConstraintMock
                 ->expects($this->once())
                 ->method('matches')
                 ->with($constraint)
                 ->willReturn(true)
             ;
+            /** @var ConstraintInterface $otherConstraintMock */
+            $this->assertTrue($constraint->matches($otherConstraintMock));
         }
-
-        // @phpstan-ignore-next-line
-        $this->assertTrue($constraint->matches($multiConstraint));
-        // @phpstan-ignore-next-line
-        $this->assertTrue($constraint->matches($matchAllConstraint));
     }
 
     public function testComparableBranches()
@@ -426,7 +428,7 @@ class ConstraintTest extends TestCase
      *
      * @param string $version
      * @param Constraint::STR_OP_* $operator
-     * @param class-string $expected
+     * @param class-string<Exception> $expected
      */
     public function testInvalidOperators($version, $operator, $expected)
     {
@@ -438,7 +440,7 @@ class ConstraintTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function invalidOperators()
+    public static function invalidOperators()
     {
         return array(
             array('1.2.3', 'invalid', 'InvalidArgumentException'),
@@ -466,7 +468,7 @@ class ConstraintTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function bounds()
+    public static function bounds()
     {
         return array(
             'equal to 1.0.0.0' => array('==', '1.0.0.0', new Bound('1.0.0.0', true), new Bound('1.0.0.0', true)),
@@ -535,7 +537,7 @@ class ConstraintTest extends TestCase
     /**
      * @return array<mixed>
      */
-    public function matrix()
+    public static function matrix()
     {
         $versions = array('1.0', '2.0', 'dev-master', 'dev-foo', '3.0-b2', '3.0-beta2');
         $operators = array('==', '!=', '>', '<', '>=', '<=');
@@ -580,16 +582,17 @@ class ConstraintTest extends TestCase
     }
 
     /**
-     * @param  class-string $class
+     * @param  class-string<Exception> $class
      * @return void
      */
     private function doExpectException($class)
     {
         if (method_exists($this, 'expectException')) {
             $this->expectException($class);
-        } else {
-            // @phpstan-ignore-next-line
+        } elseif (method_exists($this, 'setExpectedException')) {
             $this->setExpectedException($class);
+        } else {
+            throw new LogicException('Expected method "expectException" or "setExpectedException" to exist.');
         }
     }
 }

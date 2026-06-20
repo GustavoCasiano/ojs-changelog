@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit927e36ccc07f8851316bb06292411ea8
+class ComposerStaticInit1a057720c09bafdcf5675acfa0c9ad21
 {
     public static $files = array (
         'fccd6c30fa70f56cfd048c001bd392f4' => __DIR__ . '/..' . '/seboettg/collection/src/ArrayList/Functions.php',
@@ -46,9 +46,9 @@ class ComposerStaticInit927e36ccc07f8851316bb06292411ea8
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit927e36ccc07f8851316bb06292411ea8::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit927e36ccc07f8851316bb06292411ea8::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit927e36ccc07f8851316bb06292411ea8::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit1a057720c09bafdcf5675acfa0c9ad21::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit1a057720c09bafdcf5675acfa0c9ad21::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit1a057720c09bafdcf5675acfa0c9ad21::$classMap;
 
         }, null, ClassLoader::class);
     }

@@ -18,6 +18,7 @@ msgstr ""
 msgid "plugins.generic.webfeed.displayName"
 msgstr "Programutvidelse for webstrømmer"
 
+#, fuzzy
 msgid "plugins.generic.webfeed.description"
 msgstr ""
 "Denne programutvidelsen skaper en RSS/Atom-strøm for siste utgave av "
@@ -29,18 +30,22 @@ msgstr "Innstillinger"
 msgid "plugins.generic.webfeed.settings.issue"
 msgstr "Vis webstrømlenker bare på utgavesidene."
 
+#, fuzzy
 msgid "plugins.generic.webfeed.settings.homepage"
 msgstr "Vis webstrømlenker både på hjemmesiden og på utgavesidene."
 
+#, fuzzy
 msgid "plugins.generic.webfeed.settings.all"
 msgstr "Vis webstrømlenker på alle sider."
 
 msgid "plugins.generic.webfeed.settings.currentIssue"
 msgstr "Vis elementer i inneværende nummer."
 
+#, fuzzy
 msgid "plugins.generic.webfeed.settings.recent"
 msgstr "Vis et fast antall av de nyeste elementene."
 
+#, fuzzy
 msgid "plugins.generic.webfeed.settings.recentArticles"
 msgstr "Antall elementer til visning"
 

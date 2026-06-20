@@ -20,6 +20,16 @@ This package supplies a generic mime-type detection interface with a
 composer require league/mime-type-detection
 ```
 
+## Consumer interface
+
+Your code is advised to couple to the following interfaces:
+
+- `League\MimetypeDetection\MimeTypeDetector`<br/>
+  This contract is used to detect mimetypes based on file names and file contents.
+- `League\MimetypeDetection\ExtensionLookup`<br/>
+  This contract is used to lookup one or all mimetypes for a given file extension.
+  Added in `1.13.0`.
+
 ### Detectors
 
 Finfo with extension fallback:
@@ -38,6 +48,13 @@ $mimeType = $detector->detectMimeTypeFromFile('existing/path.php');
 
 // Only detect by extension
 $mimeType = $detector->detectMimeTypeFromPath('any/path.php');
+
+// Constructor options
+$detector = new League\MimeTypeDetection\FinfoMimeTypeDetector(
+  $pathToMimeDatabase, // Custom mime database location, default: ''
+  $customExtensionMap, // Custom extension fallback mapp, default: null
+  $bufferSampleSize // Buffer size limit, used to take a sample (substr) from the input buffer to reduce memory consumption.
+);
 ```
 
 Extension only:
@@ -45,7 +62,7 @@ Extension only:
 ```php
 $detector = new League\MimeTypeDetection\ExtensionMimeTypeDetector();
 
-// Only detect by extension
+// Only detect by extension, ignores the file contents
 $mimeType = $detector->detectMimeType('some/path.php', 'string contents');
 
 // Always returns null
@@ -56,6 +73,21 @@ $mimeType = $detector->detectMimeTypeFromFile('existing/path.php');
 
 // Only detect by extension
 $mimeType = $detector->detectMimeTypeFromPath('any/path.php');
+```
+
+## Extension lookup by mime-type
+
+> This feature was added in version `1.13.0`
+
+The various implementations can look up the extensions that can be used for
+a given mime-type.
+
+```
+// string | null
+$extension = $detector->lookupExtension($mime$type);
+
+// array<string>
+$allExtensions = $detector->lookupAllExtensions($mimeType);
 ```
 
 ## Extension mime-type lookup
@@ -73,6 +105,16 @@ Generated:
 $map = new League\MimeTypeDetection\GeneratedExtensionToMimeTypeMap();
 
 // string mime-type or NULL
+$mimeType = $map->lookupMimeType('png');
+```
+
+Overriding decorator
+
+```php
+$innerMap = new League\MimeTypeDetection\GeneratedExtensionToMimeTypeMap();
+$map = new League\MimeTypeDetection\OverridingExtensionToMimeTypeMap($innerMap, ['png' => 'custom/mimetype']);
+
+// string "custom/mimetype"
 $mimeType = $map->lookupMimeType('png');
 ```
 

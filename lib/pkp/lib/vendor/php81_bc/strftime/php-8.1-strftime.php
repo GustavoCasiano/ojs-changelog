@@ -1,1 +1,0 @@
-    $locale = $locale ?? \AppLocale::getLocale();

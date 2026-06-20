@@ -26,9 +26,6 @@
  * @return string |void
  * @uses   smarty_make_timestamp()
  */
-
-use function PHP81_BC\strftime;
-
 function smarty_modifier_date_format($string, $format = null, $default_date = '', $formatter = 'auto')
 {
     if ($format === null) {
