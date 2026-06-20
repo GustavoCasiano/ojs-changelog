@@ -25,7 +25,7 @@ class ContextGridHandler extends GridHandler {
 		$this->addRoleAssignment(array(
 			ROLE_ID_SITE_ADMIN),
 			array('fetchGrid', 'fetchRow', 'createContext', 'editContext', 'updateContext', 'users',
-				'deleteContext', 'saveSequence')
+				'saveSequence')
 		);
 	}
 
@@ -243,28 +243,13 @@ class ContextGridHandler extends GridHandler {
 
 	/**
 	 * Delete a context.
+	 * PATCHED: journal deletion is disabled for security reasons.
 	 * @param $args array
 	 * @param $request PKPRequest
 	 * @return JSONMessage JSON object
 	 */
 	function deleteContext($args, $request) {
-
-		if (!$request->checkCSRF()) {
-			return new JSONMessage(false);
-		}
-
-		import('classes.core.Services');
-		$contextService = Services::get('context');
-
-		$context = $contextService->get((int) $request->getUserVar('rowId'));
-
-		if (!$context) {
-			return new JSONMessage(false);
-		}
-
-		$contextService->delete($context);
-
-		return DAO::getDataChangedEvent($context->getId());
+		return new JSONMessage(false, __('common.forbidden'));
 	}
 
 	/**

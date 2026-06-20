@@ -50,19 +50,7 @@ class ContextGridRow extends GridRow {
 				'edit'
 			)
 		);
-		$this->addAction(
-			new LinkAction(
-				'delete',
-				new RemoteActionConfirmationModal(
-					$request->getSession(),
-					__('admin.contexts.confirmDelete', array('contextName' => $element->getLocalizedName())),
-					null,
-					$router->url($request, null, null, 'deleteContext', null, array('rowId' => $rowId))
-					),
-				__('grid.action.remove'),
-				'delete'
-			)
-		);
+		// PATCHED: journal deletion button is disabled for security reasons.
 		import('lib.pkp.classes.linkAction.request.RedirectAction');
 		$dispatcher = $router->getDispatcher();
 		$this->addAction(

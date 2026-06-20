@@ -460,6 +460,7 @@ class PKPContextHandler extends APIHandler {
 
 	/**
 	 * Delete a context
+	 * PATCHED: journal deletion is disabled for security reasons.
 	 * @param $slimRequest Request Slim request object
 	 * @param $response Response object
 	 * @param array $args arguments
@@ -467,33 +468,6 @@ class PKPContextHandler extends APIHandler {
 	 * @return Response
 	 */
 	public function delete($slimRequest, $response, $args) {
-
-		// This endpoint is only available at the site-wide level
-		if ($this->getRequest()->getContext()) {
-			return $response->withStatus(404)->withJsonError('api.submissions.404.siteWideEndpoint');
-		}
-
-		$userRoles = $this->getAuthorizedContextObject(ASSOC_TYPE_USER_ROLES);
-		if (!in_array(ROLE_ID_SITE_ADMIN, $userRoles)) {
-			$response->withStatus(403)->withJsonError('api.contexts.403.notAllowedDelete');
-		}
-
-		$contextId = (int) $args['contextId'];
-
-		$contextService = Services::get('context');
-		$context = $contextService->get($contextId);
-
-		if (!$context) {
-			return $response->withStatus(404)->withJsonError('api.contexts.404.contextNotFound');
-		}
-
-		$contextProps = $contextService->getSummaryProperties($context, array(
-			'request' => $this->getRequest(),
-			'slimRequest' 	=> $slimRequest
-		));
-
-		$contextService->delete($context);
-
-		return $response->withJson($contextProps, 200);
+		return $response->withStatus(403)->withJsonError('api.contexts.403.notAllowedDelete');
 	}
 }
