@@ -26,8 +26,9 @@ use Illuminate\Support\Facades\Mail;
 use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
+use PKP\db\DAORegistry;
 use PKP\facades\Locale;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\submission\reviewAssignment\ReviewAssignment;
 use PKP\submission\reviewer\form\PKPReviewerReviewStep3Form;
 use PKP\submission\reviewer\form\ReviewerReviewForm;
@@ -40,6 +41,8 @@ class PKPReviewerHandler extends Handler
 
     /**
      * Display the submission review page.
+     *
+     * @throws Exception
      */
     public function submission(array $args, PKPRequest $request): void
     {
@@ -58,11 +61,52 @@ class PKPReviewerHandler extends Handler
         if ($step < 1 || $step > 4) {
             throw new Exception('Invalid step!');
         }
+
+        $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO');
+        $submissionId = $reviewSubmission->getId();
+        $lastRoundId = $reviewRoundDao->getLastReviewRoundBySubmissionId($submissionId)->getId();
+        $reviewAssignments = Repo::reviewAssignment()->getCollector()
+            ->filterByContextIds([$request->getContext()->getId()])
+            ->filterBySubmissionIds([$submissionId])
+            ->filterByReviewerIds([$reviewAssignment->getReviewerId()])
+            ->filterByStageId($reviewAssignment->getStageId())
+            ->getMany()
+            ->toArray();
+        $reviewRoundHistories = [];
+        foreach ($reviewAssignments as $reviewAssignment) {
+            $reviewRoundId = $reviewAssignment->getReviewRoundId();
+            if ($reviewRoundId != $lastRoundId) {
+                $reviewRoundHistories[] = [
+                    'submissionId' => $submissionId,
+                    'reviewRoundId' => $reviewRoundId,
+                    'reviewRoundNumber' => $reviewAssignment->getRound(),
+                    'submittedOn' => $reviewAssignment->getDeclined()
+                        ? $reviewAssignment->getDateConfirmed()
+                        : $reviewAssignment->getDateCompleted(),
+                ];
+            }
+        }
+
         $templateMgr->assign([
-            'pageTitle' => __('semicolon', ['label' => __('submission.review')]) . ' ' . $reviewSubmission->getLocalizedTitle(),
+            'pageTitle' => __('semicolon', ['label' => __('submission.review')]) . $reviewSubmission->getCurrentPublication()->getLocalizedTitle(),
             'reviewStep' => $reviewStep,
             'selected' => $step - 1,
             'submission' => $reviewSubmission,
+        ]);
+
+        // Ensure Step 3 custom required validation script is loaded in the page header
+        if ((int)$reviewAssignment->getReviewFormId() > 0) {
+            $templateMgr->addJavaScript(
+                'reviewStep3Required',
+                $request->getBaseUrl() . '/lib/pkp/js/pages/reviewer/reviewStep3Required.js',
+                ['contexts' => ['backend']]
+            );
+        }
+
+        $templateMgr->setState([
+            'pageInitConfig' => [
+                'reviewRoundHistories' => $reviewRoundHistories,
+            ]
         ]);
 
         $templateMgr->display('reviewer/review/reviewStepHeader.tpl');
@@ -70,6 +114,8 @@ class PKPReviewerHandler extends Handler
 
     /**
      * Display a step tab contents in the submission review page.
+     *
+     * @throws Exception
      */
     public function step(array $args, PKPRequest $request): JSONMessage
     {
@@ -88,7 +134,7 @@ class PKPReviewerHandler extends Handler
             $step = $reviewStep;
         } // Reviewer can't go past incomplete steps
         if ($step < 1 || $step > 4) {
-            fatalError('Invalid step!');
+            throw new \Exception('Invalid step!');
         }
 
         if ($step < 4) {
@@ -113,12 +159,12 @@ class PKPReviewerHandler extends Handler
     {
         $step = (int)$request->getUserVar('step');
         if ($step < 1 || $step > 3) {
-            fatalError('Invalid step!');
+            throw new \Exception('Invalid step!');
         }
 
         $reviewAssignment = $this->getAuthorizedContextObject(PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT); /** @var ReviewAssignment $reviewAssignment */
         if ($reviewAssignment->getDateCompleted()) {
-            fatalError('Review already completed!');
+            throw new \Exception('Review already completed!');
         }
 
         $reviewSubmission = Repo::submission()->get($reviewAssignment->getSubmissionId());
@@ -132,7 +178,7 @@ class PKPReviewerHandler extends Handler
             $reviewerForm->saveForLater();
             $notificationMgr = new NotificationManager();
             $user = $request->getUser();
-            $notificationMgr->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('common.changesSaved')]);
+            $notificationMgr->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('common.changesSaved')]);
             return \PKP\db\DAO::getDataChangedEvent();
         }
         // Submit the form data and move forward
@@ -180,7 +226,7 @@ class PKPReviewerHandler extends Handler
     {
         $reviewAssignment = $this->getAuthorizedContextObject(PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT); /** @var ReviewAssignment $reviewAssignment */
         if ($reviewAssignment->getDateCompleted()) {
-            fatalError('Review already completed!');
+            throw new \Exception('Review already completed!');
         }
 
         $declineReviewMessage = $request->getUserVar('declineReviewMessage');
@@ -202,7 +248,7 @@ class PKPReviewerHandler extends Handler
         PKPRequest $request,
         Submission $reviewSubmission,
         ReviewAssignment $reviewAssignment
-    ): ReviewerReviewForm {
+    ): ?ReviewerReviewForm {
         switch ($step) {
             case 1:
                 return new \PKP\submission\reviewer\form\PKPReviewerReviewStep1Form($request, $reviewSubmission, $reviewAssignment);

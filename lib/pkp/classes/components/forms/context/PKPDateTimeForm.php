@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/components/form/context/PKPDateTimeForm.php
  *
@@ -18,14 +19,10 @@ namespace PKP\components\forms\context;
 use PKP\components\forms\FieldRadioInput;
 use PKP\components\forms\FormComponent;
 
-define('FORM_DATE_TIME', 'dateTime');
-
 class PKPDateTimeForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_DATE_TIME;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_DATE_TIME = 'dateTime';
+    public $id = self::FORM_DATE_TIME;
     public $method = 'PUT';
 
     /**
@@ -55,10 +52,10 @@ class PKPDateTimeForm extends FormComponent
                 'label' => __('manager.setup.dateTime.longDate'),
                 'isMultilingual' => true,
                 'options' => $this->_setDateOptions([
-                    '%B %e, %Y',
-                    '%B %e %Y',
-                    '%e %B %Y',
-                    '%Y %B %e',
+                    'F j, Y',
+                    'F j Y',
+                    'j F Y',
+                    'Y F j',
                 ]),
                 'value' => $context->getDateTimeFormats('dateFormatLong'),
                 'groupId' => 'descriptions',
@@ -68,10 +65,10 @@ class PKPDateTimeForm extends FormComponent
                 'label' => __('manager.setup.dateTime.shortDate'),
                 'isMultilingual' => true,
                 'options' => $this->_setDateOptions([
-                    '%Y-%m-%d',
-                    '%d-%m-%Y',
-                    '%m/%d/%Y',
-                    '%d.%m.%Y',
+                    'Y-m-d',
+                    'd-m-Y',
+                    'm/d/Y',
+                    'd.m.Y',
                 ]),
                 'value' => $context->getDateTimeFormats('dateFormatShort'),
                 'groupId' => 'descriptions',
@@ -81,9 +78,9 @@ class PKPDateTimeForm extends FormComponent
                 'label' => __('manager.setup.dateTime.time'),
                 'isMultilingual' => true,
                 'options' => $this->_setDateOptions([
-                    '%H:%M',
-                    '%I:%M %p',
-                    '%l:%M%P',
+                    'H:i',
+                    'h:i A',
+                    'g:ia',
                 ]),
                 'value' => $context->getDateTimeFormats('timeFormat'),
                 'groupId' => 'descriptions',

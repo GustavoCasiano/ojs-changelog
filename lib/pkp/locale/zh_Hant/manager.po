@@ -1789,21 +1789,6 @@ msgstr ""
 msgid "manager.setup.metadata.keywords.require"
 msgstr ""
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.request"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 
@@ -2072,12 +2057,6 @@ msgid "manager.navigationMenus.about.description"
 msgstr ""
 
 msgid "manager.navigationMenus.about.conditionalWarning"
-msgstr ""
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
 msgstr ""
 
 msgid "manager.navigationMenus.submissions.description"
@@ -3073,6 +3052,9 @@ msgstr ""
 msgid "manager.setup.competingInterests.requireAuthors"
 msgstr ""
 "要求提交作者投稿時，同時提供一個利益衝突（Competing Interest, 簡稱CI）聲明。"
+
+msgid "manager.setup.masthead"
+msgstr "出版資訊欄"
 
 msgid "plugins.importexport.common.validation"
 msgstr "導出及註冊前確認XML。"

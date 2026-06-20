@@ -27,11 +27,10 @@ class Publication extends PKPPublication
     /**
      * Get the URL to a localized cover image
      *
-     * @param int $contextId
      *
      * @return string
      */
-    public function getLocalizedCoverImageUrl($contextId)
+    public function getLocalizedCoverImageUrl(int $contextId)
     {
         $coverImage = $this->getLocalizedData('coverImage');
 
@@ -46,6 +45,22 @@ class Publication extends PKPPublication
             $publicFileManager->getContextFilesPath($contextId),
             $coverImage['uploadName'],
         ]);
+    }
+
+    /**
+     * Retrieves the issue ID associated with the publication.
+     */
+    public function getIssueId(): ?int
+    {
+        return $this->getData('issueId');
+    }
+
+    /**
+     * Sets the issue ID associated with the publication.
+     */
+    public function setIssueId(?int $issueId): void
+    {
+        $this->setData('issueId', $issueId);
     }
 }
 

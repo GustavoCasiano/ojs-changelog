@@ -26,7 +26,7 @@ class TestJobSuccess extends BaseJob
 
     /**
      * The number of times the job may be attempted.
-     * 
+     *
      * @var int
      */
     public $tries = 1;
@@ -45,5 +45,6 @@ class TestJobSuccess extends BaseJob
      */
     public function handle(): void
     {
+        error_log('Test success job');
     }
 }

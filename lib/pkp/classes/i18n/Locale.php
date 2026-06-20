@@ -26,21 +26,24 @@ namespace PKP\i18n;
 use Closure;
 use DateInterval;
 use DirectoryIterator;
+use Exception;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 use PKP\config\Config;
+use PKP\core\Core;
 use PKP\core\PKPRequest;
+use PKP\core\PKPSessionGuard;
 use PKP\facades\Repo;
 use PKP\i18n\interfaces\LocaleInterface;
 use PKP\i18n\translation\LocaleBundle;
+use PKP\i18n\ui\UITranslator;
 use PKP\plugins\Hook;
 use PKP\plugins\PluginRegistry;
-use PKP\session\SessionManager;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RecursiveRegexIterator;
 use RegexIterator;
-use ResourceBundle;
 use Sokil\IsoCodes\Database\Countries;
 use Sokil\IsoCodes\Database\Currencies;
 use Sokil\IsoCodes\Database\LanguagesInterface;
@@ -52,6 +55,9 @@ class Locale implements LocaleInterface
 {
     /** Max lifetime for the locale metadata cache, the cache is built by scanning the provided paths */
     protected const MAX_CACHE_LIFETIME = '1 hour';
+
+    /** @var string Max lifetime for the submission locales cache. */
+    protected const MAX_WEBLATE_LOCALES_CACHE_LIFETIME = '1 year';
 
     /**
      * @var callable Formatter for missing locale keys
@@ -95,6 +101,9 @@ class Locale implements LocaleInterface
     /** Keeps cached data related only to the current locale */
     protected array $cache = [];
 
+    /** @var string[]|null Available weblate locales cache, where key = locale and value = weblate name */
+    protected ?array $weblateLocaleNames = null;
+
     /**
      * @copy \Illuminate\Contracts\Translation\Translator::get()
      *
@@ -123,11 +132,16 @@ class Locale implements LocaleInterface
         if (isset($this->locale)) {
             return $this->locale;
         }
+
         $request = $this->_getRequest();
+
         $locale = $request->getUserVar('setLocale')
-            ?: (SessionManager::hasSession() ? SessionManager::getManager()->getUserSession()->getSessionVar('currentLocale') : null)
-            ?: $request->getCookieVar('currentLocale');
+            ?: $request->getSession()->get('currentLocale')
+            ?: $request->getCookieVar('currentLocale')
+            ?: $this->getPreferredLocale();
+
         $this->setLocale($locale);
+
         return $this->locale;
     }
 
@@ -145,7 +159,8 @@ class Locale implements LocaleInterface
 
         $this->locale = $locale;
         setlocale(LC_ALL, 'C.utf8', 'C');
-        \Locale::setDefault(\Locale::lookup(ResourceBundle::getLocales(''), $locale, true));
+        $locales = array_keys($this->getWeblateLocaleNames());
+        \Locale::setDefault(\Locale::lookup($locales, $locale, true));
     }
 
     /**
@@ -157,7 +172,7 @@ class Locale implements LocaleInterface
             return $this->primaryLocale;
         }
         $request = $this->_getRequest();
-        $locale = SessionManager::isDisabled() ? null : $request->getContext()?->getPrimaryLocale() ?? $request->getSite()?->getPrimaryLocale();
+        $locale = PKPSessionGuard::isSessionDisable() ? null : $request->getContext()?->getPrimaryLocale() ?? $request->getSite()?->getPrimaryLocale();
         return $this->primaryLocale = $this->isLocaleValid($locale) ? $locale : $this->getDefaultLocale();
     }
 
@@ -198,7 +213,8 @@ class Locale implements LocaleInterface
      */
     public function isLocaleValid(?string $locale): bool
     {
-        return !empty($locale) && preg_match(LocaleInterface::LOCALE_EXPRESSION, $locale);
+        $locales = $this->getWeblateLocaleNames();
+        return !empty($locale) && array_key_exists($locale, $locales);
     }
 
     /**
@@ -236,6 +252,8 @@ class Locale implements LocaleInterface
 
     /**
      * @copy LocaleInterface::installLocale()
+     *
+     * @hook Locale::installLocale [[&$locale]]
      */
     public function installLocale(string $locale): void
     {
@@ -267,7 +285,7 @@ class Locale implements LocaleInterface
      */
     public function getSupportedFormLocales(): array
     {
-        return $this->supportedFormLocaleNames ??= (SessionManager::isDisabled() ? null : $this->_getRequest()->getContext()?->getSupportedFormLocaleNames())
+        return $this->supportedFormLocaleNames ??= (PKPSessionGuard::isSessionDisable() ? null : $this->_getRequest()->getContext()?->getSupportedFormLocaleNames())
             ?? $this->getSupportedLocales();
     }
 
@@ -304,7 +322,7 @@ class Locale implements LocaleInterface
         $getter = function () use ($locale): LocaleBundle {
             $bundle = [];
             foreach ($this->paths as $folder => $priority) {
-                $bundle += $this->_getLocaleFiles($folder, $locale, $priority);
+                $bundle += $this->_getLocaleFiles((string)$folder, $locale, $priority);
             }
             foreach ($this->loaders as $loader) {
                 $loader($locale, $bundle);
@@ -365,18 +383,17 @@ class Locale implements LocaleInterface
     /**
      * @copy LocaleInterface::getFormattedDisplayNames()
      */
-    public function getFormattedDisplayNames(array $filterByLocales = null, array $locales = null, int $langLocaleStatus = LocaleMetadata::LANGUAGE_LOCALE_WITH, bool $omitLocaleCodeInDisplay = true): array
+    public function getFormattedDisplayNames(?array $filterByLocales = null, ?array $locales = null, int $langLocaleStatus = LocaleMetadata::LANGUAGE_LOCALE_WITH, bool $omitLocaleCodeInDisplay = true): array
     {
         $locales ??= $this->getLocales();
 
         if ($filterByLocales !== null) {
-            $filterByLocales = array_intersect_key($locales, array_flip($filterByLocales));
+            $locales = array_intersect_key($locales, array_flip($filterByLocales));
+            $filterByLocales = array_keys($locales);
         }
 
-        $locales = $this->getFilteredLocales($locales, $filterByLocales ? array_keys($filterByLocales) : null);
-
         $localeCodesCount = array_count_values(
-            collect(array_keys($filterByLocales ?? $locales))
+            collect($filterByLocales ?? array_keys($locales))
                 ->map(fn (string $value) => trim(explode('@', explode('_', $value)[0])[0]))
                 ->toArray()
         );
@@ -391,24 +408,63 @@ class Locale implements LocaleInterface
     }
 
     /**
-     * Get the filtered locales by locale codes
-     *
-     * @param array $locales List of available all locales
-     * @param array $filterByLocales List of locales code to filter by the returned formatted names list
-     *
-     * @return  array The list of locales with formatted display name
-     */
-    protected function getFilteredLocales(array $locales, array $filterByLocales = null): array
+     * @copy LocaleInterface::getUiTranslator()
+    */
+    public function getUiTranslator(): UITranslator
     {
-        if (!$filterByLocales) {
-            return $locales;
-        }
+        $locale = $this->getLocale();
+        $localeBundleCacheKey = $this->getBundle($locale)->getLastCacheKey();
+        return new UITranslator($locale, $this->paths, $localeBundleCacheKey);
+    }
 
-        return array_intersect_key($locales, array_flip($filterByLocales));
+    /**
+     * Get Weblate languages to array
+     * Combine app's language names with weblate's in English.
+     * Weblate's names override app's if same locale key
+     *
+     * @throws Exception
+     *
+     * @return string[]
+     *
+     */
+    public function getWeblateLocaleNames(): array
+    {
+        return $this->weblateLocaleNames ??= (function (): array {
+            $file = Core::getBaseDir() . '/' . PKP_LIB_PATH . '/lib/weblateLanguages/languages.json';
+            $key = __METHOD__ . self::MAX_WEBLATE_LOCALES_CACHE_LIFETIME . filemtime($file);
+            $expiration = DateInterval::createFromDateString(self::MAX_WEBLATE_LOCALES_CACHE_LIFETIME);
+            return Cache::remember($key, $expiration, fn (): array => collect(json_decode(file_get_contents($file) ?: throw new Exception('Failed to load Weblate locales'), true))
+                ->sortKeys()
+                ->all());
+        })();
+    }
+
+    /**
+     * Get appropriately localized display names for submission locales to array
+     * If $filterByLocales empty, return all languages.
+     * Adds '*' (= in English) to display name if no translation available
+     *
+     * @param array $filterByLocales Optional list of locale codes/code-name-pairs to filter
+     * @param ?string $displayLocale Optional display locale
+     *
+     * @return array The list of locales with formatted display name
+     */
+    public function getSubmissionLocaleDisplayNames(array $filterByLocales = [], ?string $displayLocale = null): array
+    {
+        $displayLocale = $displayLocale ?: $this->getLocale();
+        return collect($this->getWeblateLocaleNames())
+            ->when($filterByLocales, fn (Collection $sln) => $sln->intersectByKeys(array_is_list($filterByLocales) ? array_flip(array_filter($filterByLocales)) : $filterByLocales))
+            ->when($displayLocale !== 'en', fn (Collection $sln) => $sln->map(function ($nameEn, $l) use ($displayLocale) {
+                $dn = locale_get_display_name($l, $displayLocale);
+                return ($dn && $dn !== $l) ? $dn : "*{$nameEn}";
+            }))
+            ->toArray();
     }
 
     /**
      * Translates the texts
+     *
+     * @hook Locale::translate [[&$value, $key, $params, $number, $locale, $localeBundle]]
      */
     protected function translate(string $key, ?int $number, array $params, ?string $locale): string
     {
@@ -423,11 +479,6 @@ class Locale implements LocaleInterface
             return $value;
         }
 
-        // In order to reduce the noise, we're only logging missing entries for the en locale
-        // TODO: Allow the other missing entries to be logged once the Laravel's logging is setup
-        if ($locale === LocaleInterface::DEFAULT_LOCALE) {
-            error_log("Missing locale key \"{$key}\" for the locale \"{$locale}\"");
-        }
         return is_callable($this->missingKeyHandler) ? ($this->missingKeyHandler)($key) : '##' . htmlentities($key) . '##';
     }
 
@@ -477,7 +528,7 @@ class Locale implements LocaleInterface
     /**
      * Retrieves the ISO codes factory
      */
-    private function _getIsoCodes(string $locale = null): IsoCodesFactory
+    private function _getIsoCodes(?string $locale = null): IsoCodesFactory
     {
         return app(IsoCodesFactory::class, $locale ? ['locale' => $locale] : []);
     }
@@ -492,8 +543,23 @@ class Locale implements LocaleInterface
         if (isset($this->supportedLocales)) {
             return $this->supportedLocales;
         }
-        $locales = (SessionManager::isDisabled() ? null : $this->_getRequest()->getContext()?->getSupportedLocales() ?? $this->_getRequest()->getSite()?->getSupportedLocales())
+        $locales = (PKPSessionGuard::isSessionDisable() ? null : $this->_getRequest()->getContext()?->getSupportedLocales() ?? $this->_getRequest()->getSite()?->getSupportedLocales())
             ?? array_map(fn (LocaleMetadata $locale) => $locale->locale, $this->getLocales());
         return $this->supportedLocales = array_combine($locales, $locales);
+    }
+
+    /**
+     * Retrieve the preferred user locale from our supported locales using the Accept-Language header
+     * If there's no match, it falls back to the server's primary locale
+     */
+    private function getPreferredLocale(): ?string
+    {
+        $serverPreference = $this->getPrimaryLocale() ?: LocaleInterface::DEFAULT_LOCALE;
+        $supportedLocales = array_values($this->_getSupportedLocales());
+        // Move the server preference to the top, in case the user preference doesn't match with the supported locales, the server one will be picked
+        if (is_int($index = array_search($serverPreference, $supportedLocales))) {
+            array_splice($supportedLocales, $index, 1);
+        }
+        return app(\Illuminate\Http\Request::class)->getPreferredLanguage([$serverPreference, ...$supportedLocales]);
     }
 }

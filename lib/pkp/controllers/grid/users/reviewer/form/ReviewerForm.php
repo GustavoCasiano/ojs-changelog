@@ -3,13 +3,11 @@
 /**
  * @file controllers/grid/users/reviewer/form/ReviewerForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class ReviewerForm
- *
- * @ingroup controllers_grid_users_reviewer_form
  *
  * @brief Base Form for adding a reviewer to a submission.
  * N.B. Requires a subclass to implement the "reviewerId" to be added.
@@ -23,29 +21,37 @@ use APP\facades\Repo;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
+use Carbon\Carbon;
 use PKP\context\Context;
+use PKP\controllers\grid\users\reviewer\form\traits\HasReviewDueDate;
 use PKP\controllers\grid\users\reviewer\PKPReviewerGridHandler;
 use PKP\core\Core;
 use PKP\db\DAORegistry;
 use PKP\facades\Locale;
 use PKP\form\Form;
+use PKP\form\validation\FormValidatorCSRF;
+use PKP\form\validation\FormValidatorPost;
+use PKP\form\validation\FormValidatorDateCompare;
+use PKP\form\validation\FormValidator;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxAction;
 use PKP\mail\mailables\ReviewRequest;
 use PKP\mail\variables\ReviewAssignmentEmailVariable;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\reviewForm\ReviewFormDAO;
 use PKP\security\Role;
 use PKP\security\RoleDAO;
 use PKP\submission\action\EditorAction;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\submission\reviewer\suggestion\ReviewerSuggestion;
 use PKP\submission\ReviewFilesDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submissionFile\SubmissionFile;
 
 class ReviewerForm extends Form
 {
+    use HasReviewDueDate;
+
     /** @var Submission The submission associated with the review assignment */
     public $_submission;
 
@@ -58,24 +64,40 @@ class ReviewerForm extends Form
     /** @var array An array with all current user roles */
     public $_userRoles;
 
+    /** @var ReviewerSuggestion|null The The suggested reviewer */
+    public ?ReviewerSuggestion $reviewerSuggestion = null;
+
     /**
      * Constructor.
      *
      * @param Submission $submission
      * @param ReviewRound $reviewRound
+     * @param ReviewerSuggestion|null $reviewerSuggestion
      */
-    public function __construct($submission, $reviewRound)
+    public function __construct(Submission $submission, ReviewRound $reviewRound, ?ReviewerSuggestion $reviewerSuggestion = null)
     {
         parent::__construct('controllers/grid/users/reviewer/form/defaultReviewerForm.tpl');
         $this->setSubmission($submission);
         $this->setReviewRound($reviewRound);
+        $this->reviewerSuggestion = $reviewerSuggestion;
 
         // Validation checks for this form
-        $this->addCheck(new \PKP\form\validation\FormValidator($this, 'responseDueDate', 'required', 'editor.review.errorAddingReviewer'));
-        $this->addCheck(new \PKP\form\validation\FormValidator($this, 'reviewDueDate', 'required', 'editor.review.errorAddingReviewer'));
+        $this->addCheck(new FormValidator($this, 'responseDueDate', 'required', 'editor.review.errorAddingReviewer'));
+        $this->addCheck(new FormValidator($this, 'reviewDueDate', 'required', 'editor.review.errorAddingReviewer'));
 
-        $this->addCheck(new \PKP\form\validation\FormValidatorPost($this));
-        $this->addCheck(new \PKP\form\validation\FormValidatorCSRF($this));
+        $this->addCheck(
+            new FormValidatorDateCompare(
+                $this,
+                'reviewDueDate',
+                Carbon::parse(Application::get()->getRequest()->getUserVar('responseDueDate')),
+                \PKP\validation\enums\DateComparisonRule::GREATER_OR_EQUAL,
+                'required',
+                'editor.review.errorAddingReviewer.dateValidationFailed'
+            )
+        );
+
+        $this->addCheck(new FormValidatorPost($this));
+        $this->addCheck(new FormValidatorCSRF($this));
     }
 
     //
@@ -201,17 +223,7 @@ class ReviewerForm extends Form
             $reviewFormId = null;
         }
 
-        $numWeeks = (int) $context->getData('numWeeksPerReview');
-        if ($numWeeks <= 0) {
-            $numWeeks = 4;
-        }
-        $reviewDueDate = strtotime('+' . $numWeeks . ' week');
-
-        $numWeeks = (int) $context->getData('numWeeksPerResponse');
-        if ($numWeeks <= 0) {
-            $numWeeks = 3;
-        }
-        $responseDueDate = strtotime('+' . $numWeeks . ' week');
+        [$reviewDueDate, $responseDueDate] = $this->getDueDates($context);
 
         // Get the currently selected reviewer selection type to show the correct tab if we're re-displaying the form
         $selectionType = (int) $request->getUserVar('selectionType');
@@ -225,7 +237,6 @@ class ReviewerForm extends Form
         $this->setData('responseDueDate', $responseDueDate);
         $this->setData('reviewDueDate', $reviewDueDate);
         $this->setData('selectionType', $selectionType);
-        $this->setData('considered', ReviewAssignment::REVIEW_ASSIGNMENT_NEW);
     }
 
     /**
@@ -238,8 +249,7 @@ class ReviewerForm extends Form
         $context = $request->getContext();
 
         // Get the review method options.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewMethods = $reviewAssignmentDao->getReviewMethodsTranslationKeys();
+        $reviewMethods = Repo::reviewAssignment()->getReviewMethodsTranslationKeys();
 
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('reviewMethods', $reviewMethods);
@@ -248,7 +258,7 @@ class ReviewerForm extends Form
         $reviewFormDao = DAORegistry::getDAO('ReviewFormDAO'); /** @var ReviewFormDAO $reviewFormDao */
         $reviewFormsIterator = $reviewFormDao->getActiveByAssocId(Application::getContextAssocType(), $context->getId());
         $reviewForms = [];
-        while ($reviewForm = $reviewFormsIterator->next()) {
+        while ($reviewForm = $reviewFormsIterator->next()) { /** @var \PKP\reviewForm\ReviewForm $reviewForm */
             $reviewForms[$reviewForm->getId()] = $reviewForm->getLocalizedTitle();
         }
 
@@ -278,7 +288,7 @@ class ReviewerForm extends Form
 
         $userGroups = [];
         foreach ($reviewerUserGroups as $userGroup) {
-            $userGroups[$userGroup->getId()] = $userGroup->getLocalizedName();
+            $userGroups[$userGroup->id] = $userGroup->getLocalizedData('name');
         }
 
         $this->setData('userGroups', $userGroups);
@@ -330,7 +340,7 @@ class ReviewerForm extends Form
         $reviewerId = (int) $this->getData('reviewerId');
 
         if (!$this->_isValidReviewer($context, $submission, $currentReviewRound, $reviewerId)) {
-            fatalError('Invalid reviewer id.');
+            throw new \Exception('Invalid reviewer id.');
         }
 
         $reviewMethod = (int) $this->getData('reviewMethod');
@@ -339,18 +349,22 @@ class ReviewerForm extends Form
         $editorAction->addReviewer($request, $submission, $reviewerId, $currentReviewRound, $reviewDueDate, $responseDueDate, $reviewMethod);
 
         // Get the reviewAssignment object now that it has been added.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignment = $reviewAssignmentDao->getReviewAssignment($currentReviewRound->getId(), $reviewerId);
-        $reviewAssignment->setDateNotified(Core::getCurrentDate());
-        $reviewAssignment->stampModified();
+        $reviewAssignment = Repo::reviewAssignment()->getCollector()
+            ->filterByReviewRoundIds([$currentReviewRound->getId()])
+            ->filterByReviewerIds([$reviewerId])
+            ->getMany()
+            ->first();
 
         // Ensure that the review form ID is valid, if specified
         $reviewFormId = (int) $this->getData('reviewFormId');
         $reviewFormDao = DAORegistry::getDAO('ReviewFormDAO'); /** @var ReviewFormDAO $reviewFormDao */
         $reviewForm = $reviewFormDao->getById($reviewFormId, Application::getContextAssocType(), $context->getId());
-        $reviewAssignment->setReviewFormId($reviewForm ? $reviewFormId : null);
 
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, [
+            'dateNotified' => Core::getCurrentDate(),
+            'reviewFormId' => $reviewForm ? $reviewFormId : null,
+            'considered' => ReviewAssignment::REVIEW_ASSIGNMENT_NEW
+        ]);
 
         $fileStages = [$stageId == WORKFLOW_STAGE_ID_INTERNAL_REVIEW ? SubmissionFile::SUBMISSION_FILE_INTERNAL_REVIEW_FILE : SubmissionFile::SUBMISSION_FILE_REVIEW_FILE];
         // Grant access for this review to all selected files.
@@ -378,9 +392,25 @@ class ReviewerForm extends Form
         $msgKey = $this->getData('skipEmail') ? 'notification.addedReviewerNoEmail' : 'notification.addedReviewer';
         $notificationMgr->createTrivialNotification(
             $currentUser->getId(),
-            PKPNotification::NOTIFICATION_TYPE_SUCCESS,
+            Notification::NOTIFICATION_TYPE_SUCCESS,
             ['contents' => __($msgKey, ['reviewerName' => $reviewer->getFullName()])]
         );
+
+        $this->reviewerSuggestion ??= ReviewerSuggestion::query()
+            ->withSubmissionIds([$this->getSubmission()->getId()])
+            ->withApproved(false)
+            ->withEmail($reviewer->getData('email'))
+            ->first();
+
+        if ($this->reviewerSuggestion?->existingReviewerRole
+            && $this->reviewerSuggestion->existingUser->getId() == $reviewerId) {
+
+            $this->reviewerSuggestion->approveAndAttachReviewer(
+                Carbon::now(),
+                $reviewerId,
+                $currentUser->getId()
+            );
+        }
 
         return $reviewAssignment;
     }
@@ -429,8 +459,11 @@ class ReviewerForm extends Form
     public function _isValidReviewer($context, $submission, $reviewRound, $reviewerId)
     {
         // Ensure the user isn't already assigned to the current submission
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignments = $reviewAssignmentDao->getBySubmissionId($submission->getId(), $reviewRound->getId());
+        $reviewAssignments = Repo::reviewAssignment()->getCollector()
+            ->filterBySubmissionIds([$submission->getId()])
+            ->filterByReviewRoundIds([$reviewRound->getId()])
+            ->getMany();
+
         foreach ($reviewAssignments as $reviewAssignment) {
             if ($reviewerId == $reviewAssignment->getReviewerId()) {
                 return false;
@@ -447,16 +480,19 @@ class ReviewerForm extends Form
      */
     protected function getMailable(): ReviewRequest
     {
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignment = $reviewAssignmentDao->newDataObject(); /** @var ReviewAssignment $reviewAssignment */
-        $reviewAssignment->setSubmissionId($this->getSubmissionId());
         $submission = $this->getSubmission();
         $request = Application::get()->getRequest();
-        $mailable = new ReviewRequest($request->getContext(), $submission, $reviewAssignment);
+        $mailable = new ReviewRequest(
+            $request->getContext(),
+            $submission,
+            Repo::reviewAssignment()->newDataObject([
+                'submissionId' => $this->getSubmissionId(),
+            ])
+        );
         $mailable->sender($request->getUser());
         $mailable->addData([
             'messageToReviewer' => __('reviewer.step1.requestBoilerplate'),
-            'abstractTermIfEnabled' => ($submission->getLocalizedAbstract() == '' ? '' : __('common.abstract')), // Deprecated; for OJS 2.x templates
+            'abstractTermIfEnabled' => ($submission->getCurrentPublication()->getLocalizedData('abstract') == '' ? '' : __('common.abstract')), // Deprecated; for OJS 2.x templates
         ]);
 
         // Remove template variables that haven't been set yet during form initialization

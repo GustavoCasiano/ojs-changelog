@@ -16,28 +16,28 @@
 
 namespace PKP\plugins;
 
+use Illuminate\Support\Facades\Cache;
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\statistics\StatisticsHelper;
 use APP\template\TemplateManager;
 use Exception;
-use PKP\cache\CacheManager;
-use PKP\cache\FileCache;
 use PKP\config\Config;
 use PKP\context\Context;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
+use PKP\core\PKPSessionGuard;
+use PKP\core\traits\LocalizedData;
 use PKP\db\DAORegistry;
-use PKP\facades\Locale;
-use PKP\session\SessionManager;
 
 define('LESS_FILENAME_SUFFIX', '.less');
 define('THEME_OPTION_PREFIX', 'themeOption_');
 
 abstract class ThemePlugin extends LazyLoadPlugin
 {
+    use LocalizedData;
+
     /**
      * Collection of styles
      *
@@ -106,11 +106,11 @@ abstract class ThemePlugin extends LazyLoadPlugin
         // Themes must initialize their functionality after all theme plugins
         // have been loaded in order to make use of parent/child theme
         // relationships
-        Hook::add('PluginRegistry::categoryLoaded::themes', [$this, 'themeRegistered']);
-        Hook::add('PluginRegistry::categoryLoaded::themes', [$this, 'initAfter']);
+        Hook::add('PluginRegistry::categoryLoaded::themes', $this->themeRegistered(...));
+        Hook::add('PluginRegistry::categoryLoaded::themes', $this->initAfter(...));
 
         // Allow themes to override plugin template files
-        Hook::add('TemplateResource::getFilename', [$this, '_overridePluginTemplates']);
+        Hook::add('TemplateResource::getFilename', $this->_overridePluginTemplates(...));
 
         return true;
     }
@@ -124,7 +124,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
     {
         // Don't fully initialize the theme until the application is installed, so that
         // there are no requests to the database before it exists
-        if (SessionManager::isDisabled()) {
+        if (PKPSessionGuard::isSessionDisable()) {
             return;
         }
 
@@ -163,7 +163,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
      */
     public function isActive()
     {
-        if (SessionManager::isDisabled()) {
+        if (PKPSessionGuard::isSessionDisable()) {
             return false;
         }
         $request = Application::get()->getRequest();
@@ -204,7 +204,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
         if (substr($style, (strlen(LESS_FILENAME_SUFFIX) * -1)) === LESS_FILENAME_SUFFIX) {
             $args['style'] = $this->_getBaseDir($style);
 
-        // Pass a URL for other files
+            // Pass a URL for other files
         } elseif (empty($args['inline'])) {
             if (isset($args['baseUrl'])) {
                 $args['style'] = $args['baseUrl'] . $style;
@@ -212,7 +212,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
                 $args['style'] = $this->_getBaseUrl($style);
             }
 
-        // Leave inlined styles alone
+            // Leave inlined styles alone
         } else {
             $args['style'] = $style;
         }
@@ -476,7 +476,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
         // Retrieve option values if they haven't been loaded yet
         if (is_null($this->_optionValues)) {
             $context = Application::get()->getRequest()->getContext();
-            $contextId = $context ? $context->getId() : \PKP\core\PKPApplication::CONTEXT_ID_NONE;
+            $contextId = $context ? $context->getId() : \PKP\core\PKPApplication::SITE_CONTEXT_ID;
             $this->_optionValues = $this->getOptionValues($contextId);
         }
 
@@ -495,52 +495,10 @@ abstract class ThemePlugin extends LazyLoadPlugin
 
     /**
      * Get the localized value of an option
-     *
-     * Modelled on DataObject::getLocalizedData()
      */
     public function getLocalizedOption(string $name, string $preferredLocale = null, string &$selectedLocale = null): mixed
     {
-        $value = $this->getOption($name);
-
-        if (!is_array($value)) {
-            return null;
-        }
-
-        foreach ($this->getLocalePrecedence($preferredLocale) as $locale) {
-            if (!empty($value[$locale])) {
-                $selectedLocale = $locale;
-                return $value[$locale];
-            }
-        }
-
-        // Fallback: Get the first available piece of data]
-        foreach ($value as $locale => $dataValue) {
-            if (!empty($dataValue)) {
-                $selectedLocale = $locale;
-                return $dataValue;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get the locale precedence order
-     *
-     * @see DataObject::getLocalePrecedence()
-     * @deprecated 3.4
-     */
-    protected function getLocalePrecedence(string $preferredLocale = null): array
-    {
-        $request = Application::get()->getRequest();
-
-        return array_unique(
-            array_filter([
-                $preferredLocale ?? Locale::getLocale(),
-                $request->getContext()?->getPrimaryLocale(),
-                $request->getSite()->getPrimaryLocale(),
-            ])
-        );
+        return $this->getBestLocalizedData($this->getOption($name), $preferredLocale, $selectedLocale);
     }
 
     /**
@@ -584,26 +542,6 @@ abstract class ThemePlugin extends LazyLoadPlugin
     }
 
     /**
-     * Modify option configuration settings
-     *
-     * @deprecated Unnecessary since 3.2 because options are stored as objects,
-     *  so changes can be made directly (via reference) and args don't need to be
-     *  manually merged
-     *
-     * @param string $name The name of the option config to retrieve
-     * @param array $args The new configuration settings for this option
-     */
-    public function modifyOptionsConfig($name, $args = [])
-    {
-        $option = $this->getOption($name);
-        foreach ($args as $key => $value) {
-            if (property_exists($option, $key)) {
-                $option->{$key} = $value;
-            }
-        }
-    }
-
-    /**
      * Remove an option
      *
      * @param string $name The name of the option to remove
@@ -626,11 +564,9 @@ abstract class ThemePlugin extends LazyLoadPlugin
      * This retrieves a single array containing option values for this theme
      * and any parent themes.
      *
-     * @param int $contextId
-     *
      * @return array
      */
-    public function getOptionValues($contextId)
+    public function getOptionValues(?int $contextId)
     {
         /** @var PluginSettingsDAO */
         $pluginSettingsDAO = DAORegistry::getDAO('PluginSettingsDAO');
@@ -662,7 +598,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
             // If the value isn't null and it's a multilingual field, then we must ensure it's an array
             if ($optionConfig->isMultilingual && $value !== null && !is_array($value)) {
                 try {
-                    $value =  json_decode((string) $value, true, flags: JSON_THROW_ON_ERROR);
+                    $value = json_decode((string) $value, true, flags: JSON_THROW_ON_ERROR);
                 } catch (Exception) {
                     // FIXME: pkp/pkp-lib#6250 Remove after 3.3.x upgrade code is removed (see also pkp/pkp-lib#5772)
                     $value = unserialize($value);
@@ -691,8 +627,8 @@ abstract class ThemePlugin extends LazyLoadPlugin
      *
      * @param array $options Key/value list of options to validate
      * @param string $themePluginPath The theme these options are for
-     * @param int $contextId The context these theme options are for, or
-     *  CONTEXT_ID_NONE for the site-wide settings.
+     * @param ?int int $contextId The context these theme options are for, or
+     *  Application::SITE_CONTEXT_ID for the site-wide settings.
      * @param Request $request
      *
      * @return array List of errors with option name as the key and the value as
@@ -713,7 +649,7 @@ abstract class ThemePlugin extends LazyLoadPlugin
      *
      * @param string $name A unique id for the option to save
      * @param mixed $value The new value to save
-     * @param int $contextId Optional context id. Defaults to the current
+     * @param ?int $contextId Optional context id. Defaults to the current
      *  context
      */
     public function saveOption($name, $value, $contextId = null)
@@ -726,7 +662,9 @@ abstract class ThemePlugin extends LazyLoadPlugin
 
         if (is_null($contextId)) {
             $context = Application::get()->getRequest()->getContext();
-            $contextId = $context->getId();
+            if ($context) {
+                $contextId = $context->getId();
+            }
         }
 
         $pluginSettingsDao = DAORegistry::getDAO('PluginSettingsDAO'); /** @var PluginSettingsDAO $pluginSettingsDao */
@@ -987,10 +925,9 @@ abstract class ThemePlugin extends LazyLoadPlugin
         $templateMgr = TemplateManager::getManager($request);
 
         // Register Chart.js on the frontend article view
-        $min = Config::getVar('general', 'enable_minified') ? '.min' : '';
         $templateMgr->addJavaScript(
             'chartJS',
-            $request->getBaseUrl() . '/lib/pkp/js/lib/Chart' . $min . '.js',
+            $request->getBaseUrl() . '/js/build/chart.js/chart.umd.js',
             [
                 'contexts' => $this->getSubmissionViewContext(),
             ]
@@ -1028,14 +965,9 @@ abstract class ThemePlugin extends LazyLoadPlugin
      */
     protected function getAllDownloadsStats(int $submissionId): array
     {
-        $cache = CacheManager::getManager()->getCache('downloadStats', $submissionId, [$this, 'downloadStatsCacheMiss']);
-        if (time() - $cache->getCacheTime() > 60 * 60 * 24) {
-            // Cache is older than one day, erase it.
-            $cache->flush();
-        }
+        $data = Cache::remember("downloadStats-{$submissionId}", 60 * 60 * 24, fn () => $this->downloadStatsCacheMiss($submissionId));
         $statsByMonth = [];
         $totalDownloads = 0;
-        $data = $cache->get($submissionId);
         foreach ($data as $monthlyDownloadStats) {
             [$year, $month] = explode('-', $monthlyDownloadStats['date']);
             $month = ltrim($month, '0');
@@ -1053,15 +985,15 @@ abstract class ThemePlugin extends LazyLoadPlugin
     /**
      * Callback to fill cache with submission's download usage statistics data.
      */
-    public function downloadStatsCacheMiss(FileCache $cache, int $submissionId): array
+    public function downloadStatsCacheMiss(int $submissionId): array
     {
         $request = Application::get()->getRequest();
         $submission = Repo::submission()->get($submissionId);
         $params = [
-            'contextIds'        => [$request->getContext()->getId()],
-            'submissionIds'     => [$submissionId],
-            'assocTypes'        => [Application::ASSOC_TYPE_SUBMISSION_FILE],
-            'timelineInterval'  => StatisticsHelper::STATISTICS_DIMENSION_MONTH,
+            'contextIds' => [$request->getContext()->getId()],
+            'submissionIds' => [$submissionId],
+            'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION_FILE],
+            'timelineInterval' => StatisticsHelper::STATISTICS_DIMENSION_MONTH,
         ];
 
         $originalPublication = $submission->getOriginalPublication();
@@ -1074,9 +1006,8 @@ abstract class ThemePlugin extends LazyLoadPlugin
             $params['dateStart'] = $earliestDatePublished;
         }
 
-        $statsService = Services::get('publicationStats'); /** @var \App\services\StatsPublicationService $statsService */
+        $statsService = app()->get('publicationStats'); /** @var \App\services\StatsPublicationService $statsService */
         $data = $statsService->getTimeline($params['timelineInterval'], $params);
-        $cache->setEntireCache([$submissionId => $data]);
         return $data;
     }
 

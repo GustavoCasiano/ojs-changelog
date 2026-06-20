@@ -20,10 +20,10 @@ $(function() {ldelim}
 {rdelim});
 </script>
 
-<form class="pkp_form" id="resetPermissionsForm" method="post" action="{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="management" op="tools" path="resetPermissions"}">
+<form class="pkp_form" id="resetPermissionsForm" method="post" action="{url router=PKP\core\PKPApplication::ROUTE_PAGE page="management" op="tools" path="resetPermissions"}">
 	<div class="pkp_page_content pkp_page_permissions">
-		<h3>{translate key="manager.setup.resetPermissions"}</h3>
-		<p>{translate key="manager.setup.resetPermissions.description"}</p>
+		<h3 class="mb-2">{translate key="manager.setup.resetPermissions"}</h3>
+		<p class="mb-2">{translate key="manager.setup.resetPermissions.description"}</p>
 
 		{csrf}
 		{fbvElement type="submit" id="resetPermissionsFormButton" label="manager.setup.resetPermissions"}

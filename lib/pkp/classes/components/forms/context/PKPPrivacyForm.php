@@ -18,14 +18,10 @@ namespace PKP\components\forms\context;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FormComponent;
 
-define('FORM_PRIVACY', 'privacy');
-
 class PKPPrivacyForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_PRIVACY;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_PRIVACY = 'privacy';
+    public $id = self::FORM_PRIVACY;
     public $method = 'PUT';
 
     /**
@@ -47,7 +43,7 @@ class PKPPrivacyForm extends FormComponent
             'isMultilingual' => true,
             'value' => $context->getData('privacyStatement'),
             'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-            'plugins' => 'paste,link,lists,image,code',
+            'plugins' => ['link','lists','image','code'],
             'uploadUrl' => $imageUploadUrl,
         ]));
     }

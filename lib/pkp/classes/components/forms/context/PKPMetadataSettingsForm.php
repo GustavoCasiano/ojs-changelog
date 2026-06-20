@@ -21,14 +21,10 @@ use PKP\components\forms\FieldOptions;
 use PKP\components\forms\FormComponent;
 use PKP\context\Context;
 
-define('FORM_METADATA_SETTINGS', 'metadataSettings');
-
 class PKPMetadataSettingsForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_METADATA_SETTINGS;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_METADATA_SETTINGS = 'metadataSettings';
+    public $id = self::FORM_METADATA_SETTINGS;
     public $method = 'PUT';
 
     /**
@@ -81,19 +77,6 @@ class PKPMetadataSettingsForm extends FormComponent
                     ['value' => Context::METADATA_REQUIRE, 'label' => __('manager.setup.metadata.disciplines.require')],
                 ],
                 'value' => $context->getData('disciplines') ? $context->getData('disciplines') : Context::METADATA_DISABLE,
-            ]))
-            ->addField(new FieldMetadataSetting('languages', [
-                'label' => __('common.languages'),
-                'description' => __('manager.setup.metadata.languages.description'),
-                'options' => [
-                    ['value' => Context::METADATA_ENABLE, 'label' => __('manager.setup.metadata.languages.enable')]
-                ],
-                'submissionOptions' => [
-                    ['value' => Context::METADATA_ENABLE, 'label' => __('manager.setup.metadata.languages.noRequest')],
-                    ['value' => Context::METADATA_REQUEST, 'label' => __('manager.setup.metadata.languages.request')],
-                    ['value' => Context::METADATA_REQUIRE, 'label' => __('manager.setup.metadata.languages.require')],
-                ],
-                'value' => $context->getData('languages') ? $context->getData('languages') : Context::METADATA_DISABLE,
             ]))
             ->addField(new FieldMetadataSetting('agencies', [
                 'label' => __('submission.supportingAgencies'),
@@ -161,13 +144,13 @@ class PKPMetadataSettingsForm extends FormComponent
                 'value' => $context->getData('type') ? $context->getData('type') : Context::METADATA_DISABLE,
             ]))
             ->addField(new FieldOptions('requireAuthorCompetingInterests', [
-		'label' => __('manager.setup.competingInterests'),
-		'options' => [
-			[
-			    'value' => 'true',
-		        'label' => __('manager.setup.competingInterests.requireAuthors'),
-		    ],
-	        ],
+                'label' => __('manager.setup.competingInterests'),
+                'options' => [
+                    [
+                        'value' => 'true',
+                        'label' => __('manager.setup.competingInterests.requireAuthors'),
+                    ],
+                ],
                 'value' => (bool) $context->getData('requireAuthorCompetingInterests'),
             ]))
             ->addField(new FieldMetadataSetting('citations', [

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @defgroup controllers_api_file File API controller
  */
@@ -21,10 +22,10 @@ namespace PKP\controllers\api\file;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use Exception;
+use Illuminate\Support\Str;
 use PKP\config\Config;
 use PKP\core\JSONMessage;
 use PKP\db\DAORegistry;
@@ -108,8 +109,8 @@ class FileApiHandler extends Handler
         if (!$file) {
             throw new Exception('File ' . $fileId . ' is not a revision of submission file ' . $submissionFile->getId());
         }
-        if (!Services::get('file')->fs->has($file->path)) {
-            $request->getDispatcher()->handle404();
+        if (!app()->get('file')->fs->has($file->path)) {
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $filename = $request->getUserVar('filename') ?? $submissionFile->getLocalizedData('name');
@@ -123,16 +124,16 @@ class FileApiHandler extends Handler
             $genre = $genreDao->getById($submissionFile->getData('genreId'));
             $filename = sprintf(
                 '%s-%s-%d-%s-%d',
-                \Stringy\Stringy::create($request->getContext()->getLocalizedData('acronym'))->toLowerCase(),
-                \Stringy\Stringy::create(__('submission.list.reviewAssignment'))->dasherize(),
+                Str::lower($request->getContext()->getLocalizedData('acronym')),
+                Str::of(__('submission.list.reviewAssignment'))->kebab(),
                 $submissionFile->getData('submissionId'),
-                $genre ? $genre->getLocalizedName() : 'none',
+                $genre ? Str::of($genre->getLocalizedName())->kebab() : 'none',
                 $submissionFile->getId()
             );
         }
 
-        $filename = Services::get('file')->formatFilename($file->path, $filename);
-        Services::get('file')->download((int) $fileId, $filename);
+        $filename = app()->get('file')->formatFilename($file->path, $filename);
+        app()->get('file')->download((int) $fileId, $filename);
     }
 
     /**
@@ -161,14 +162,14 @@ class FileApiHandler extends Handler
         $files = [];
         foreach ($submissionFiles as $submissionFile) {
             $path = $submissionFile->getData('path');
-            $files[$path] = Services::get('file')->formatFilename($path, $submissionFile->getLocalizedData('name'));
+            $files[$path] = app()->get('file')->formatFilename($path, $submissionFile->getLocalizedData('name'));
         }
 
         $filename = !empty($args['nameLocaleKey'])
             ? __($args['nameLocaleKey'])
             : __('submission.files');
         $filename = $args['submissionId'] . '-' . $filename;
-        $filename = \Stringy\Stringy::create($filename)->toLowerCase()->dasherize()->regexReplace('[^a-z0-9\-\_.]', '');
+        $filename = (string) Str::of($filename)->kebab()->replaceMatches('[^a-z0-9\-\_.]', '');
 
         $fileArchive = new FileArchive();
         $archivePath = $fileArchive->create($files, rtrim(Config::getVar('files', 'files_dir'), '/'));

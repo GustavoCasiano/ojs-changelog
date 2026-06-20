@@ -15,7 +15,6 @@
 namespace APP\publication;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\payment\ojs\OJSCompletedPaymentDAO;
 use APP\payment\ojs\OJSPaymentManager;
@@ -41,9 +40,7 @@ class Repository extends \PKP\publication\Repository
     public function validate($publication, array $props, Submission $submission, Context $context): array
     {
         $errors = parent::validate($publication, $props, $submission, $context);
-
-        $allowedLocales = $context->getSupportedSubmissionLocales();
-        $primaryLocale = $submission->getLocale();
+        $submissionLocale = $submission->getData('locale');
 
         // Ensure that the specified section exists
         $section = null;
@@ -63,21 +60,22 @@ class Repository extends \PKP\publication\Repository
         if ($section && !$submission->getData('submissionProgress')) {
             // Require abstracts for new publications if the section requires them
             if (is_null($publication) && !$section->getData('abstractsNotRequired') && empty($props['abstract'])) {
-                $errors['abstract'][$primaryLocale] = [__('author.submit.form.abstractRequired')];
+                $errors['abstract'][$submissionLocale] = [__('author.submit.form.abstractRequired')];
             }
 
             if (isset($props['abstract']) && empty($errors['abstract'])) {
                 // Require abstracts in the primary language if the section requires them
                 if (!$section->getData('abstractsNotRequired')) {
-                    if (empty($props['abstract'][$primaryLocale])) {
+                    if (empty($props['abstract'][$submissionLocale])) {
                         if (!isset($errors['abstract'])) {
                             $errors['abstract'] = [];
                         };
-                        $errors['abstract'][$primaryLocale] = [__('author.submit.form.abstractRequired')];
+                        $errors['abstract'][$submissionLocale] = [__('author.submit.form.abstractRequired')];
                     }
                 }
 
                 // Check the word count on abstracts
+                $allowedLocales = $submission->getPublicationLanguages($context->getSupportedSubmissionMetadataLocales());
                 foreach ($allowedLocales as $localeKey) {
                     if (empty($props['abstract'][$localeKey])) {
                         continue;
@@ -117,9 +115,9 @@ class Repository extends \PKP\publication\Repository
         // If submission fees are enabled, check that they're fulfilled
         $context = Application::get()->getRequest()->getContext();
         if (!$context || $context->getId() !== $submission->getData('contextId')) {
-            $context = Services::get('context')->get($submission->getData('contextId'));
+            $context = app()->get('context')->get($submission->getData('contextId'));
         }
-        $paymentManager = Application::getPaymentManager($context);
+        $paymentManager = Application::get()->getPaymentManager($context);
         $completedPaymentDao = DAORegistry::getDAO('OJSCompletedPaymentDAO'); /** @var OJSCompletedPaymentDAO $completedPaymentDao */
         $publicationFeeEnabled = $paymentManager->publicationEnabled();
         $publicationFeePayment = $completedPaymentDao->getByAssoc(null, OJSPaymentManager::PAYMENT_TYPE_PUBLICATION, $submission->getId());
@@ -172,14 +170,15 @@ class Repository extends \PKP\publication\Repository
         // If issue is not published just set publication status to STATUS_SCHEDULED
         if ($issue && !$issue->getData('published')) {
             $publication->setData('status', Submission::STATUS_SCHEDULED);
-        } else {
-            // If issue is published or no issue, set publication status to STATUS_PUBLISHED
-            $publication->setData('status', Submission::STATUS_PUBLISHED);
+            return;
+        }
 
-            // If no predefined datePublished available for the publication, use current date
-            if (!$publication->getData('datePublished')) {
-                $publication->setData('datePublished', Core::getCurrentDate());
-            }
+        // If issue is published or no issue, set publication status to STATUS_PUBLISHED
+        $publication->setData('status', Submission::STATUS_PUBLISHED);
+
+        // If no predefined datePublished available for the publication, use current date
+        if (!$publication->getData('datePublished')) {
+            $publication->setData('datePublished', Core::getCurrentDate());
         }
     }
 

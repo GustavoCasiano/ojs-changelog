@@ -23,18 +23,15 @@ use APP\template\TemplateManager;
 use Illuminate\Support\Facades\Mail;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
-use PKP\db\DAORegistry;
 use PKP\facades\Locale;
 use PKP\form\Form;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\ReviewRemind;
 use PKP\mail\variables\ReviewAssignmentEmailVariable;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\Validation;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use Symfony\Component\Mailer\Exception\TransportException;
 
 class ReviewReminderForm extends Form
@@ -171,19 +168,16 @@ class ReviewReminderForm extends Form
             ]);
             Repo::eventLog()->add($eventLog);
 
-            $reviewAssignment->setDateReminded(Core::getCurrentDate());
-            $reviewAssignment->stampModified();
-            $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-            $reviewAssignmentDao->updateObject($reviewAssignment);
+            Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_REMIND, $mailable, $submission, $user);
 
-            /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-            $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-            $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_REMIND, $mailable, $submission, $user);
+            Repo::reviewAssignment()->edit($reviewAssignment, [
+                'dateReminded' => Core::getCurrentDate(),
+            ]);
         } catch (TransportException $e) {
             $notificationMgr = new NotificationManager();
             $notificationMgr->createTrivialNotification(
                 $request->getUser()->getId(),
-                PKPNotification::NOTIFICATION_TYPE_ERROR,
+                Notification::NOTIFICATION_TYPE_ERROR,
                 ['contents' => __('email.compose.error')]
             );
             trigger_error($e->getMessage(), E_USER_WARNING);

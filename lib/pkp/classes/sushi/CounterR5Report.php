@@ -18,7 +18,6 @@
 namespace PKP\sushi;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use DateInterval;
 use DatePeriod;
@@ -312,7 +311,7 @@ abstract class CounterR5Report
     public static function getEarliestDate(): string
     {
         $context = Application::get()->getRequest()->getContext();
-        $statsService = Services::get('sushiStats');
+        $statsService = app()->get('sushiStats');
         $counterR5StartDate = $statsService->getEarliestDate();
         $firstDatePublished = Repo::publication()->getDateBoundaries(
             Repo::publication()

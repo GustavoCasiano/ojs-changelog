@@ -9,8 +9,6 @@
  *
  * @class Application
  *
- * @ingroup core
- *
  * @see PKPApplication
  *
  * @brief Class describing this application.
@@ -22,6 +20,7 @@ namespace APP\core;
 use APP\facades\Repo;
 use APP\journal\JournalDAO;
 use APP\payment\ojs\OJSPaymentManager;
+use APP\search\ArticleSearchIndex;
 use PKP\context\Context;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
@@ -37,8 +36,6 @@ class Application extends PKPApplication
     public const ASSOC_TYPE_JOURNAL = 0x0000100;
     public const ASSOC_TYPE_ISSUE = 0x0000103;
     public const ASSOC_TYPE_ISSUE_GALLEY = 0x0000105;
-
-    public const CONTEXT_JOURNAL = 1; // not used?
 
     public const REQUIRES_XSL = false;
 
@@ -56,7 +53,6 @@ class Application extends PKPApplication
                 'ASSOC_TYPE_JOURNAL',
                 'ASSOC_TYPE_ISSUE',
                 'ASSOC_TYPE_ISSUE_GALLEY',
-                'CONTEXT_JOURNAL',
             ] as $constantName) {
                 if (!defined($constantName)) {
                     define($constantName, constant('self::' . $constantName));
@@ -81,20 +77,16 @@ class Application extends PKPApplication
 
     /**
      * Get the symbolic name of this application
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
         return 'ojs2';
     }
 
     /**
      * Get the locale key for the name of this application.
-     *
-     * @return string
      */
-    public function getNameKey()
+    public function getNameKey(): string
     {
         return('common.software');
     }
@@ -102,20 +94,16 @@ class Application extends PKPApplication
     /**
      * Get the URL to the XML descriptor for the current version of this
      * application.
-     *
-     * @return string
      */
-    public function getVersionDescriptorUrl()
+    public function getVersionDescriptorUrl(): string
     {
         return 'https://pkp.sfu.ca/ojs/xml/ojs-version.xml';
     }
 
     /**
      * Get the map of DAOName => full.class.Path for this application.
-     *
-     * @return array
      */
-    public function getDAOMap()
+    public function getDAOMap(): array
     {
         return array_merge(parent::getDAOMap(), [
             'ArticleSearchDAO' => 'APP\search\ArticleSearchDAO',
@@ -124,7 +112,7 @@ class Application extends PKPApplication
             'IssueGalleyDAO' => 'APP\issue\IssueGalleyDAO',
             'IssueFileDAO' => 'APP\issue\IssueFileDAO',
             'JournalDAO' => 'APP\journal\JournalDAO',
-            'MetricsDAO' => 'APP\statistics\MetricsDAO',
+            'GalleyDAO' => 'APP\galley\DAO',
             'OAIDAO' => 'APP\oai\ojs\OAIDAO',
             'OJSCompletedPaymentDAO' => 'APP\payment\ojs\OJSCompletedPaymentDAO',
             'SubscriptionDAO' => 'APP\subscription\SubscriptionDAO',
@@ -137,10 +125,8 @@ class Application extends PKPApplication
 
     /**
      * Get the list of plugin categories for this application.
-     *
-     * @return array
      */
-    public function getPluginCategories()
+    public function getPluginCategories(): array
     {
         return [
             // NB: Meta-data plug-ins are first in the list as this
@@ -163,20 +149,14 @@ class Application extends PKPApplication
 
     /**
      * Get the top-level context DAO.
-     *
-     * @return JournalDAO
      */
-    public static function getContextDAO()
+    public static function getContextDAO(): JournalDAO
     {
-        /** @var JournalDAO */
-        $dao = DAORegistry::getDAO('JournalDAO');
-        return $dao;
+        return DAORegistry::getDAO('JournalDAO');
     }
 
     /**
      * Get the representation DAO.
-     *
-     * @return \PKP\galley\DAO&RepresentationDAOInterface
      */
     public static function getRepresentationDAO(): RepresentationDAOInterface
     {
@@ -186,25 +166,23 @@ class Application extends PKPApplication
     /**
      * Get a SubmissionSearchIndex instance.
      */
-    public static function getSubmissionSearchIndex()
+    public static function getSubmissionSearchIndex(): ArticleSearchIndex
     {
-        return new \APP\search\ArticleSearchIndex();
+        return new ArticleSearchIndex();
     }
 
     /**
      * Get a SubmissionSearchDAO instance.
      */
-    public static function getSubmissionSearchDAO()
+    public static function getSubmissionSearchDAO(): \APP\search\ArticleSearchDAO
     {
         return DAORegistry::getDAO('ArticleSearchDAO');
     }
 
     /**
      * Get the stages used by the application.
-     *
-     * @return array
      */
-    public static function getApplicationStages()
+    public static function getApplicationStages(): array
     {
         // We leave out WORKFLOW_STAGE_ID_PUBLISHED since it technically is not a 'stage'.
         return [
@@ -216,11 +194,17 @@ class Application extends PKPApplication
     }
 
     /**
-     * Returns the context type for this application.
-     *
-     * @return int Application::ASSOC_TYPE_...
+     * Get the review workflow stages used by this application.
      */
-    public static function getContextAssocType()
+    public function getReviewStages(): array
+    {
+        return [WORKFLOW_STAGE_ID_EXTERNAL_REVIEW];
+    }
+
+    /**
+     * Returns the context type for this application.
+     */
+    public static function getContextAssocType(): int
     {
         return self::ASSOC_TYPE_JOURNAL;
     }
@@ -228,17 +212,15 @@ class Application extends PKPApplication
     /**
      * Get the file directory array map used by the application.
      */
-    public static function getFileDirectories()
+    public static function getFileDirectories(): array
     {
         return ['context' => '/journals/', 'submission' => '/articles/'];
     }
 
     /**
      * @copydoc PKPApplication::getRoleNames()
-     *
-     * @param null|mixed $roleIds
      */
-    public static function getRoleNames($contextOnly = false, $roleIds = null)
+    public static function getRoleNames(bool $contextOnly = false, ?array $roleIds = null): array
     {
         $roleNames = parent::getRoleNames($contextOnly, $roleIds);
         if (!$roleIds || in_array(Role::ROLE_ID_SUBSCRIPTION_MANAGER, $roleIds)) {
@@ -249,13 +231,17 @@ class Application extends PKPApplication
 
     /**
      * Get the payment manager.
-     *
-     * @param \APP\journal\Journal $context
-     *
-     * @return OJSPaymentManager
      */
-    public static function getPaymentManager($context)
+    public function getPaymentManager(Context $context): OJSPaymentManager
     {
         return new OJSPaymentManager($context);
+    }
+
+    /**
+     * Get the help URL of this application
+     */
+    public static function getHelpUrl(): string
+    {
+        return 'https://docs.pkp.sfu.ca/learning-ojs/';
     }
 }

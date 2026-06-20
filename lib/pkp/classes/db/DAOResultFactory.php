@@ -22,11 +22,13 @@ use Countable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Enumerable;
+use PKP\core\DataObject;
 use PKP\core\ItemIterator;
 use ReflectionClass;
 
 /**
  * @template T of \PKP\core\DataObject
+ *
  * @extends ItemIterator<mixed,T>
  */
 class DAOResultFactory extends ItemIterator
@@ -105,10 +107,8 @@ class DAOResultFactory extends ItemIterator
 
     /**
      * Return the object representing the next row.
-     *
-     * @return ?T
      */
-    public function next()
+    public function next(): ?DataObject
     {
         if ($this->records == null) {
             return $this->records;
@@ -138,7 +138,7 @@ class DAOResultFactory extends ItemIterator
     /**
      * @copydoc ItemIterator::count()
      */
-    public function getCount()
+    public function getCount(): int
     {
         if ($this->sql === null) {
             throw new \Exception('DAOResultFactory instances cannot be counted unless supplied in constructor (DAO ' . $this->dao::class . ')!');
@@ -152,20 +152,17 @@ class DAOResultFactory extends ItemIterator
     /**
      * Return the next row, with key.
      *
-     * @param null|mixed $idField
-     *
      * @return ?array{mixed,T} ($key, $value)
      */
-    public function nextWithKey($idField = null)
+    public function nextWithKey(mixed $idField = null): array
     {
         $result = $this->next();
         if ($idField) {
-            assert($result instanceof \PKP\core\DataObject);
+            assert($result instanceof DataObject);
             $key = $result->getData($idField);
         } elseif (empty($this->idFields)) {
             $key = null;
         } else {
-            assert($result instanceof \PKP\core\DataObject && is_array($this->idFields));
             $key = '';
             foreach ($this->idFields as $idField) {
                 assert(!is_null($result->getData($idField)));
@@ -181,9 +178,8 @@ class DAOResultFactory extends ItemIterator
     /**
      * Get the page number of a set that this iterator represents.
      *
-     * @return int
      */
-    public function getPage()
+    public function getPage(): int
     {
         return $this->rangeInfo->getPage();
     }
@@ -191,19 +187,16 @@ class DAOResultFactory extends ItemIterator
     /**
      * Get the total number of pages in this set.
      *
-     * @return int
      */
-    public function getPageCount()
+    public function getPageCount(): int
     {
         return ceil($this->getCount() / $this->rangeInfo->getCount());
     }
 
     /**
      * Return a boolean indicating whether or not we've reached the end of results
-     *
-     * @return bool
      */
-    public function eof()
+    public function eof(): bool
     {
         if ($this->records == null) {
             return true;
@@ -214,10 +207,8 @@ class DAOResultFactory extends ItemIterator
 
     /**
      * Return true iff the result list was empty.
-     *
-     * @return bool
      */
-    public function wasEmpty()
+    public function wasEmpty(): bool
     {
         return $this->getCount() === 0;
     }
@@ -227,7 +218,7 @@ class DAOResultFactory extends ItemIterator
      *
      * @return T[]
      */
-    public function toArray()
+    public function toArray(): array
     {
         $returner = [];
         while ($row = $this->next()) {
@@ -238,10 +229,8 @@ class DAOResultFactory extends ItemIterator
 
     /**
      * Return an Iterator for this DAOResultFactory.
-     *
-     * @return DAOResultIterator<T>
      */
-    public function toIterator()
+    public function toIterator(): \Iterator
     {
         return new DAOResultIterator($this);
     }
@@ -251,7 +240,7 @@ class DAOResultFactory extends ItemIterator
      *
      * @return array<array-key,T>
      */
-    public function toAssociativeArray($idField = 'id')
+    public function toAssociativeArray($idField = 'id'): array
     {
         $returner = [];
         while ($row = $this->next()) {

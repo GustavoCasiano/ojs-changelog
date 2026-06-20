@@ -16,7 +16,6 @@
 
 namespace PKP\db;
 
-use APP\core\Services;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -74,7 +73,7 @@ abstract class SchemaDAO extends DAO
      */
     public function insertObject($object)
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $schema = $schemaService->get($this->schemaName);
         $sanitizedProps = $schemaService->sanitize($this->schemaName, $object->_data);
 
@@ -136,7 +135,7 @@ abstract class SchemaDAO extends DAO
      */
     public function updateObject($object)
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $schema = $schemaService->get($this->schemaName);
         $sanitizedProps = $schemaService->sanitize($this->schemaName, $object->_data);
 
@@ -206,18 +205,13 @@ abstract class SchemaDAO extends DAO
     /**
      * Delete an object by its ID
      *
-     * @param int $objectId
+     * @return int Number of affected rows
      */
-    public function deleteById($objectId)
+    public function deleteById(int $objectId): int
     {
-        $this->update(
-            "DELETE FROM {$this->tableName} WHERE {$this->primaryKeyColumn} = ?",
-            [(int) $objectId]
-        );
-        $this->update(
-            "DELETE FROM {$this->settingsTableName} WHERE {$this->primaryKeyColumn} = ?",
-            [(int) $objectId]
-        );
+        return DB::table($this->tableName)
+            ->where($this->primaryKeyColumn, '=', $objectId)
+            ->delete();
     }
 
     /**
@@ -229,7 +223,7 @@ abstract class SchemaDAO extends DAO
      */
     public function _fromRow($primaryRow)
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $schema = $schemaService->get($this->schemaName);
 
         $object = $this->newDataObject();
@@ -274,8 +268,8 @@ abstract class SchemaDAO extends DAO
      */
     private function _getPrimaryDbProps($object)
     {
-        $schema = Services::get('schema')->get($this->schemaName);
-        $sanitizedProps = Services::get('schema')->sanitize($this->schemaName, $object->_data);
+        $schema = app()->get('schema')->get($this->schemaName);
+        $sanitizedProps = app()->get('schema')->sanitize($this->schemaName, $object->_data);
 
         $primaryDbProps = [];
         foreach ($this->primaryTableColumns as $propName => $columnName) {
@@ -286,8 +280,8 @@ abstract class SchemaDAO extends DAO
                         && in_array('nullable', $schema->properties->{$propName}->validation)) {
                     $primaryDbProps[$columnName] = null;
 
-                // Convert empty string values for DATETIME columns into null values
-                // because an empty string can not be saved to a DATETIME column
+                    // Convert empty string values for DATETIME columns into null values
+                    // because an empty string can not be saved to a DATETIME column
                 } elseif (array_key_exists($columnName, $sanitizedProps)
                         && $sanitizedProps[$columnName] === ''
                         && isset($schema->properties->{$propName}->validation)
@@ -305,8 +299,4 @@ abstract class SchemaDAO extends DAO
 
         return $primaryDbProps;
     }
-}
-
-if (!PKP_STRICT_MODE) {
-    class_alias('\PKP\db\SchemaDAO', '\SchemaDAO');
 }

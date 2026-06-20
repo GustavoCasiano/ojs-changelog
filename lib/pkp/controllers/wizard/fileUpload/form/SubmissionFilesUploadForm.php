@@ -18,15 +18,16 @@ namespace PKP\controllers\wizard\fileUpload\form;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\submission\Submission;
 use PKP\db\DAORegistry;
 use PKP\file\FileManager;
 use PKP\form\validation\FormValidator;
+use PKP\submission\Genre;
 use PKP\submission\GenreDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submissionFile\SubmissionFile;
+use PKP\user\User;
 
 class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
 {
@@ -68,6 +69,10 @@ class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
         // Initialize class.
         assert(is_null($uploaderRoles) || (is_array($uploaderRoles) && count($uploaderRoles) >= 1));
         $this->_uploaderRoles = $uploaderRoles;
+
+        if (!$revisionOnly && empty($submissionFileOptions) && is_numeric($revisedFileId)) {
+            throw new \Exception('A revised file id cannot be given when uploading a new file!');
+        }
 
         parent::__construct(
             $request,
@@ -146,7 +151,7 @@ class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
                 'submission.upload.noGenre',
                 function ($genreId) use ($context) {
                     $genreDao = DAORegistry::getDAO('GenreDAO'); /** @var GenreDAO $genreDao */
-                    return is_a($genreDao->getById($genreId, $context->getId()), 'Genre');
+                    return $genreDao->getById($genreId, $context->getId()) instanceof Genre;
                 }
             ));
         }
@@ -180,14 +185,14 @@ class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
         // Identify the uploading user.
         $request = Application::get()->getRequest();
         $user = $request->getUser();
-        assert(is_a($user, 'User'));
+        assert($user instanceof User);
 
         // Upload the file.
         $fileManager = new FileManager();
         $extension = $fileManager->parseFileExtension($_FILES['uploadedFile']['name']);
 
         $submissionDir = Repo::submissionFile()->getSubmissionDir($request->getContext()->getId(), $this->getData('submissionId'));
-        $fileId = Services::get('file')->add(
+        $fileId = app()->get('file')->add(
             $_FILES['uploadedFile']['tmp_name'],
             $submissionDir . '/' . uniqid() . '.' . $extension
         );
@@ -199,7 +204,7 @@ class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
                 [
                     'fileId' => $fileId,
                     'name' => [
-                        $this->_submission->getLocale() => $_FILES['uploadedFile']['name'],
+                        $this->_submission->getData('locale') => $_FILES['uploadedFile']['name'],
                     ],
                     'uploaderUserId' => $user->getId(),
                 ]
@@ -210,7 +215,7 @@ class SubmissionFilesUploadForm extends PKPSubmissionFilesUploadBaseForm
             $submissionFile = Repo::submissionFile()->dao->newDataObject();
             $submissionFile->setData('fileId', $fileId);
             $submissionFile->setData('fileStage', $this->getData('fileStage'));
-            $submissionFile->setData('name', $_FILES['uploadedFile']['name'], $this->_submission->getLocale());
+            $submissionFile->setData('name', $_FILES['uploadedFile']['name'], $this->_submission->getData('locale'));
             $submissionFile->setData('submissionId', $this->getData('submissionId'));
             $submissionFile->setData('uploaderUserId', $user->getId());
             $submissionFile->setData('assocType', $this->getData('assocType') ? (int) $this->getData('assocType') : null);

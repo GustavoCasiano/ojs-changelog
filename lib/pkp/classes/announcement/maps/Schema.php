@@ -14,7 +14,6 @@
 namespace PKP\announcement\maps;
 
 use APP\core\Application;
-use APP\core\Request;
 use Illuminate\Support\Enumerable;
 use PKP\announcement\Announcement;
 use PKP\core\PKPApplication;
@@ -81,7 +80,7 @@ class Schema extends \PKP\core\maps\Schema
         foreach ($props as $prop) {
             switch ($prop) {
                 case '_href':
-                    $output[$prop] = $this->getApiUrl('announcements/' . $item->getId());
+                    $output[$prop] = $this->getApiUrl('announcements/' . $item->getKey());
                     break;
                 case 'url':
                     $output[$prop] = $this->request->getDispatcher()->url(
@@ -90,11 +89,14 @@ class Schema extends \PKP\core\maps\Schema
                         $this->getUrlPath(),
                         'announcement',
                         'view',
-                        $item->getId()
+                        [$item->getKey()]
                     );
                     break;
+                case 'id':
+                    $output[$prop] = $item->getKey();
+                    break;
                 default:
-                    $output[$prop] = $item->getData($prop);
+                    $output[$prop] = $item->getAttribute($prop);
                     break;
             }
         }
@@ -108,10 +110,7 @@ class Schema extends \PKP\core\maps\Schema
 
     protected function getUrlPath(): string
     {
-        if (isset($this->context)) {
-            return $this->context->getData('urlPath');
-        }
-        return 'index';
+        return $this->context?->getData('urlPath') ?? 'index';
     }
 
     protected function getSupportedLocales(): array

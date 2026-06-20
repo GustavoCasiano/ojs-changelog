@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/log/event/DAO.php
  *
- * Copyright (c) 2014-2023 Simon Fraser University
- * Copyright (c) 2000-2023 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class DAO
@@ -100,11 +101,11 @@ class DAO extends EntityDAO
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
 
-        return LazyCollection::make(function () use ($rows) {
             foreach ($rows as $row) {
                 yield $row->log_id => $this->fromRow($row);
             }

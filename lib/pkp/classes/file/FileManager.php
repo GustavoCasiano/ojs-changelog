@@ -27,6 +27,7 @@ use APP\core\Application;
 use Exception;
 use GuzzleHttp\Psr7\Stream;
 use GuzzleHttp\Psr7\Utils;
+use Illuminate\Support\Str;
 use PKP\config\Config;
 use PKP\core\PKPString;
 use PKP\plugins\Hook;
@@ -347,6 +348,9 @@ class FileManager
      * @param string $fileName Optional filename to use on the client side
      *
      * @return ?bool
+     *
+     * @hook FileManager::downloadFile [[&$filePath, &$mediaType, &$inline, &$result, &$fileName]]
+     * @hook FileManager::downloadFileFinished [[&$returner]]
      */
     public function downloadByPath($filePath, $mediaType = null, $inline = false, $fileName = null)
     {
@@ -389,6 +393,8 @@ class FileManager
      * @param string $filePath the location of the file to be deleted
      *
      * @return ?bool returns true if successful
+     *
+     * @hook FileManager::deleteFile [[$filePath, &$result]]
      */
     public function deleteByPath($filePath)
     {
@@ -479,7 +485,7 @@ class FileManager
         if (!file_exists($dirPath)) {
             //Avoid infinite recursion when file_exists reports false for root directory
             if ($dirPath == dirname($dirPath)) {
-                fatalError('There are no readable files in this directory tree. Are safe mode or open_basedir active?');
+                throw new \Exception('There are no readable files in this directory tree. Are safe mode or open_basedir active?');
                 return false;
             } elseif ($this->mkdirtree(dirname($dirPath), $perms)) {
                 return $this->mkdir($dirPath, $perms);
@@ -644,12 +650,12 @@ class FileManager
      */
     public function truncateFileName($fileName, $length = 127)
     {
-        if (PKPString::strlen($fileName) <= $length) {
+        if (Str::length($fileName) <= $length) {
             return $fileName;
         }
         $ext = $this->getExtension($fileName);
-        $truncated = PKPString::substr($fileName, 0, $length - 1 - PKPString::strlen($ext)) . '.' . $ext;
-        return PKPString::substr($truncated, 0, $length);
+        $truncated = Str::substr($fileName, 0, $length - 1 - Str::length($ext)) . '.' . $ext;
+        return Str::substr($truncated, 0, $length);
     }
 
     /**

@@ -24,6 +24,10 @@
 
 [general]
 
+; An application-specific key that is required for the app to run
+; Internally this is used for any encryption (specifically cookie encryption if enabled)
+app_key =
+
 ; Set this to On once the system has been installed
 ; (This is generally done automatically by the installer)
 installed = Off
@@ -49,17 +53,6 @@ session_lifetime = 30
 ; at https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
 ; To set the "Secure" attribute for the cookie see the setting force_ssl at the [security] group
 session_samesite = Lax
-
-; Enable support for running scheduled tasks
-; Set this to On if you have set up the scheduled tasks script to
-; execute periodically
-scheduled_tasks = Off
-
-; Scheduled tasks will send email about processing
-; only in case of errors. Set to off to receive
-; all other kind of notification, including success,
-; warnings and notices.
-scheduled_tasks_report_error_only = On
 
 ; Site time zone
 ; Please refer to https://www.php.net/timezones for a full list of supported
@@ -168,16 +161,12 @@ debug = Off
 
 [cache]
 
-; Choose the type of object data caching to use. Options are:
-; - memcache: Use the memcache server configured below
-; - xcache: Use the xcache variable store
-; - apc: Use the APC variable store
-; - none: Use no caching.
-object_cache = none
+; Default driver for Laravel-based caching. Currently supports opcache and file drivers.
+; By default, the file is used.
+; default = file
 
-; Enable memcache support
-memcache_hostname = localhost
-memcache_port = 11211
+; Path to store cache contents for file or opcode based caches.
+; path = cache/opcache
 
 ; For site visitors who are not logged in, many pages are often entirely
 ; static (e.g. About, the home page, etc). If the option below is enabled,
@@ -252,6 +241,14 @@ umask = 0022
 
 [security]
 
+; Cipher algorithm used to generate the app key and encryption purpose
+; Available options: aes-128-cbc, aes-128-gcm, aes-256-cbc, aes-256-gcm
+; cipher = aes-256-cbc
+
+; Whether cookies will be encrypted.
+; Changing this setting will log out all users.
+; cookie_encryption = On
+
 ; Force SSL connections site-wide and also sets the "Secure" flag for session cookies
 ; See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#secure
 force_ssl = Off
@@ -291,6 +288,10 @@ allowed_html = "a[href|target|title],em,strong,cite,code,ul,ol,li[class],dl,dt,d
 allowed_title_html = "b,i,u,sup,sub"
 
 ;N.b.: The implicit_auth parameter has been removed in favor of plugin implementations such as shibboleth
+
+; The URL to use to fetch the plugin gallery plugin list
+; BEWARE: You should not extend the gallery with custom plugin gallery listing that collide with the official ones!
+;plugin_gallery_urls = '["https://pkp.sfu.ca/ojs/xml/plugins.xml"]'
 
 
 ;;;;;;;;;;;;;;;;;;
@@ -447,6 +448,27 @@ captcha_on_login = on
 ; Validate the hostname in the ReCaptcha response
 recaptcha_enforce_hostname = Off
 
+; ALTCHA is a free and open-source alternative to Google's ReCaptcha
+; The options below will manage all the required configurations used to
+; work with ALTCHA instead of ReCaptcha on system
+
+; Whether or not to enable ALTCHA
+altcha = off
+
+; Private key for ALTCHA
+altcha_hmackey = 'Example key'
+
+; Whether or not to use ALTCHA on user registration
+altcha_on_register = on
+
+; Whether or not to use ALTCHA on user login
+altcha_on_login = on
+
+; Whether or not to use ALTCHA on user lost password
+altcha_on_lost_password = on
+
+; The quantity of encryption cycles performed by the ALTCHA system
+altcha_encrypt_number = 10000
 
 ;;;;;;;;;;;;;;;;;;;;;
 ; External Commands ;
@@ -521,7 +543,6 @@ default_queue = "queue"
 ; sites. Instead, a worker daemon or cron job should be configured
 ; to process jobs off the application's main thread.
 ; See: https://docs.pkp.sfu.ca/admin-guide/en/deploy-jobs
-;
 job_runner = On
 
 ; The maximum number of jobs to run in a single request when using
@@ -548,6 +569,64 @@ job_runner_max_execution_time = 30
 ; memory_limit the server has configured for PHP.
 job_runner_max_memory = 80
 
+; Prevent multiple web requests from running JobRunner simultaneously.
+; Recommended On for shared/weak hosting. Dedicated servers can disable for throughput.
+job_runner_cross_request_lock = On
+
+; Controls whether queued jobs should be processed by the task scheduler.
+; This setting has no effect when the job_runner and the [schedule].task_runner are enabled,
+; on this situation the jobs will be processed solely by the job runner.
+process_jobs_at_task_scheduler = Off
+
 ; Remove failed jobs from the database after the following number of days.
 ; Remove this setting to leave failed jobs in the database.
 delete_failed_jobs_after = 180
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Scheduled Task Settings ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+[schedule]
+
+; Whether or not to turn on the built-in scheduled task runner.
+; When enabled, scheduled tasks will be processed at the end of each web
+; request to the application.
+; Use of the built-in scheduled task runner is strongly discouraged for high-volume
+; sites. Use your operating system's task scheduler instead, and configure
+; it to run the task scheduler every minute.
+;
+; Sample for the *nix crontab:
+; * * * * * php lib/pkp/tools/scheduler.php run >> /dev/null 2>&1
+;
+; See: https://docs.pkp.sfu.ca/admin-guide/en/deploy-scheduled-tasks
+task_runner = On
+
+; How often the built-in scheduled task runner should run at the
+; end of web request life cycle (value defined in seconds).
+; This configuration will only affect the built-in task runner, it doesn't apply
+; to the system crontab configuration.
+; The default value is 60 seconds (a value smaller than that might affect the
+; application performance negatively).
+task_runner_interval = 60
+
+; When enabled, an email with the scheduled task result will only be sent when an error
+; has occurred. Otherwise, all tasks will generate a notification.
+scheduled_tasks_report_error_only = On
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+; Invitations Settings  ;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+[invitations]
+
+; The number of days a user has to accept an invitation before it expires.
+expiration_days = 3
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+; New Features Settings ;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+[features]

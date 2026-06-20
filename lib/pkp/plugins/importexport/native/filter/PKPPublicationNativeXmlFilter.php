@@ -17,11 +17,11 @@
 namespace PKP\plugins\importexport\native\filter;
 
 use APP\core\Application;
+use APP\facades\Repo;
 use APP\plugins\importexport\native\NativeImportExportDeployment;
 use APP\publication\Publication;
 use Exception;
-use PKP\citation\CitationDAO;
-use PKP\db\DAORegistry;
+use PKP\controlledVocab\ControlledVocab;
 use PKP\filter\FilterGroup;
 use PKP\plugins\importexport\PKPImportExportFilter;
 use PKP\plugins\PluginRegistry;
@@ -213,13 +213,15 @@ class PKPPublicationNativeXmlFilter extends NativeExportFilter
 
         // add controlled vocabularies
         // get the supported locale keys
-        $supportedLocales = $deployment->getContext()->getSupportedFormLocales();
         $controlledVocabulariesMapping = $this->_getControlledVocabulariesMappings();
         foreach ($controlledVocabulariesMapping as $controlledVocabulariesNodeName => $mappings) {
-            $dao = DAORegistry::getDAO($mappings[0]);
-            $getFunction = $mappings[1];
-            $controlledVocabularyNodeName = $mappings[2];
-            $controlledVocabulary = $dao->$getFunction($entity->getId(), $supportedLocales);
+            $symbolic = $mappings[0];
+            $controlledVocabularyNodeName = $mappings[1];
+            $controlledVocabulary = Repo::controlledVocab()->getBySymbolic(
+                $symbolic,
+                Application::ASSOC_TYPE_PUBLICATION,
+                $entity->getId()
+            );
             $this->addControlledVocabulary($doc, $entityNode, $controlledVocabulariesNodeName, $controlledVocabularyNodeName, $controlledVocabulary);
         }
     }
@@ -237,12 +239,22 @@ class PKPPublicationNativeXmlFilter extends NativeExportFilter
     {
         $deployment = $this->getDeployment();
         $locales = array_keys($controlledVocabulary);
+
         foreach ($locales as $locale) {
             if (!empty($controlledVocabulary[$locale])) {
                 $controlledVocabulariesNode = $doc->createElementNS($deployment->getNamespace(), $controlledVocabulariesNodeName);
                 $controlledVocabulariesNode->setAttribute('locale', $locale);
-                foreach ($controlledVocabulary[$locale] as $controlledVocabularyItem) {
-                    $controlledVocabulariesNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), $controlledVocabularyNodeName, htmlspecialchars($controlledVocabularyItem, ENT_COMPAT, 'UTF-8')));
+
+                foreach ($controlledVocabulary[$locale] as $item) {
+                    $node = $doc->createElementNS($deployment->getNamespace(), $controlledVocabularyNodeName);
+                    $node->appendChild($doc->createElementNS($deployment->getNamespace(), 'name', htmlspecialchars($item['name'], ENT_COMPAT, 'UTF-8')));
+                    if (!empty($item['identifier'])) {
+                        $node->appendChild($doc->createElementNS($deployment->getNamespace(), 'identifier', htmlspecialchars($item['identifier'], ENT_COMPAT, 'UTF-8')));
+                    }
+                    if (!empty($item['source'])) {
+                        $node->appendChild($doc->createElementNS($deployment->getNamespace(), 'source', htmlspecialchars($item['source'], ENT_COMPAT, 'UTF-8')));
+                    }
+                    $controlledVocabulariesNode->appendChild($node);
                 }
 
                 $entityNode->appendChild($controlledVocabulariesNode);
@@ -304,11 +316,10 @@ class PKPPublicationNativeXmlFilter extends NativeExportFilter
     public function _getControlledVocabulariesMappings()
     {
         return [
-            'keywords' => ['SubmissionKeywordDAO', 'getKeywords', 'keyword'],
-            'agencies' => ['SubmissionAgencyDAO', 'getAgencies', 'agency'],
-            'languages' => ['SubmissionLanguageDAO', 'getLanguages', 'language'],
-            'disciplines' => ['SubmissionDisciplineDAO', 'getDisciplines', 'discipline'],
-            'subjects' => ['SubmissionSubjectDAO', 'getSubjects', 'subject'],
+            'keywords' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_KEYWORD, 'keyword'],
+            'agencies' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_AGENCY, 'agency'],
+            'disciplines' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_DISCIPLINE, 'discipline'],
+            'subjects' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_SUBJECT, 'subject'],
         ];
     }
 
@@ -338,10 +349,8 @@ class PKPPublicationNativeXmlFilter extends NativeExportFilter
      */
     private function createCitationsNode($doc, $deployment, $publication)
     {
-        $citationDao = DAORegistry::getDAO('CitationDAO'); /** @var CitationDAO $citationDao */
-
         $nodeCitations = $doc->createElementNS($deployment->getNamespace(), 'citations');
-        $submissionCitations = $citationDao->getByPublicationId($publication->getId())->toAssociativeArray();
+        $submissionCitations = $publication->getData('citations') ?? [];
 
         foreach ($submissionCitations as $submissionCitation) {
             $rawCitation = $submissionCitation->getRawCitation();

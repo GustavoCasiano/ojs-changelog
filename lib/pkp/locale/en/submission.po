@@ -28,7 +28,28 @@ msgid "author.submission.roundStatus.reviewsReady"
 msgstr "New reviews have been submitted and are being considered by the editor."
 
 msgid "author.submission.roundStatus.reviewOverdue"
-msgstr "One or more reviewers missed their deadline. The editorial team has been notified and will take action to ensure reviews are completed. You do not need to take any action at this time. You will be notified when a decision has been made."
+msgstr "One or more reviewers missed their deadline. The editorial team is aware and will ensure the reviews are completed. No action is needed from you right now. You'll be notified once a decision is made."
+
+msgid "author.authorNotFound"
+msgstr "The author for this affiliation could not be found."
+
+msgid "author.affiliationRorAndNameEmpty"
+msgstr "Please provide a ROR affiliation or at least one affiliation name."
+
+msgid "author.affiliationNamePrimaryLocaleMissing"
+msgstr "Please provide affiliation name in the submission primary locale."
+
+msgid "publication.editorEditWarning"
+msgstr "Warning: This version has been published. Editing it may impact the published content."
+
+msgid "ror.nameRequired"
+msgstr "A ROR name is required."
+
+msgid "ror.displayLocaleRequired"
+msgstr "ROR display locale is required."
+
+msgid "submission.authors.label"
+msgstr "Authors"
 
 msgid "submission.submit.availableUserGroups"
 msgstr "Submit As"
@@ -56,6 +77,15 @@ msgstr "Yes, my submission meets all of these requirements."
 
 msgid "submission.submit.submissionComplete"
 msgstr "Submission complete"
+
+msgid "submission.wizard.submissionCancelled"
+msgstr "Submission cancelled"
+
+msgid "submission.wizard.submissionCancel"
+msgstr "Cancel submission"
+
+msgid "submission.wizard.submissionCancelled.description"
+msgstr "Submission has been cancelled, and all associated data has been deleted."
 
 msgid "submission.submit.genre.label"
 msgstr "What kind of file is this?"
@@ -657,6 +687,9 @@ msgstr "First published"
 msgid "submission.forTheEditors"
 msgstr "For the Editors"
 
+msgid "submission.forReviewerSuggestion"
+msgstr "For Reviewer Suggestion"
+
 msgid "submission.galley"
 msgstr "Galley"
 
@@ -1239,6 +1272,9 @@ msgstr "Upload a File Ready for Publication"
 msgid "submission.upload.noAvailableReviewFiles"
 msgstr "There are no files for you to revise at this time."
 
+msgid "submission.reviewerSuggestions"
+msgstr "Reviewer Suggestions"
+
 msgid "editor.submission.roundStatus.revisionsRequested"
 msgstr "Revisions have been requested."
 
@@ -1246,13 +1282,13 @@ msgid "editor.submission.roundStatus.revisionsSubmitted"
 msgstr "Revisions have been submitted and a decision is needed."
 
 msgid "editor.submission.roundStatus.resubmitForReview"
-msgstr "The submission must be resubmitted for another review round."
+msgstr "Revisions requested from the author to be taken to a new review round."
 
 msgid "editor.submission.roundStatus.submissionResubmitted"
-msgstr "Submission has been resubmitted for another review round."
+msgstr "Revisions submitted. A new review round needs to be created."
 
 msgid "editor.submission.roundStatus.sentToExternal"
-msgstr "Sent to external review."
+msgstr "Sent for external review."
 
 msgid "editor.submission.roundStatus.accepted"
 msgstr "Submission accepted."
@@ -1270,10 +1306,13 @@ msgid "editor.submission.roundStatus.reviewsReady"
 msgstr "New reviews have been submitted."
 
 msgid "editor.submission.roundStatus.reviewsCompleted"
-msgstr "All reviewers have responded and a decision is needed."
+msgstr "All reviews are confirmed and a decision is needed."
 
 msgid "editor.submission.roundStatus.reviewOverdue"
 msgstr "A review is overdue."
+
+msgid "editor.submission.roundStatus.recommendationMadeByYou"
+msgstr "Recommendation has been made by you."
 
 msgid "editor.submission.roundStatus.pendingRecommendations"
 msgstr "Awaiting recommendations from editors."
@@ -1295,6 +1334,9 @@ msgstr "A new submission is waiting to be sent for review or declined."
 
 msgid "editor.submission.stageParticipants"
 msgstr "Participants"
+
+msgid "editor.submission.reviewerSuggestions"
+msgstr "Reviewers Suggested by Author"
 
 msgid "editor.submission.noneAssigned"
 msgstr "None Assigned"
@@ -1836,6 +1878,9 @@ msgstr "This review has been accepted."
 msgid "submission.review.status.received"
 msgstr "The reviewer has submitted their review."
 
+msgid "submission.review.status.viewed"
+msgstr "The editor has viewed the review."
+
 msgid "submission.review.status.complete"
 msgstr "This review has been completed."
 
@@ -2037,6 +2082,28 @@ msgstr "You must assign at least one participant to this submission before initi
 msgid "submission.query.allowedEditTime"
 msgstr "You can update this discussion for {$allowedEditTimeNoticeLimit} minutes."
 
+msgid "submission.list.changeSubmissionLanguage.currentLanguage"
+msgstr "Current Submission Language:"
+
+msgid "submission.list.changeSubmissionLanguage.buttonLabel"
+msgstr "Change"
+
+msgid "submission.list.changeSubmissionLanguage.title"
+msgstr "Change Submission Language For"
+
+msgid "submission.list.changeSubmissionLanguage.languageDescription"
+msgstr "This is the primary submission language. Changing this will have effects on the submission and the metadata entered"
+
+msgid "submission.list.changeSubmissionLanguage.metadataDescription"
+msgstr "<strong>Before changing the submission language, ensure you have filled out the following metadata fields to maintain system integrity. "
+"Also, note that contributor information and file names will be copied from previously entered information.</strong>"
+
+msgid "submission.list.changeSubmissionLanguage.metadataDescription.title"
+msgstr "Enter submission title here in {$language}. You can format your title as needed"
+
+msgid "submission.list.changeSubmissionLanguage.metadataDescription.abstract"
+msgstr "Including the abstract in {$language} is recommended. This helps ensure that the content is accessible"
+
 msgid "submission.list.infoCenter"
 msgstr "Activity Log & Notes"
 
@@ -2066,6 +2133,10 @@ msgstr "View All Submissions"
 
 msgid "submission.list.viewSubmission"
 msgstr "View Submission"
+
+msgid "submission.list.viewSubmissionSummary"
+msgstr "View Submission Summary"
+
 
 msgid "submission.list.reviewsCompleted"
 msgstr "Assigned reviews completed"
@@ -2106,6 +2177,9 @@ msgstr "Days since last activity"
 msgid "submission.list.assignEditor"
 msgstr "Assign Editor"
 
+msgid "submission.list.completeSubmission"
+msgstr "Complete submission"
+
 msgid "submission.wizard.alreadySubmitted"
 msgstr "This submission has already been submitted. Please visit your <a href=\"{$url}\">submissions dashboard</a> to view it."
 
@@ -2120,6 +2194,9 @@ msgstr "Change Submission Settings"
 
 msgid "submission.wizard.completeSteps"
 msgstr "Complete the steps to make a submission"
+
+msgid "submission.wizard.cancel.confirmation"
+msgstr "Are you sure you wish to cancel this submission? This will delete the submission and all associated data. This action cannot be undone."
 
 msgid "submission.wizard.confirmSubmit"
 msgstr "The submission, <strong>{$title}</strong>, will be submitted to <strong>{$context}</strong> for editorial review. Are you sure you want to complete this submission?"
@@ -2145,8 +2222,14 @@ msgstr "Make a Submission: {$step}"
 msgid "submission.wizard.noContributors"
 msgstr "No contributors have been added for this submission."
 
+msgid "submission.wizard.noReviewerSuggestions"
+msgstr "No reviewers have been suggested for this submission."
+
 msgid "submission.wizard.missingContributorLanguage"
 msgstr "The given name is missing in {$language} for one or more of the contributors."
+
+msgid "submission.wizard.missingContributorAffiliationLanguage"
+msgstr "The affiliation name is missing in {$language} for one or more affiliations for one or more of the contributors."
 
 msgid "submission.wizard.notAllowed"
 msgstr "Not Allowed"
@@ -2324,8 +2407,369 @@ msgstr "Version {$version}"
 msgid "submission.submissionFile"
 msgstr "Submission File"
 
+msgid "submission.dashboard.view.assigned"
+msgstr "Assigned to me"
+
+msgid "submission.dashboard.view.active"
+msgstr "Active submissions"
+
+msgid "submission.dashboard.view.needsEditor"
+msgstr "Needs editor"
+
+msgid "submission.dashboard.view.submissionStageAll"
+msgstr "All in submission stage"
+
+msgid "submission.dashboard.view.reviewExternal"
+msgstr "All in peer review"
+
+msgid "submission.dashboard.view.reviewAll"
+msgstr "All in review stage"
+
+msgid "submission.dashboard.view.needsReviews"
+msgstr "Needs reviews"
+
+msgid "submission.dashboard.view.awaitingReviews"
+msgstr "Awaiting reviews"
+
+msgid "submission.dashboard.view.reviewsSubmitted"
+msgstr "Reviews submitted"
+
+msgid "submission.dashboard.view.reviewsOverdue"
+msgstr "Reviews overdue"
+
+msgid "submission.dashboard.view.copyediting"
+msgstr "All in copyediting stage"
+
+msgid "submission.dashboard.view.production"
+msgstr "All in production stage"
+
+msgid "submission.dashboard.view.scheduled"
+msgstr "Scheduled for publication"
+
+msgid "submission.dashboard.view.published"
+msgstr "Published"
+
+msgid "submission.dashboard.view.declined"
+msgstr "Declined"
+
+msgid "submission.dashboard.view.revisionsRequested"
+msgstr "Revisions requested"
+
+msgid "submission.dashboard.view.revisionsSubmitted"
+msgstr "Author revisions submitted"
+
+msgid "submission.dashboard.view.incompleteSubmissions"
+msgstr "Incomplete submissions"
+
+msgid "submission.dashboard.view.reviewerAssignmentsAll"
+msgstr "All assignments"
+
+msgid "submission.dashboard.view.reviewerAssignmentsPending"
+msgstr "Pending"
+
+msgid "submission.dashboard.view.reviewerAssignmentsFinished"
+msgstr "Completed / Declined"
+
+msgid "submission.dashboard.view.reviewAssignments.all"
+msgstr "All assignments"
+
+msgid "submission.dashboard.view.reviewAssignments.actionRequired"
+msgstr "Action Required by me"
+
+msgid "submission.dashboard.view.reviewAssignments.archived"
+msgstr "Archived"
+
+msgid "submission.dashboard.view.reviewAssignments.declined"
+msgstr "Declined"
+
+msgid "submission.dashboard.view.reviewAssignments.completed"
+msgstr "Completed"
+
+msgid "submission.dashboard.view.reviewAssignments.published"
+msgstr "Published"
+
+msgid "submission.stage.externalReviewWithRound"
+msgstr "Review (Round {$round})"
+
+msgid "submission.stage.scheduledForPublication"
+msgstr "Scheduled For Publication"
+
+msgid "submission.stage.published"
+msgstr "Published"
+
+msgid "publication.jats"
+msgstr "JATS XML"
+
+msgid "publication.jats.confirmDeleteFileTitle"
+msgstr "Confirm deleting JATS XML"
+
+msgid "publication.jats.confirmDeleteFileMessage"
+msgstr "You are about to remove the existing JATS XML File from this publication. Are you sure?"
+
+msgid "publication.jats.confirmDeleteFileButton"
+msgstr "Delete JATS File"
+
+msgid "publication.jats.autoCreatedMessage"
+msgstr "This JATS file is generated automatically by the submission metadata"
+
+msgid "publication.jats.lastModified"
+msgstr "Last Modification at {$modificationDate} by {$username}"
+
+msgid "publication.jats.defaultContentCreationError"
+msgstr "An error occured when trying to create the default JATS content. Please make sure that the JatsTemplate plugin is installed."
+
+msgid "submission.files.content.error"
+msgstr "The content of the submission file '{$fileName}' could not be retrieved."
+
 msgid "author.competingInterests"
 msgstr "Competing Interests"
 
 msgid "author.competingInterests.description"
 msgstr "Please disclose any competing interests this author may have with the research subject."
+
+msgid "reviewerSuggestion.suggestionReason"
+msgstr "Reasons for suggesting reviewer"
+
+msgid "reviewerSuggestion.suggestionReason.description"
+msgstr "Please share why you are recommending this reviewer and mention is there are any potential conflict of interest."
+
+msgid "submission.localeNotSupported"
+msgstr "The language of the submission ({$language}) is not one of the supported submission languages. You can still edit the submission details but new submissions are not currently accepted with this language."
+
+msgid "dashboard.reviewersAssigned"
+msgstr "Reviewers assigned"
+
+msgid "dashboard.reviewUpdateCounts"
+msgstr "Review update {$reviewsCompletedCount}/{$reviewsTotalCount}"
+
+msgid "dashboard.applyFilters"
+msgstr "Apply Filters"
+
+msgid "dashboard.startNewSubmission"
+msgstr "Start A New Submission"
+
+msgid "dashboard.assignReviewers"
+msgstr "Assign Reviewers"
+
+msgid "dashboard.revisionRequestedFromAuthor"
+msgstr "Revisions requested from author"
+
+msgid "dashboard.revisionsRequestedFromAuthorNextRound"
+msgstr "Revisions requested from the author to be taken to a new review round"
+
+msgid "dashboard.newReviewRoundToBeCreated"
+msgstr "New review round to be created"
+
+msgid "dashboard.toBePublishedInIssue"
+msgstr "To be published in issue {$issue}"
+
+msgid "dashboard.copyEditedFilesUploaded"
+msgstr "Copyedited Files Uploaded: {$count}"
+
+msgid "dashboard.revisionRequested"
+msgstr "Revision requested"
+
+msgid "dashboard.submitRevisions"
+msgstr "Submit revisions"
+
+msgid "workflow.uploadRevisions"
+msgstr "Upload revisions"
+
+msgid "dashboard.actions.respondToRequest"
+msgstr "Respond to request"
+
+msgid "dashboard.actions.finishReview"
+msgstr "Finish review"
+
+
+msgid "dashboard.reviewAssignment.acceptOrDeclineRequestDate"
+msgstr "Please accept or decline this request by {$date}"
+
+msgid "dashboard.reviewAssignment.declined"
+msgstr "Request declined on {$date}"
+
+msgid "dashboard.reviewAssignment.reviewSubmitted"
+msgstr "Review submitted on {$date}"
+
+msgid "dashboard.reviewAssignment.deadlineForRespondingAcceptOrDecline"
+msgstr "Deadline for responding to this request has passed. Please accept or decline this request at the earliest."
+
+msgid "dashboard.reviewAssignment.completeReviewByDate"
+msgstr "Please complete this review by {$date}."
+
+msgid "dashboard.reviewAssignment.deadlineForCompletingReviewHasPassed"
+msgstr "Deadline for completing this review has passed. Please complete the review at the earliest."
+
+msgid "dashboard.reviewAssignment.statusAwaitingResponse.title"
+msgstr "Awaiting Response from the reviewer"
+
+msgid "dashboard.reviewAssignment.statusAwaitingResponse.description"
+msgstr "Review request has been shared with reviewer. Awaiting response in <b>{$days} days on {$date}</b>"
+
+msgid "dashboard.reviewAssignment.statusDeclined.title"
+msgstr "Review Request declined on {$date}"
+
+msgid "dashboard.reviewAssignment.statusDeclined.description"
+msgstr "Reviewer declined the review request on <b>{$date}</b>"
+
+msgid "dashboard.reviewAssignment.statusResponseOverdue.title"
+msgstr "Review Request overdue by {$days} days"
+
+msgid "dashboard.reviewAssignment.statusResponseOverdue.description"
+msgstr "This reviewer has not responded to the review request. A response was due on <b>{$date}</b>"
+
+msgid "dashboard.reviewAssignment.statusAccepted.title"
+msgstr "Ongoing review - request accepted"
+
+msgid "dashboard.reviewAssignment.statusAccepted.description"
+msgstr "This reviewer has accepted the review request. Their review is due in <b>{$days} days on {$date}.</b>"
+
+msgid "dashboard.reviewAssignment.statusReviewOverdue.title"
+msgstr "Review overdue by {$days} days"
+
+msgid "dashboard.reviewAssignment.statusReviewOverdue.description"
+msgstr "This reviewer has not completed their review. A response was due on <b>{$date}.</b>"
+
+msgid "dashboard.reviewAssignment.statusReceived.title"
+msgstr "Review completed on {$date}"
+
+msgid "dashboard.reviewAssignment.statusReceived.description"
+msgstr "The review was completed on {$date} with the following recommendation: <b>{$recommendation}</b>"
+
+msgid "dashboard.reviewAssignment.statusReceived.withoutRecommendation.description"
+msgstr "The review was completed on {$date}"
+
+msgid "dashboard.reviewAssignment.statusComplete.title"
+msgstr "Review was confirmed by editor"
+
+msgid "dashboard.reviewAssignment.statusComplete.description"
+msgstr "The review was accepted by the editor on <b>{$date}</b>."
+
+msgid "dashboard.reviewAssignment.statusCancelled.title"
+msgstr "Reviewer cancelled review request"
+
+msgid "dashboard.reviewAssignment.statusCancelled.description"
+msgstr "Reviewer has cancelled the review request on <b>{$date}</b>."
+
+msgid "dashboard.reviewAssignment.statusRequestResend.title"
+msgstr "Awaiting Response from the reviewer"
+
+msgid "dashboard.reviewAssignment.statusRequestResend.description"
+msgstr "Review request has been reshared with reviewer. Awaiting response in {$days} days on {$date}"
+
+msgid "dashboard.reviewAssignment.action.viewDetails"
+msgstr "View details"
+
+msgid "dashboard.reviewAssignment.action.resendReviewRequest"
+msgstr "Resend Review Request"
+
+msgid "dashboard.reviewAssignment.action.cancelReviewer"
+msgstr "Cancel Reviewer"
+
+msgid "dashboard.reviewAssignment.action.unassignReviewer"
+msgstr "Unassign"
+
+msgid "dashboard.reviewAssignment.action.editDueDate"
+msgstr "Edit Due Date"
+
+msgid "dashboard.reviewAssignment.action.viewRecommendation"
+msgstr "View recommendation"
+
+msgid "dashboard.reviewAssignment.action.viewUnreadRecommendation"
+msgstr "View unread recommendation"
+
+msgid "dashboard.reviewAssignment.action.sendReviewToOrcid"
+msgstr "Send Review To ORCID"
+
+msgid "dashboard.reviewAssignment.action.sendReviewToOrcid.confirm"
+msgstr "Send this review to the reviewer's ORCID?"
+
+msgid "dashboard.declinedDuringStage"
+msgstr "Declined during the {$stageName} stage."
+
+msgid "dashboard.recommendOnly.pendingRecommendations"
+msgstr "Recommending Editors are tasked to advise the next steps for this submission"
+
+msgid "dashboard.recommendOnly.recommendationsReady"
+msgstr "An editorial recommendation has been received"
+
+msgid "dashboard.recommendOnly.recommendationsCompleted"
+msgstr "All editorial recommendations have been received, and a decision is required."
+
+msgid "dashboard.noAccessBeingAuthor"
+msgstr "You cannot access this submission as a Journal Manager since you are the author. To view it, go to \"My Submissions\""
+
+msgid "dashboard.noAccessBeingReviewer"
+msgstr "You cannot access this submission as a Journal Manager since you are the reviewer. To view it, go to \"Review Assignments\""
+
+msgid "dashboard.minimumReviewsConfirmedDecisionNeeded"
+msgstr "Minimum required number of reviews have been confirmed. A decision is needed."
+
+msgid "dashboard.minimumConfirmedReviewsRequired"
+msgstr "Minimum number of confirmed reviews required: {$number}."
+
+msgid "dashboard.proceedWithoutMinimumReviews"
+msgstr "Proceed Without Minimum Confirmed Reviews?"
+
+msgid "dashboard.minimumConfirmedReviewsNotMet"
+msgstr "The minimum number of confirmed reviews has not been met. Do you still want to proceed with this editorial decision?"
+
+msgid "participantManager.onlyAllowedToRecommend"
+msgstr "Only allowed to recommend an editorial decision"
+
+msgid "workflow.stageNotStarted"
+msgstr "The {$stage} stage has not yet been initiated."
+
+msgid "workflow.submissionInFutureStage"
+msgstr "The submission is currently in the {$stage} stage."
+
+msgid "workflow.submissionNextReviewRoundInFutureStage"
+msgstr "The submission advanced to the next review round, was accepted, and is currently in the {$stage} stage."
+
+msgid "workflow.submissionInNextReviewRound"
+msgstr "The submission has been advanced to the next round of review"
+
+msgid "workflow.reviewRoundN"
+msgstr "Review Round {$number}"
+
+msgid "fileManager.submissionFilesDescription"
+msgstr "Files uploaded at the time of submission"
+
+msgid "fileManager.revisionsUploaded"
+msgstr "Revisions Uploaded"
+
+msgid "fileManager.revisionsUploadedDescription"
+msgstr "These files have been submitted by the author after revisions were requested"
+
+msgid "fileManager.filesForReview"
+msgstr "Files for Review"
+
+msgid "fileManager.filesForReviewDescription"
+msgstr "These files will be sent to the reviewers to review"
+
+msgid "fileManager.copyeditedFiles"
+msgstr "Copyedited Files"
+
+msgid "fileManager.copyeditedFilesDescription"
+msgstr "These are edited files that will be taken to the production stage"
+
+msgid "fileManager.draftFilesDescription"
+msgstr "These are files from the review stage which are to be copyedited"
+
+msgid "fileManager.productionReadyFilesDescription"
+msgstr "These are the files that will be sent for publication"
+
+msgid "reviewerManager.reviewerStatus"
+msgstr "Reviewer status"
+
+msgid "dashboard.submissions.incomplete.bulkDelete.confirm"
+msgstr "Confirm Delete of Incomplete Submissions"
+
+msgid "dashboard.submissions.incomplete.bulkDelete.body"
+msgstr "Are you sure you want to delete the selected items? This action cannot be undone. Please confirm to proceed."
+
+msgid "dashboard.submissions.incomplete.bulkDelete.column.description"
+msgstr "Select incomplete submissions to be deleted."
+
+msgid "dashboard.submissions.incomplete.bulkDelete.button"
+msgstr "Delete Incomplete Submissions"

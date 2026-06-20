@@ -3,8 +3,8 @@
 /**
  * @file controllers/grid/users/stageParticipant/form/PKPStageParticipantNotifyForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2003-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class PKPStageParticipantNotifyForm
@@ -19,7 +19,6 @@ namespace PKP\controllers\grid\users\stageParticipant\form;
 use APP\core\Application;
 use APP\core\Request;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
@@ -28,15 +27,16 @@ use PKP\controllers\grid\queries\traits\StageMailable;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\db\DAORegistry;
 use PKP\form\Form;
+use PKP\form\validation\FormValidator;
+use PKP\form\validation\FormValidatorCSRF;
+use PKP\form\validation\FormValidatorPost;
 use PKP\log\event\EventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
-use PKP\note\NoteDAO;
-use PKP\notification\NotificationDAO;
-use PKP\notification\PKPNotification;
-use PKP\query\QueryDAO;
+use PKP\log\SubmissionEmailLogEventType;
+use PKP\note\Note;
+use PKP\notification\Notification;
+use PKP\query\Query;
+use PKP\query\QueryParticipant;
 use PKP\security\Role;
 use PKP\security\Validation;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -80,11 +80,11 @@ class PKPStageParticipantNotifyForm extends Form
         // Some other forms (e.g. the Add Participant form) subclass this form and
         // may not enforce the sending of an email.
         if ($this->isMessageRequired()) {
-            $this->addCheck(new \PKP\form\validation\FormValidator($this, 'message', 'required', 'stageParticipants.notify.warning'));
+            $this->addCheck(new FormValidator($this, 'message', 'required', 'stageParticipants.notify.warning'));
         }
-        $this->addCheck(new \PKP\form\validation\FormValidator($this, 'userId', 'required', 'stageParticipants.notify.warning'));
-        $this->addCheck(new \PKP\form\validation\FormValidatorPost($this));
-        $this->addCheck(new \PKP\form\validation\FormValidatorCSRF($this));
+        $this->addCheck(new FormValidator($this, 'userId', 'required', 'stageParticipants.notify.warning'));
+        $this->addCheck(new FormValidatorPost($this));
+        $this->addCheck(new FormValidatorCSRF($this));
     }
 
     /**
@@ -178,30 +178,28 @@ class PKPStageParticipantNotifyForm extends Form
         }
 
         // Create a query
-        $queryDao = DAORegistry::getDAO('QueryDAO'); /** @var QueryDAO $queryDao */
-        $query = $queryDao->newDataObject();
-        $query->setAssocType(PKPApplication::ASSOC_TYPE_SUBMISSION);
-        $query->setAssocId($submission->getId());
-        $query->setStageId($this->_stageId);
-        $query->setSequence(REALLY_BIG_NUMBER);
-        $queryDao->insertObject($query);
-        $queryDao->resequence(PKPApplication::ASSOC_TYPE_SUBMISSION, $submission->getId());
+        $query = Query::create([
+            'assocType' => PKPApplication::ASSOC_TYPE_SUBMISSION,
+            'assocId' => $submission->getId(),
+            'stageId' => $this->_stageId,
+            'seq' => REALLY_BIG_NUMBER
+        ]);
+
+        Repo::query()->resequence(PKPApplication::ASSOC_TYPE_SUBMISSION, $submission->getId());
 
         // Add the current user and message recipient as participants.
-        $queryDao->insertParticipant($query->getId(), $user->getId());
+        QueryParticipant::create([
+            'queryId' => $query->id,
+            'userId' => $user->getId()
+        ]);
         if ($user->getId() != $request->getUser()->getId()) {
-            $queryDao->insertParticipant($query->getId(), $request->getUser()->getId());
+            QueryParticipant::create([
+                'queryId' => $query->id,
+                'userId' => $request->getUser()->getId()
+            ]);
         }
 
-        // Create a head note
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-        $headNote = $noteDao->newDataObject();
-        $headNote->setUserId($request->getUser()->getId());
-        $headNote->setAssocType(PKPApplication::ASSOC_TYPE_QUERY);
-        $headNote->setAssocId($query->getId());
-        $headNote->setDateCreated(Core::getCurrentDate());
-
-        // Populate mailable with data before compiling headNote title and content
+        // Populate mailable with data before compiling headNote
         $mailable
             ->addData(['authorName' => $user->getFullName()]) // For compatibility with removed AUTHOR_ASSIGN and AUTHOR_NOTIFY
             ->sender($request->getUser())
@@ -209,43 +207,47 @@ class PKPStageParticipantNotifyForm extends Form
             ->body($this->getData('message'))
             ->subject($template->getLocalizedData('subject'));
 
-        // Compile and insert note
-        $headNote->setTitle(Mail::compileParams(
-            $template->getLocalizedData('subject'),
-            $mailable->getData()
-        ));
         //Substitute email template variables not available before form being executed
         $additionalVariables = $this->getEmailVariableNames($template->getData('key'));
-        $headNote->setContents(Mail::compileParams(
-            $this->getData('message'),
-            array_intersect_key($mailable->getData(), $additionalVariables)
-        ));
-        $noteDao->insertObject($headNote);
+
+        // Create a head note
+        $headNote = Note::create([
+            'userId' => $request->getUser()->getId(),
+            'assocType' => PKPApplication::ASSOC_TYPE_QUERY,
+            'assocId' => $query->id,
+            'title' => Mail::compileParams(
+                $template->getLocalizedData('subject'),
+                $mailable->getData()
+            ),
+            'contents' => Mail::compileParams(
+                $this->getData('message'),
+                array_intersect_key($mailable->getData(), $additionalVariables)
+            ),
+        ]);
 
         // Send the email
         $notificationMgr = new NotificationManager();
         $notification = $notificationMgr->createNotification(
-            $request,
             $userId,
             Notification::NOTIFICATION_TYPE_NEW_QUERY,
             $request->getContext()->getId(),
             PKPApplication::ASSOC_TYPE_QUERY,
-            $query->getId(),
+            $query->id,
             Notification::NOTIFICATION_LEVEL_TASK
         );
 
-        $logDao = null;
+        $logRepository = null;
         if ($notification) {
             // Only send the email if notifications have not been disabled
             $mailable->allowUnsubscribe($notification);
             try {
                 Mail::send($mailable);
-                $logDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $logDao */
+                $logRepository = Repo::emailLogEntry();
             } catch (TransportException $e) {
                 $notificationMgr = new NotificationManager();
                 $notificationMgr->createTrivialNotification(
                     $request->getUser()->getId(),
-                    PKPNotification::NOTIFICATION_TYPE_ERROR,
+                    Notification::NOTIFICATION_TYPE_ERROR,
                     ['contents' => __('email.compose.error')]
                 );
                 error_log($e->getMessage());
@@ -255,42 +257,42 @@ class PKPStageParticipantNotifyForm extends Form
         // remove the INDEX_ and LAYOUT_ tasks if a user has sent the appropriate _COMPLETE email
         switch ($templateKey) {
             case 'EDITOR_ASSIGN':
-                $this->_addAssignmentTaskNotification($request, PKPNotification::NOTIFICATION_TYPE_EDITOR_ASSIGN, $user->getId(), $submission->getId());
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_EDITOR_ASSIGN, $mailable, $submission);
+                $this->_addAssignmentTaskNotification($request, Notification::NOTIFICATION_TYPE_EDITOR_ASSIGN, $user->getId(), $submission->getId());
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::EDITOR_ASSIGN, $mailable, $submission);
                 break;
             case 'COPYEDIT_REQUEST':
-                $this->_addAssignmentTaskNotification($request, PKPNotification::NOTIFICATION_TYPE_COPYEDIT_ASSIGNMENT, $user->getId(), $submission->getId());
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_COPYEDIT_NOTIFY_COPYEDITOR, $mailable, $submission);
+                $this->_addAssignmentTaskNotification($request, Notification::NOTIFICATION_TYPE_COPYEDIT_ASSIGNMENT, $user->getId(), $submission->getId());
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::COPYEDIT_NOTIFY_COPYEDITOR, $mailable, $submission);
                 break;
             case 'LAYOUT_REQUEST':
-                $this->_addAssignmentTaskNotification($request, PKPNotification::NOTIFICATION_TYPE_LAYOUT_ASSIGNMENT, $user->getId(), $submission->getId());
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_LAYOUT_NOTIFY_EDITOR, $mailable, $submission);
+                $this->_addAssignmentTaskNotification($request, Notification::NOTIFICATION_TYPE_LAYOUT_ASSIGNMENT, $user->getId(), $submission->getId());
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::LAYOUT_NOTIFY_EDITOR, $mailable, $submission);
                 break;
             case 'INDEX_REQUEST':
-                $this->_addAssignmentTaskNotification($request, PKPNotification::NOTIFICATION_TYPE_INDEX_ASSIGNMENT, $user->getId(), $submission->getId());
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_INDEX_NOTIFY_INDEXER, $mailable, $submission);
+                $this->_addAssignmentTaskNotification($request, Notification::NOTIFICATION_TYPE_INDEX_ASSIGNMENT, $user->getId(), $submission->getId());
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::INDEX_NOTIFY_INDEXER, $mailable, $submission);
                 break;
             case 'LAYOUT_COMPLETE':
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_LAYOUT_NOTIFY_COMPLETE, $mailable, $submission);
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::LAYOUT_NOTIFY_COMPLETE, $mailable, $submission);
                 break;
             case 'INDEX_COMPLETE':
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_INDEX_NOTIFY_COMPLETE, $mailable, $submission);
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::INDEX_NOTIFY_COMPLETE, $mailable, $submission);
                 break;
             default:
-                !$logDao ?: $logDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_DISCUSSION_NOTIFY, $mailable, $submission);
+                !$logRepository ?: $logRepository->logMailable(SubmissionEmailLogEventType::DISCUSSION_NOTIFY, $mailable, $submission);
                 break;
         }
 
-        if ($submission->getStageId() == WORKFLOW_STAGE_ID_EDITING ||
-            $submission->getStageId() == WORKFLOW_STAGE_ID_PRODUCTION) {
+        if ($submission->getData('stageId') == WORKFLOW_STAGE_ID_EDITING ||
+            $submission->getData('stageId') == WORKFLOW_STAGE_ID_PRODUCTION) {
             $notificationMgr = new NotificationManager();
             $notificationMgr->updateNotification(
                 $request,
                 [
-                    PKPNotification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
-                    PKPNotification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
-                    PKPNotification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
-                    PKPNotification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
+                    Notification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
+                    Notification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
+                    Notification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
+                    Notification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
                 ],
                 null,
                 PKPApplication::ASSOC_TYPE_SUBMISSION,
@@ -349,19 +351,15 @@ class PKPStageParticipantNotifyForm extends Form
      */
     private function _addAssignmentTaskNotification($request, $type, $userId, $submissionId)
     {
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationFactory = $notificationDao->getByAssoc(
-            Application::ASSOC_TYPE_SUBMISSION,
-            $submissionId,
-            $userId,
-            $type
-        );
+        $notification = Notification::withAssoc(Application::ASSOC_TYPE_SUBMISSION, $submissionId)
+            ->withUserId($userId)
+            ->withType($type)
+            ->first();
 
-        if (!$notificationFactory->next()) {
+        if (!$notification) {
             $context = $request->getContext();
             $notificationMgr = new NotificationManager();
             $notificationMgr->createNotification(
-                $request,
                 $userId,
                 $type,
                 $context->getId(),
@@ -394,7 +392,7 @@ class PKPStageParticipantNotifyForm extends Form
 
         // Create trivial notification.
         $notificationMgr = new NotificationManager();
-        $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('stageParticipants.history.messageSent')]);
+        $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('stageParticipants.history.messageSent')]);
     }
 
     /**

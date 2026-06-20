@@ -3,13 +3,11 @@
 /**
  * @file classes/site/SiteDAO.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class SiteDAO
- *
- * @ingroup site
  *
  * @see Site
  *
@@ -18,7 +16,6 @@
 
 namespace PKP\site;
 
-use APP\core\Services;
 use Illuminate\Support\Facades\DB;
 use PKP\services\PKPSchemaService;
 
@@ -26,7 +23,7 @@ class SiteDAO extends \PKP\db\DAO
 {
     /** @var array Maps schema properties for the primary table to their column names */
     public $primaryTableColumns = [
-        'redirect' => 'redirect',
+        'redirectContextId' => 'redirect_context_id',
         'primaryLocale' => 'primary_locale',
         'minPasswordLength' => 'min_password_length',
         'installedLocales' => 'installed_locales',
@@ -36,10 +33,8 @@ class SiteDAO extends \PKP\db\DAO
 
     /**
      * Retrieve site information.
-     *
-     * @return ?Site
      */
-    public function getSite()
+    public function getSite(): ?site
     {
         $result = $this->retrieve(
             'SELECT * FROM site'
@@ -54,10 +49,8 @@ class SiteDAO extends \PKP\db\DAO
 
     /**
      * Instantiate and return a new DataObject.
-     *
-     * @return Site
      */
-    public function newDataObject()
+    public function newDataObject(): Site
     {
         return new Site();
     }
@@ -65,33 +58,19 @@ class SiteDAO extends \PKP\db\DAO
     /**
      * @copydoc SchemaDAO::_fromRow()
      */
-    public function _fromRow($primaryRow, $callHook = true)
+    public function _fromRow(array $primaryRow, bool $callHook = true): Site
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $schema = $schemaService->get(PKPSchemaService::SCHEMA_SITE);
 
         $site = $this->newDataObject();
 
         foreach ($this->primaryTableColumns as $propName => $column) {
             if (isset($primaryRow[$column])) {
-                // Backwards-compatible handling of the installedLocales and
-                // supportedLocales data. Before 3.2, these were stored as colon-separated
-                // strings (eg - en:fr_CA:ar). In 3.2, these are migrated to
-                // serialized arrays defined by the site.json schema. However, some of the
-                // older upgrade scripts use site data before the migration is performed,
-                // so SiteDAO must be able to return the correct array before the data
-                // is migrated. This code checks the format and converts the old data so
-                // that calls to $site->getInstalledLocales() and
-                // $site->getSupportedLocales() return an appropriate array.
-                if (in_array($column, ['installed_locales', 'supported_locales']) &&
-                        !is_null($primaryRow[$column]) && strpos($primaryRow[$column], '{') === false && is_null(json_decode($primaryRow[$column]))) {
-                    $site->setData($propName, explode(':', $primaryRow[$column]));
-                } else {
-                    $site->setData(
-                        $propName,
-                        $this->convertFromDb($primaryRow[$column], $schema->properties->{$propName}->type)
-                    );
-                }
+                $site->setData(
+                    $propName,
+                    $this->convertFromDb($primaryRow[$column], $schema->properties->{$propName}->type)
+                );
             }
         }
 
@@ -116,15 +95,13 @@ class SiteDAO extends \PKP\db\DAO
 
     /**
      * Insert site information.
-     *
-     * @param Site $site
      */
-    public function insertSite($site)
+    public function insertSite(Site $site): void
     {
         $type = 'array';
-        $returner = $this->update(
+        $this->update(
             'INSERT INTO site
-				(redirect, min_password_length, primary_locale, installed_locales, supported_locales)
+				(redirect_context_id, min_password_length, primary_locale, installed_locales, supported_locales)
 				VALUES
 				(?, ?, ?, ?, ?)',
             [
@@ -135,22 +112,22 @@ class SiteDAO extends \PKP\db\DAO
                 $this->convertToDB($site->getInstalledLocales(), $type),
             ]
         );
-        return $returner;
     }
 
     /**
      * @copydoc SchemaDAO::updateObject
      */
-    public function updateObject($site)
+    public function updateObject(Site $site): void
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $schema = $schemaService->get(PKPSchemaService::SCHEMA_SITE);
         $sanitizedProps = $schemaService->sanitize(PKPSchemaService::SCHEMA_SITE, $site->_data);
 
         $set = $params = [];
         foreach ($this->primaryTableColumns as $propName => $column) {
             $set[] = $column . ' = ?';
-            $params[] = $this->convertToDb($sanitizedProps[$propName], $schema->properties->{$propName}->type);
+            $property = $schema->properties->{$propName};
+            $params[] = $this->convertToDb($sanitizedProps[$propName], $property->type, in_array('nullable', $property->validation ?? []));
         }
         $this->update('UPDATE site SET ' . join(',', $set), $params);
 
@@ -186,9 +163,7 @@ class SiteDAO extends \PKP\db\DAO
         }
 
         if (count($deleteSettings)) {
-            $deleteSettingNames = join(',', array_map(function ($settingName) {
-                return "'{$settingName}'";
-            }, $deleteSettings));
+            $deleteSettingNames = join(',', array_map(fn ($settingName) => "'{$settingName}'", $deleteSettings));
             $this->update("DELETE FROM site_settings WHERE setting_name in ({$deleteSettingNames})");
         }
     }

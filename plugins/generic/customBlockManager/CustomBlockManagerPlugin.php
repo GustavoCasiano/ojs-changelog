@@ -66,7 +66,7 @@ class CustomBlockManagerPlugin extends GenericPlugin
                         $contextId = $mainContextId;
                     } else {
                         $context = $request->getContext();
-                        $contextId = $context?->getId() ?? \PKP\core\PKPApplication::CONTEXT_SITE;
+                        $contextId = $context?->getId() ?? \PKP\core\PKPApplication::SITE_CONTEXT_ID;
                     }
 
                     // Load the custom blocks we have created
@@ -88,7 +88,7 @@ class CustomBlockManagerPlugin extends GenericPlugin
 
                 // This hook is used to register the components this plugin implements to
                 // permit administration of custom block plugins.
-                Hook::add('LoadComponentHandler', [$this, 'setupGridHandler']);
+                Hook::add('LoadComponentHandler', $this->setupGridHandler(...));
             }
             return true;
         }
@@ -126,7 +126,7 @@ class CustomBlockManagerPlugin extends GenericPlugin
                 'category' => $this->getCategory(),
                 'action' => 'index'
             ]),
-            $this->getDisplayName()
+            $this->getDisplayName(),
         );
         return array_merge([new LinkAction('settings', $ajaxModal, __('plugins.generic.customBlockManager.manage'))], $actions);
     }
@@ -158,7 +158,6 @@ class CustomBlockManagerPlugin extends GenericPlugin
      *
      * @see PluginGridRow::_canEdit()
      *
-     * @return bool
      */
     public function isSitePlugin(): bool
     {

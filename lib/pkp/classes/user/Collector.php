@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/user/Collector.php
  *
@@ -15,18 +16,23 @@ namespace PKP\user;
 
 use APP\core\Application;
 use Carbon\Carbon;
+use Exception;
+use Illuminate\Database\MariaDbConnection;
 use Illuminate\Database\MySqlConnection;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use InvalidArgumentException;
+use PKP\core\Core;
 use PKP\core\interfaces\CollectorInterface;
-use PKP\core\PKPString;
 use PKP\facades\Locale;
 use PKP\identity\Identity;
 use PKP\plugins\Hook;
+use PKP\user\enums\UserMastheadStatus;
+use PKP\userGroup\relationships\enums\UserUserGroupStatus;
 
 /**
  * @template T of User
@@ -42,11 +48,12 @@ class Collector implements CollectorInterface
 
     public const STATUS_ACTIVE = 'active';
     public const STATUS_DISABLED = 'disabled';
-    public const STATUS_ALL = null;
+    public const STATUS_ALL = 'all';
 
     public DAO $dao;
 
     public string $orderBy = self::ORDERBY_ID;
+    public array $orderByUserGroupIds = [];
     public string $orderDirection = 'ASC';
     public ?array $orderLocales = null;
     public ?array $userGroupIds = null;
@@ -73,6 +80,8 @@ class Collector implements CollectorInterface
     public ?array $reviewsActive = null;
     public ?int $count = null;
     public ?int $offset = null;
+    public UserUserGroupStatus $userUserGroupStatus = UserUserGroupStatus::STATUS_ACTIVE;
+    public UserMastheadStatus $userMastheadStatus = UserMastheadStatus::STATUS_ALL;
 
     /**
      * Constructor
@@ -104,6 +113,15 @@ class Collector implements CollectorInterface
     {
         return $this->dao->getIds($this);
     }
+
+    /**
+     * @return Collection<int,string>
+     */
+    public function getUsernames(): Collection
+    {
+        return $this->dao->getUsernames($this);
+    }
+
 
     /**
      * Limit results to users in these user groups
@@ -202,7 +220,6 @@ class Collector implements CollectorInterface
         return $this;
     }
 
-
     /**
      * Limit results to users with user groups in these context IDs
      */
@@ -263,6 +280,24 @@ class Collector implements CollectorInterface
     }
 
     /**
+     * Filter by user's role status
+     */
+    public function filterByUserUserGroupStatus(UserUserGroupStatus $userUserGroupStatus): self
+    {
+        $this->userUserGroupStatus = $userUserGroupStatus;
+        return $this;
+    }
+
+    /**
+     * Filter by user's masthead status for the given role
+     */
+    public function filterByUserMastheadStatus(UserMastheadStatus $userMastheadStatus): self
+    {
+        $this->userMastheadStatus = $userMastheadStatus;
+        return $this;
+    }
+
+    /**
      * Retrieve assigned users by submission and stage IDs.
      * (Replaces UserStageAssignmentDAO::getUsersBySubmissionAndStageId)
      */
@@ -291,8 +326,8 @@ class Collector implements CollectorInterface
      */
     public function filterByStatus(?string $status): self
     {
-        if (!in_array($this->status, [self::STATUS_ACTIVE, self::STATUS_DISABLED, self::STATUS_ALL], true)) {
-            throw new InvalidArgumentException("Invalid status: \"{$this->status}\"");
+        if (!in_array($status, [self::STATUS_ACTIVE, self::STATUS_DISABLED, self::STATUS_ALL], true)) {
+            throw new InvalidArgumentException("Invalid status: \"{$status}\"");
         }
         $this->status = $status;
         return $this;
@@ -358,6 +393,17 @@ class Collector implements CollectorInterface
     }
 
     /**
+     * Order the results additionally by user group ID
+     *
+     * @param array $userGroupIds The IDs in the order the user query result should be ordered by
+     */
+    public function orderByUserGroupIds(array $userGroupIds): self
+    {
+        $this->orderByUserGroupIds = $userGroupIds;
+        return $this;
+    }
+
+    /**
      * Limit the number of objects retrieved
      */
     public function limit(?int $count): self
@@ -378,6 +424,8 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc CollectorInterface::getQueryBuilder()
+     *
+     * @hook User::Collector [[$query, $this]]
      */
     public function getQueryBuilder(): Builder
     {
@@ -439,24 +487,74 @@ class Collector implements CollectorInterface
      */
     protected function buildUserGroupFilter(Builder $query): self
     {
-        if ($this->userGroupIds !== null || $this->roleIds !== null || $this->contextIds !== null || $this->workflowStageIds !== null) {
-            $userGroupsSubquery = fn (Builder $query) => $query->from('user_user_groups as uug')
-                ->join('user_groups AS ug', 'uug.user_group_id', '=', 'ug.user_group_id')
-                ->whereColumn('uug.user_id', '=', 'u.user_id')
-                ->when($this->userGroupIds !== null, fn (Builder $query) => $query->whereIn('uug.user_group_id', $this->userGroupIds))
-                ->when(
-                    $this->workflowStageIds !== null,
-                    fn (Builder $query) => $query
-                        ->join('user_group_stage AS ugs', 'ug.user_group_id', '=', 'ugs.user_group_id')
-                        ->whereIn('ugs.stage_id', $this->workflowStageIds)
-                )
-                ->when($this->roleIds !== null, fn ($query) => $query->whereIn('ug.role_id', $this->roleIds))
-                ->when($this->contextIds !== null, fn ($query) => $query->whereIn('ug.context_id', $this->contextIds));
+        if ($this->userGroupIds === null &&
+            $this->roleIds === null &&
+            $this->contextIds === null &&
+            $this->workflowStageIds === null &&
+            $this->userMastheadStatus === UserMastheadStatus::STATUS_ALL) {
 
-            $query->whereExists(fn (Builder $query) => $userGroupsSubquery($query));
+            return $this;
         }
 
-        if ($this->excludeUserGroupIds !== null) {
+        $currentDateTime = Core::getCurrentDate();
+        if ($this->status === self::STATUS_ALL) {
+            $this->userUserGroupStatus = UserUserGroupStatus::STATUS_ALL;
+        }
+
+        $subQuery = DB::table('user_user_groups as uug')
+            ->join('user_groups AS ug', 'uug.user_group_id', '=', 'ug.user_group_id')
+            ->whereColumn('uug.user_id', '=', 'u.user_id')
+            ->when($this->userGroupIds !== null, fn ($subQuery) => $subQuery->whereIn('uug.user_group_id', $this->userGroupIds))
+            ->when(
+                $this->workflowStageIds !== null,
+                fn ($subQuery) => $subQuery
+                    ->join('user_group_stage AS ugs', 'ug.user_group_id', '=', 'ugs.user_group_id')
+                    ->whereIn('ugs.stage_id', $this->workflowStageIds)
+            )
+            ->when($this->roleIds !== null, fn ($subQuery) => $subQuery->whereIn('ug.role_id', $this->roleIds))
+            ->when($this->contextIds !== null, fn ($subQuery) => $subQuery->whereIn(DB::raw('COALESCE(ug.context_id, 0)'), array_map(intval(...), $this->contextIds)))
+            ->when(
+                $this->userUserGroupStatus === UserUserGroupStatus::STATUS_ACTIVE,
+                fn (Builder $subQuery) =>
+                $subQuery->where(
+                    fn (Builder $subQuery) =>
+                    $subQuery->where('uug.date_start', '<=', $currentDateTime)
+                        ->orWhereNull('uug.date_start')
+                )
+                    ->where(
+                        fn (Builder $subQuery) =>
+                        $subQuery->where('uug.date_end', '>', $currentDateTime)
+                            ->orWhereNull('uug.date_end')
+                    )
+            )
+            ->when(
+                $this->userUserGroupStatus === UserUserGroupStatus::STATUS_ENDED,
+                fn (Builder $subQuery) =>
+                $subQuery->whereNotNull('uug.date_end')
+                    ->where('uug.date_end', '<=', $currentDateTime)
+            )
+            ->when(
+                $this->userMastheadStatus === UserMastheadStatus::STATUS_NULL,
+                fn (Builder $subQuery) =>
+                    $subQuery->whereNull('uug.masthead')
+            )
+            ->when(
+                $this->userMastheadStatus === UserMastheadStatus::STATUS_ON,
+                fn (Builder $subQuery) =>
+                    $subQuery->where('ug.masthead', 1)
+                        ->where('uug.masthead', 1)
+            )
+            ->when(
+                $this->userMastheadStatus === UserMastheadStatus::STATUS_OFF,
+                fn (Builder $subQuery) =>
+                    $subQuery->where('ug.masthead', 0)
+                        ->orWhere('uug.masthead', 1)
+                        ->orWhereNull('uug.masthead')
+            );
+
+        $query->whereExists($subQuery);
+
+        if ($this->excludeUserGroupIds != null) {
             $query->whereNotExists(fn (Builder $query) => $query->from('user_user_groups as xuug')->whereColumn('xuug.user_id', '=', 'u.user_id')->whereIn('xuug.user_group_id', $this->excludeUserGroupIds));
         }
 
@@ -487,6 +585,7 @@ class Collector implements CollectorInterface
         if ($this->excludeSubmissionStage === null) {
             return $this;
         }
+        $currentDateTime = Core::getCurrentDate();
         $query->whereExists(
             fn (Builder $query) => $query->from('user_user_groups', 'uug')
                 ->join('user_group_stage AS ugs', 'ugs.user_group_id', '=', 'uug.user_group_id')
@@ -500,6 +599,41 @@ class Collector implements CollectorInterface
                 ->where('uug.user_group_id', '=', $this->excludeSubmissionStage['user_group_id'])
                 ->where('ugs.stage_id', '=', $this->excludeSubmissionStage['stage_id'])
                 ->whereNull('sa.user_group_id')
+                ->when(
+                    $this->userUserGroupStatus === UserUserGroupStatus::STATUS_ACTIVE,
+                    fn (Builder $query) =>
+                    $query->where(
+                        fn (Builder $query) =>
+                        $query->where('uug.date_start', '<=', $currentDateTime)
+                            ->orWhereNull('uug.date_start')
+                    )
+                        ->where(
+                            fn (Builder $query) =>
+                            $query->where('uug.date_end', '>', $currentDateTime)
+                                ->orWhereNull('uug.date_end')
+                        )
+                )
+                ->when(
+                    $this->userUserGroupStatus === UserUserGroupStatus::STATUS_ENDED,
+                    fn (Builder $query) =>
+                    $query->whereNotNull('uug.date_end')
+                        ->where('uug.date_end', '<=', $currentDateTime)
+                )
+                ->when(
+                    $this->userMastheadStatus === UserMastheadStatus::STATUS_NULL,
+                    fn (Builder $query) =>
+                        $query->whereNull('uug.masthead')
+                )
+                ->when(
+                    $this->userMastheadStatus === UserMastheadStatus::STATUS_ON,
+                    fn (Builder $query) =>
+                        $query->where('uug.masthead', 1)
+                )
+                ->when(
+                    $this->userMastheadStatus === UserMastheadStatus::STATUS_OFF,
+                    fn (Builder $query) =>
+                        $query->where('uug.masthead', 1)
+                )
         );
         return $this;
     }
@@ -534,9 +668,14 @@ class Collector implements CollectorInterface
         }
 
         $disableSharedReviewerStatistics = (bool) Application::get()->getRequest()->getSite()->getData('disableSharedReviewerStatistics');
-        $dateDiff = fn (string $dateA, string $dateB): string => DB::connection() instanceof MySqlConnection
-            ? "DATEDIFF({$dateA}, {$dateB})"
-            : "DATE_PART('day', {$dateA} - {$dateB})";
+
+        $dateDiff = fn (string $dateA, string $dateB): string => match (true) {
+            DB::connection() instanceof MySqlConnection,
+            DB::connection() instanceof MariaDbConnection
+                => "DATEDIFF({$dateA}, {$dateB})",
+            DB::connection() instanceof PostgresConnection
+                => "DATE_PART('day', {$dateA} - {$dateB})"
+        };
 
         $query->leftJoinSub(
             fn (Builder $query) => $query->from('review_assignments', 'ra')
@@ -595,7 +734,7 @@ class Collector implements CollectorInterface
         // Settings where the search will be performed
         $settings = [Identity::IDENTITY_SETTING_GIVENNAME, Identity::IDENTITY_SETTING_FAMILYNAME, 'preferredPublicName', 'affiliation', 'biography', 'orcid'];
         // Break words by whitespace, trims and escapes "%" and "_"
-        $words = array_map(fn (string $word) => '%' . addcslashes($word, '%_') . '%', PKPString::regexp_split('/\s+/', $searchPhrase));
+        $words = array_map(fn (string $word) => '%' . addcslashes($word, '%_') . '%', preg_split('/\s+/u', $searchPhrase));
         foreach ($words as $word) {
             $query->where(
                 fn ($query) => $query->whereRaw('LOWER(u.username) LIKE LOWER(?)', [$word])
@@ -612,6 +751,17 @@ class Collector implements CollectorInterface
                             ->whereColumn('ui.user_id', '=', 'u.user_id')
                             ->whereRaw('LOWER(cves.setting_value) LIKE LOWER(?)', [$word])
                     )
+                    ->orWhereExists(
+                        fn(Builder $query) => $query->from('user_user_groups', 'uug')
+                            ->join('user_groups AS ug', 'uug.user_group_id', '=', 'ug.user_group_id')
+                            ->whereColumn('uug.user_id', '=', 'u.user_id')
+                            ->whereExists(
+                                fn(Builder $query) => $query->from('user_group_settings', 'ugs')
+                                    ->whereColumn('ugs.user_group_id', '=', 'ug.user_group_id')
+                                    ->where('ugs.setting_name', '=', 'name')
+                                    ->whereRaw('LOWER(ugs.setting_value) LIKE LOWER(?)', [$word])
+                            )
+                    )
             );
         }
 
@@ -623,6 +773,24 @@ class Collector implements CollectorInterface
      */
     protected function buildOrderBy(Builder $query): self
     {
+        if (!empty($this->orderByUserGroupIds)) {
+            $query->addSelect('uugob.user_group_id')
+                ->leftJoin('user_user_groups AS uugob', 'uugob.user_id', '=', 'u.user_id');
+            switch (DB::getDriverName()) {
+                case 'mysql':
+                case 'mariadb':
+                    $userGroupOrderBy = implode(', ', array_map(intval(...), $this->orderByUserGroupIds));
+                    $query->orderByRaw("FIELD(uugob.user_group_id, {$userGroupOrderBy}) ASC");
+                    break;
+                case 'pgsql':
+                    $userGroupOrderBy = array_map(fn ($item) => 'uugob.user_group_id=' . (int) $item, $this->orderByUserGroupIds);
+                    $userGroupOrderBy = implode(', ', $userGroupOrderBy);
+                    $query->orderByRaw("({$userGroupOrderBy}) ASC");
+                    break;
+                default: throw new Exception('Unexpected database driver!');
+            }
+        }
+
         $orderByFields = [self::ORDERBY_ID => 'u.user_id'];
         if ($orderByField = $orderByFields[$this->orderBy] ?? null) {
             $query->orderBy($orderByField, $this->orderDirection);
@@ -637,33 +805,22 @@ class Collector implements CollectorInterface
                     : array_values($this->orderLocales)
             );
             $sortedSettings = array_values($this->orderBy === self::ORDERBY_GIVENNAME ? $nameSettings : array_reverse($nameSettings));
-            $query->orderBy(
-                function (Builder $query) use ($sortedSettings, $locales): void {
-                    $query->fromSub(fn (Builder $query) => $query->from(null)->selectRaw(0), 'placeholder');
-                    $aliasesBySetting = [];
-                    foreach ($sortedSettings as $i => $setting) {
-                        $aliases = [];
-                        foreach ($locales as $j => $locale) {
-                            $aliases[] = $alias = "us_{$i}_{$j}";
-                            $query->leftJoin(
-                                "user_settings AS {$alias}",
-                                fn (JoinClause $join) => $join
-                                    ->on("{$alias}.user_id", '=', 'u.user_id')
-                                    ->where("{$alias}.setting_name", '=', $setting)
-                                    ->where("{$alias}.locale", '=', $locale)
-                            );
-                        }
-                        $aliasesBySetting[] = $aliases;
-                    }
-                    // Build a possibly long CONCAT(COALESCE(given_localeA, given_localeB, [...]), COALESCE(family_localeA, family_localeB, [...])
-                    $coalescedSettings = array_map(
-                        fn (array $aliases) => 'COALESCE(' . implode(', ', array_map(fn (string $alias) => "{$alias}.setting_value", $aliases)) . ", '')",
-                        $aliasesBySetting
-                    );
-                    $query->selectRaw('CONCAT(' . implode(', ', $coalescedSettings) . ')');
-                },
-                $this->orderDirection
-            );
+            // Build the ORDER BY using scalar correlated subqueries instead of LEFT JOINs,
+            // because MySQL does not allow references to outer query tables in JOIN ON clauses
+            // inside subqueries (Unknown column 'u.user_id' in 'on clause').
+            $coalesceParts = [];
+            $bindings = [];
+            foreach ($sortedSettings as $setting) {
+                $subqueries = [];
+                foreach ($locales as $locale) {
+                    $subqueries[] = '(SELECT `setting_value` FROM `user_settings` WHERE `user_id` = `u`.`user_id` AND `setting_name` = ? AND `locale` = ? LIMIT 1)';
+                    $bindings[] = $setting;
+                    $bindings[] = $locale;
+                }
+                $coalesceParts[] = 'COALESCE(' . implode(', ', $subqueries) . ", '')";
+            }
+            $direction = strtoupper($this->orderDirection) === 'DESC' ? 'DESC' : 'ASC';
+            $query->orderByRaw('CONCAT(' . implode(', ', $coalesceParts) . ') ' . $direction, $bindings);
         }
 
         return $this;

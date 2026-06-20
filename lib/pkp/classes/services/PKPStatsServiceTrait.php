@@ -18,9 +18,9 @@ namespace PKP\services;
 
 use APP\core\Application;
 use PKP\core\PKPString;
+use PKP\facades\Locale;
 use PKP\plugins\Hook;
 use PKP\statistics\PKPStatisticsHelper;
-use PKP\facades\Locale;
 
 trait PKPStatsServiceTrait
 {
@@ -30,6 +30,7 @@ trait PKPStatsServiceTrait
      * @param string $timelineInterval PKPStatisticsHelper::STATISTICS_DIMENSION_MONTH or PKPStatisticsHelper::STATISTICS_DIMENSION_DAY
      * @param array $args Filter the records to include. See self::getQueryBuilder()
      *
+     * @hook Stats::getTimeline::queryBuilder [[&$timelineQB, $args]]
      */
     public function getTimeline(string $timelineInterval, array $args = []): array
     {

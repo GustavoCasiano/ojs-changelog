@@ -65,21 +65,6 @@ class ContributorsListPanel extends ListPanel
                 'publicationApiUrlFormat' => $this->getPublicationUrlFormat(),
                 'form' => $this->getLocalizedForm(),
                 'items' => $this->items,
-                'i18nAddContributor' => __('grid.action.addContributor'),
-                'i18nConfirmDelete' => __('grid.action.deleteContributor.confirmationMessage'),
-                'i18nDeleteContributor' => __('grid.action.deleteContributor'),
-                'i18nEditContributor' => __('grid.action.edit'),
-                'i18nSetPrimaryContact' => __('author.users.contributor.setPrincipalContact'),
-                'i18nPrimaryContact' => __('author.users.contributor.principalContact'),
-                'i18nContributors' => __('submission.contributors'),
-                'i18nSaveOrder' => __('grid.action.saveOrdering'),
-                'i18nPreview' => __('contributor.listPanel.preview'),
-                'i18nPreviewDescription' => __('contributor.listPanel.preview.description'),
-                'i18nDisplay' => __('contributor.listPanel.preview.display'),
-                'i18nFormat' => __('contributor.listPanel.preview.format'),
-                'i18nAbbreviated' => __('contributor.listPanel.preview.abbreviated'),
-                'i18nPublicationLists' => __('contributor.listPanel.preview.publicationLists'),
-                'i18nFull' => __('contributor.listPanel.preview.full'),
             ]
         );
 
@@ -107,8 +92,6 @@ class ContributorsListPanel extends ListPanel
      */
     protected function getLocalizedForm(): array
     {
-        uksort($this->locales, fn ($a, $b) => $a === $this->submission->getData('locale') ? -1 : 1);
-
         $apiUrl = Application::get()->getRequest()->getDispatcher()->url(
             Application::get()->getRequest(),
             Application::ROUTE_API,
@@ -116,11 +99,15 @@ class ContributorsListPanel extends ListPanel
             'submissions/' . $this->submission->getId() . '/publications/__publicationId__/contributors'
         );
 
-        $form = $this->getForm($apiUrl);
+        $submissionLocale = $this->submission->getData('locale');
+        $data = $this->getForm($apiUrl)->getConfig();
 
-        $data = $form->getConfig();
-        $data['primaryLocale'] = $this->submission->getData('locale');
-        $data['visibleLocales'] = [$this->submission->getData('locale')];
+        $data['primaryLocale'] = $submissionLocale;
+        $data['visibleLocales'] = [$submissionLocale];
+        $data['supportedFormLocales'] = collect($this->locales)
+            ->sortBy([fn (array $a, array $b) => $b['key'] === $submissionLocale ? 1 : -1])
+            ->values()
+            ->toArray();
 
         return $data;
     }

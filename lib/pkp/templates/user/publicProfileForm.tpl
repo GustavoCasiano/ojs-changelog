@@ -6,10 +6,9 @@
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * Public user profile form.
+ *
+ * @hook User::PublicProfile::AdditionalItems []
  *}
-
-{* Help Link *}
-{help file="user-profile" class="pkp_help_tab"}
 
 <script type="text/javascript">
 	$(function() {ldelim}
@@ -69,14 +68,11 @@
 	{fbvFormSection}
 		{fbvElement type="text" label="user.url" name="userUrl" id="userUrl" value=$userUrl maxlength="255"}
 	{/fbvFormSection}
-	{fbvFormSection}
-		{fbvElement type="text" label="user.orcid" name="orcid" id="orcid" value=$orcid maxlength="46"}
-	{/fbvFormSection}
 
 	{call_hook name="User::PublicProfile::AdditionalItems"}
 
 	<p>
-		{capture assign="privacyUrl"}{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
+		{capture assign="privacyUrl"}{url router=PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
 		{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 	</p>
 

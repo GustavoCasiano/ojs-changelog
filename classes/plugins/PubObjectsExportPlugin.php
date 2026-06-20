@@ -23,6 +23,7 @@ use APP\issue\Issue;
 use APP\journal\Journal;
 use APP\journal\JournalDAO;
 use APP\notification\NotificationManager;
+use APP\plugins\importexport\doaj\DOAJInfoSender;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
 use PKP\core\EntityDAO;
@@ -35,15 +36,17 @@ use PKP\filter\FilterDAO;
 use PKP\galley\Galley;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\NullAction;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\Hook;
 use PKP\plugins\importexport\PKPImportExportDeployment;
 use PKP\plugins\ImportExportPlugin;
+use PKP\plugins\interfaces\HasTaskScheduler;
 use PKP\plugins\PluginRegistry;
+use PKP\scheduledTask\PKPScheduler;
 use PKP\submission\PKPSubmission;
 use PKP\user\User;
 
-abstract class PubObjectsExportPlugin extends ImportExportPlugin
+abstract class PubObjectsExportPlugin extends ImportExportPlugin implements HasTaskScheduler
 {
     // The statuses
     public const EXPORT_STATUS_ANY = '';
@@ -91,14 +94,13 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
 
         $this->addLocaleData();
 
-        Hook::add('AcronPlugin::parseCronTab', [$this, 'callbackParseCronTab']);
         foreach ($this->_getDAOs() as $dao) {
             if ($dao instanceof SchemaDAO) {
-                Hook::add('Schema::get::' . $dao->schemaName, [$this, 'addToSchema']);
+                Hook::add('Schema::get::' . $dao->schemaName, $this->addToSchema(...));
             } elseif ($dao instanceof EntityDAO) {
-                Hook::add('Schema::get::' . $dao->schema, [$this, 'addToSchema']);
+                Hook::add('Schema::get::' . $dao->schema, $this->addToSchema(...));
             } else {
-                Hook::add(strtolower_codesafe(get_class($dao)) . '::getAdditionalFieldNames', [&$this, 'getAdditionalFieldNames']);
+                Hook::add(strtolower(get_class($dao)) . '::getAdditionalFieldNames', $this->getAdditionalFieldNames(...));
             }
         }
         return true;
@@ -120,7 +122,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
                 $form->readInputData();
                 if ($form->validate()) {
                     $form->execute();
-                    $notificationManager->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS);
+                    $notificationManager->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS);
                     return new JSONMessage(true);
                 } else {
                     return new JSONMessage(true, $form->fetch($request));
@@ -211,7 +213,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
             $selectedIssues = (array) $args['issueIds'];
         }
         if (empty($selectedSubmissions) && empty($selectedIssues) && empty($selectedRepresentations)) {
-            fatalError(__('plugins.importexport.common.error.noObjectsSelected'));
+            throw new \Exception(__('plugins.importexport.common.error.noObjectsSelected'));
         }
         if (!empty($selectedSubmissions)) {
             $objects = $this->getPublishedSubmissions($selectedSubmissions, $context);
@@ -262,13 +264,13 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
                     $this->_sendNotification(
                         $request->getUser(),
                         'plugins.importexport.common.validation.success',
-                        PKPNotification::NOTIFICATION_TYPE_SUCCESS
+                        Notification::NOTIFICATION_TYPE_SUCCESS
                     );
                 } else {
                     $this->_sendNotification(
                         $request->getUser(),
                         'plugins.importexport.common.validation.fail',
-                        PKPNotification::NOTIFICATION_TYPE_ERROR
+                        Notification::NOTIFICATION_TYPE_ERROR
                     );
                 }
 
@@ -298,7 +300,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
                 $this->_sendNotification(
                     $request->getUser(),
                     $this->getDepositSuccessNotificationMessageKey(),
-                    PKPNotification::NOTIFICATION_TYPE_SUCCESS
+                    Notification::NOTIFICATION_TYPE_SUCCESS
                 );
             } else {
                 if (is_array($result)) {
@@ -307,7 +309,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
                         $this->_sendNotification(
                             $request->getUser(),
                             $error[0],
-                            PKPNotification::NOTIFICATION_TYPE_ERROR,
+                            Notification::NOTIFICATION_TYPE_ERROR,
                             ($error[1] ?? null)
                         );
                     }
@@ -326,8 +328,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
                 $request->redirect(null, null, null, $path, null, $tab);
             }
         } else {
-            $dispatcher = $request->getDispatcher();
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
     }
 
@@ -561,7 +562,7 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
      */
     public function addToSchema($hookName, $params)
     {
-        $schema = & $params[0];
+        $schema = &$params[0];
         foreach ($this->_getObjectAdditionalSettings() as $fieldName) {
             $schema->properties->{$fieldName} = (object) [
                 'type' => 'string',
@@ -584,20 +585,15 @@ abstract class PubObjectsExportPlugin extends ImportExportPlugin
     }
 
     /**
-     * @copydoc AcronPlugin::parseCronTab()
+     * @copydoc \PKP\plugins\interfaces\HasTaskScheduler::registerSchedules()
      */
-    public function callbackParseCronTab($hookName, $args)
+    public function registerSchedules(PKPScheduler $scheduler): void
     {
-        $taskFilesPath = & $args[0];
-
-        $scheduledTasksPath = "{$this->getPluginPath()}/scheduledTasks.xml";
-
-        if (!file_exists($scheduledTasksPath)) {
-            return false;
-        }
-
-        $taskFilesPath[] = $scheduledTasksPath;
-        return false;
+        $scheduler
+            ->addSchedule(new DOAJInfoSender())
+            ->daily()
+            ->name(DOAJInfoSender::class)
+            ->withoutOverlapping();
     }
 
     /**

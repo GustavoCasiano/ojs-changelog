@@ -11,6 +11,29 @@
 			"readOnly": true,
 			"apiSummary": true
 		},
+		"availableEditorialDecisions": {
+			"description": "The editorial decisions that are available for this stage.",
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"stageId": {
+						"type": "integer"
+					},
+					"id": {
+						"type": "integer"
+					},
+					"label": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"canCurrentUserChangeMetadata": {
+			"type": "boolean",
+			"description": "Whether the current user has access to the publication metadata",
+			"readOnly": true
+		},
 		"commentsForTheEditors": {
 			"type": "string",
 			"description": "Optional. Comments from the submitting author to the editors. This is only available for submissions that have not yet been submitted. Once submitted, the message is converted to a discussion and you can not read or write to this property.",
@@ -48,6 +71,12 @@
 				"date:Y-m-d H:i:s"
 			]
 		},
+		"editorAssigned": {
+			"type": "boolean",
+			"description": "Whether deciding editor has been assigned to the submission.",
+			"readOnly": true,
+			"apiSummary": true
+		},
 		"id": {
 			"type": "integer",
 			"description": "The id of this submission.",
@@ -68,8 +97,16 @@
 			"description": "The primary language of this submission.",
 			"apiSummary": true,
 			"validation": [
-				"regex:/^([a-z]{2})((_[A-Z][a-zA-Z]{0,3})?)(@[a-z]{0,})?$/"
+				"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
 			]
+		},
+		"metadataLocales": {
+			"type": "array",
+			"description": "The list of metadata locales in the form [locale code => locale name translated in UI locale].",
+			"readOnly": true,
+			"items": {
+				"type": "string"
+			}
 		},
 		"publications": {
 			"type": "array",
@@ -79,6 +116,15 @@
 			"items": {
 				"$ref": "#/definitions/Publication"
 			}
+		},
+		"recommendationsIn": {
+			"type": "boolean",
+			"description": "Whether all recommending editors have submitted a recommendation.",
+			"apiSummary": true,
+			"readOnly": true,
+			"validation": [
+				"nullable"
+			]
 		},
 		"reviewRounds": {
 			"type": "array",
@@ -102,7 +148,23 @@
 						"type": "integer",
 						"readOnly": true
 					},
+					"dateAssigned": {
+						"type": "integer",
+						"validation": [
+							"date|Y-m-d H:i:s"
+						]
+					},
+					"competingInterests": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					},
 					"status": {
+						"type": "integer",
+						"readOnly": true
+					},
+					"statusId": {
 						"type": "integer",
 						"readOnly": true
 					},
@@ -125,12 +187,57 @@
 					"round": {
 						"type": "integer"
 					},
+					"reviewerFullName": {
+						"type": "string",
+						"readOnly": true
+					},
 					"reviewRoundId": {
 						"type": "integer"
+					},
+					"reviewMethod": {
+						"type": "string",
+						"readOnly": true
+					},
+					"reviewerHasOrcid": {
+						"type": "boolean",
+						"readOnly": true
+					},
+					"canLoginAs": {
+						"type": "boolean",
+						"description": "Whether the current user can log in as this reviewer.",
+						"readOnly": true,
+						"apiSummary": true,
+						"apiDetail": true
+					},
+					"canGossip": {
+						"type": "boolean",
+						"description": "Whether the current user can access the gossip field for this reviewer.",
+						"readOnly": true,
+						"apiSummary": true,
+						"apiDetail": true
 					}
 				}
 			}
 		},
+		"reviewersNotAssigned": {
+			"type": "boolean",
+			"description": "Whether all needed reviewers are assigned to the submission. Related to the `numReviewsPerSubmission` context setting.",
+			"apiSummary": true,
+			"readOnly": true
+		},
+		"revisionsRequested": {
+			"type": "boolean",
+			"description": "There is a revisions requested decision in the current review round and no revisions have been uploaded to that round.",
+			"apiSummary": true,
+			"readOnly": true
+		},
+		"revisionsSubmitted": {
+			"type": "boolean",
+			"description": "There is a revisions requested decision in the current review round and 1 or more revision files have been uploaded to that round.",
+			"apiSummary": true,
+			"readOnly": true
+		},
+
 		"stageId": {
 			"type": "integer",
 			"description": "The stage of the editorial workflow that this submission is currently in. One of the `WORKFLOW_STAGE_ID_` constants. Default is `WORKFLOW_STAGE_ID_SUBMISSION`.",
@@ -141,6 +248,31 @@
 				"min:1",
 				"max:5"
 			]
+		},
+		"participants": {
+			"type": "array",
+			"description": "A list of users who are assigned to this submission (e.g. authors, editors, or other stage participants).",
+			"readOnly": true,
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "integer",
+						"description": "User ID of the participant."
+					},
+					"fullName": {
+						"type": "string",
+						"description": "Participant's display name."
+					},
+					"canLoginAs": {
+						"type": "boolean",
+						"description": "Whether the current user can log in as this participant.",
+						"readOnly": true,
+						"apiSummary": true,
+						"apiDetail": true
+					}
+				}
+			}
 		},
 		"stages": {
 			"type": "array",
@@ -164,42 +296,43 @@
 							"type": "integer"
 						}
 					},
-					"status": {
-						"type": "string"
+					"editorAssigned": {
+						"type": "boolean"
 					},
-					"statusId": {
-						"type": "integer"
+					"isDecidingEditorAssigned": {
+						"type": "boolean"
 					},
-					"files": {
+					"isCurrentUserDecidingEditor": {
+						"type": "boolean"
+					},
+					"currentUserCanRecommendOnly": {
+						"type": "boolean"
+					},
+					"currentUserRecommendation": {
 						"type": "object",
 						"properties": {
-							"count": {
+							"decision": {
 								"type": "integer"
+							},
+							"label": {
+								"type": "string"
 							}
 						}
 					},
-					"queries": {
+					"recommendations": {
 						"type": "array",
-						"items": {
-							"id": {
+						"properties": {
+							"decision": {
 								"type": "integer"
 							},
-							"assocType": {
-								"type": "integer"
-							},
-							"assocId": {
-								"type": "integer"
-							},
-							"stageId": {
-								"type": "integer"
-							},
-							"seq": {
-								"type": "integer"
-							},
-							"closed": {
-								"type": "boolean"
+							"label": {
+								"type": "string"
 							}
 						}
+					},
+					"uploadedFilesCount": {
+						"type": "integer",
+						"validation": ["nullable"]
 					}
 				}
 			}

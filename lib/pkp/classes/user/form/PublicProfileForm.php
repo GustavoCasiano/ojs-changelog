@@ -38,7 +38,6 @@ class PublicProfileForm extends BaseProfileForm
         parent::__construct('user/publicProfileForm.tpl', $user);
 
         // Validation checks for this form
-        $this->addCheck(new \PKP\form\validation\FormValidatorORCID($this, 'orcid', 'optional', 'user.orcid.orcidInvalid'));
         $this->addCheck(new \PKP\form\validation\FormValidatorUrl($this, 'userUrl', 'optional', 'user.profile.form.urlInvalid'));
     }
 
@@ -50,7 +49,6 @@ class PublicProfileForm extends BaseProfileForm
         $user = $this->getUser();
 
         $this->_data = [
-            'orcid' => $user->getOrcid(),
             'userUrl' => $user->getUrl(),
             'biography' => $user->getBiography(null), // Localized
         ];
@@ -65,9 +63,7 @@ class PublicProfileForm extends BaseProfileForm
     {
         parent::readInputData();
 
-        $this->readUserVars([
-            'orcid', 'userUrl', 'biography',
-        ]);
+        $this->readUserVars(['userUrl', 'biography',]);
     }
 
     /**
@@ -171,7 +167,6 @@ class PublicProfileForm extends BaseProfileForm
         $request = Application::get()->getRequest();
         $user = $request->getUser();
 
-        $user->setOrcid($this->getData('orcid'));
         $user->setUrl($this->getData('userUrl'));
         $user->setBiography($this->getData('biography'), null); // Localized
 

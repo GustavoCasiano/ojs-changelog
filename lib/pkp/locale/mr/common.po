@@ -1,7 +1,7 @@
 # Murari P Tapaswi <tapaswimurari@gmail.com>, 2025.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2025-02-20 19:37+0000\n"
+"PO-Revision-Date: 2025-04-12 09:04+0000\n"
 "Last-Translator: Murari P Tapaswi <tapaswimurari@gmail.com>\n"
 "Language-Team: Marathi <http://translate.pkp.sfu.ca/projects/pkp-lib/common/"
 "mr/>\n"
@@ -360,7 +360,7 @@ msgid "common.on"
 msgstr "चालू"
 
 msgid "common.ok"
-msgstr "समाधानकारक"
+msgstr "स्वीकारा (OK)"
 
 msgid "common.options"
 msgstr "पर्याय"
@@ -408,7 +408,7 @@ msgid "common.pluginDisabled"
 msgstr "\"{$pluginName}\" हे प्लगइन अकार्यान्वित (disable) केले आहे."
 
 msgid "common.prefix"
-msgstr "उपसर्ग (Prefix)"
+msgstr "सुरुवातीचा भाग/उपसर्ग (prefix)"
 
 msgid "common.preview"
 msgstr "पूर्वावलोकन"
@@ -528,7 +528,7 @@ msgid "common.subject"
 msgstr "विषय"
 
 msgid "common.subjects"
-msgstr "विषय (अनेक)"
+msgstr "विषय"
 
 msgid "common.switchToNamedItem"
 msgstr "{$name} वर जा (Switch to)"
@@ -753,7 +753,7 @@ msgid "common.language"
 msgstr "भाषा"
 
 msgid "common.languages"
-msgstr "भाषा (अनेक)"
+msgstr "भाषा"
 
 msgid "common.lastActivity"
 msgstr "{$date} रोजी सक्रियता (activity) असल्याची शेवटची नोंद आहे."
@@ -836,8 +836,8 @@ msgstr "{$error}: ही डेटाबेस त्रुटी आढळू�
 
 msgid "common.error.framesRequired"
 msgstr ""
-"या पृष्ठासाठी फ्रेम्सची आवश्यकता आहे. नॉन-फ्रेम आवृत्तीसाठी <a href=\"{$url}"
-"\">येथे क्लिक करा</a>."
+"या पृष्ठासाठी फ्रेम्सची आवश्यकता आहे. नॉन-फ्रेम आवृत्तीसाठी (version) <a "
+"href=\"{$url}\">येथे क्लिक करा</a>."
 
 msgid "common.fileUploaderError"
 msgstr ""
@@ -940,7 +940,7 @@ msgid "common.upload"
 msgstr "संक्रमित (अपलोड) करा"
 
 msgid "common.uploadFailed"
-msgstr "फाईल संक्रमित (अपलोड) किंवा त्यात सुधारणा (revise) करता आली नाही."
+msgstr "फाईलचे संक्रमण (अपलोड) किंवा फेरसंक्रमण (revise) करता आलेले नाही."
 
 msgid "common.up"
 msgstr "वर"
@@ -1285,7 +1285,7 @@ msgid "navigation.previousStep"
 msgstr "मागील पायरी"
 
 msgid "notification.notifications"
-msgstr "सूचना (अनेक)"
+msgstr "सूचना"
 
 msgid "navigation.setup"
 msgstr "सेटअप"
@@ -2056,7 +2056,7 @@ msgid "notification.type.awaitingCopyedits"
 msgstr "कॉपीएडिट्सच्या प्रतीक्षेत आहे."
 
 msgid "notification.type.editorialReport"
-msgstr "सांख्यिकी अहवालाचा सारांश."
+msgstr "सांख्यिकी अहवालाचा गोषवारा (summary)."
 
 msgid "notification.type.editorialReminder"
 msgstr "शिल्लक कामांचा आढावा घेण्यासाठीचा साप्ताहिक ई-मेल"
@@ -2099,6 +2099,7 @@ msgstr ""
 msgid "notification.type.roundStatusTitle"
 msgstr "{$round} फेरीची स्थिती (Status)"
 
+#, fuzzy
 msgid "notification.type.editorialReport.contents"
 msgstr ""
 "संपादकीय अहवालाद्वारे तुमच्या नियतकालिकाचे स्वास्थ्य तपासण्यासाठी हे स्मरणपत्"
@@ -2308,3 +2309,94 @@ msgstr ""
 "फिल्टर ({$displayName}) इनपुट {$inputTypeName} ला समर्थन देते - "
 "{$typeofInput} दिले आहे, Filter ({$displayName}) supports input "
 "{$inputTypeName} - {$typeofInput} given"
+
+msgid "form.errorSummaryOne"
+msgstr "एक त्रुटी आढळली! कृपया पुढे जाण्यापूर्वी खालील त्रुटी दुरुस्त करा."
+
+msgid "navigation.dashboards"
+msgstr "डॅशबोर्ड"
+
+msgid "navigation.reviewAssignments"
+msgstr "समीक्षणाची कामं"
+
+msgid "navigation.mySubmissions"
+msgstr "माझी सादरीकरणे"
+
+msgid "reviewer.submission.acceptedOn"
+msgstr "समीक्षणाचे काम स्वीकारण्याची तारीख"
+
+msgid "reviewer.submission.submittedOn"
+msgstr "समीक्षण सादर करण्याची तारीख"
+
+msgid "validator.multilingual"
+msgstr "या फील्डसाठी बहुभाषिक गरज पूर्ण होत नाही."
+
+msgid "common.viewMoreDetails"
+msgstr "अधिक तपशील पहा"
+
+msgid "common.editorialHistory.peerReviewers"
+msgstr "मागील काही वर्षांतील तज्ज्ञ समीक्षक"
+
+msgid "common.editorialHistory"
+msgstr "संपादकीय पूर्वेतिहास"
+
+msgid "common.editorialHistory.page"
+msgstr "संपादकीय पूर्वेतिहासाचे पृष्ठ"
+
+msgid "common.editorialHistory.page.orcidLink"
+msgstr "{$name} ORCID प्रोफाईल पहा"
+
+msgid "common.filtersClear"
+msgstr "फिल्टर मोकळे करा"
+
+msgid "common.inParenthesis"
+msgstr "({$text})"
+
+msgid "common.loaded"
+msgstr "लोड केले"
+
+msgid "about.editorialMasthead.linkToEditorialHistory"
+msgstr "<a href=\"{$url}\">संपादकीय पूर्वेतिहास</a> पहा"
+
+msgid "common.moreActions"
+msgstr "आणखी कार्ये"
+
+msgid "common.editorialMasthead"
+msgstr "संपादकीय पृष्ठावरील मथळा"
+
+msgid "common.editorialMasthead.peerReviewers"
+msgstr "गेल्या वर्षातील तज्ज्ञ समीक्षक"
+
+msgid "common.editorialMasthead.peerReviewers.description"
+msgstr ""
+"संपादक {$year} या वर्षात योगदान देणार्‍या खालील तज्ज्ञ समीक्षकांबद्दल "
+"कृतज्ञता व्यक्त करतात."
+
+msgid "common.editorialHistory.page.description"
+msgstr "या विभागात भूतपूर्व योगदानकर्त्यांची (contributors) यादी दिली आहे."
+
+msgid "common.assignments"
+msgstr "नेमून दिलेल्या कामगिऱ्या"
+
+msgid "common.showingXofX"
+msgstr ""
+"एकूण {$total} पैकी <strong>{$start} ते {$finish}</strong> दाखवले जात आहे"
+
+msgid "form.errorSummaryMany"
+msgstr ""
+"{$count} त्रुटी आढळल्या! पुढे जाण्यापूर्वी कृपया खालील त्रुटी दुरुस्त करा."
+
+msgid "validator.date.comparison"
+msgstr "तुलनेसाठी अग्राह्य तारखा पुरवल्या आहेत."
+
+msgid "common.fromUntil"
+msgstr "{$from} – {$until}"
+
+msgid "common.numero"
+msgstr "नाही"
+
+msgid "common.refreshingData"
+msgstr "डेटा अद्ययावत (रिफ्रेश) करत आहे"
+
+msgid "common.yesContinue"
+msgstr "हो, चालू ठेवा"

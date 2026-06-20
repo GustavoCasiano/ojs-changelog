@@ -28,6 +28,7 @@ msgstr "لیست مرتب شده‌ای از مراجع بکار رفته در �
 msgid "author.submission.roundStatus.reviewsReady"
 msgstr "داوری جدید ثبت شده و توسط سردبیر بررسی خواهد شد."
 
+#, fuzzy
 msgid "author.submission.roundStatus.reviewOverdue"
 msgstr ""
 "یک یا چند نفر از داوران، در داوری، تأخیر دارند. به تیم تحریریه اطلاع داده "
@@ -1295,9 +1296,11 @@ msgstr "نیازمند انجام اصلاحات"
 msgid "editor.submission.roundStatus.revisionsSubmitted"
 msgstr "اصلاحات، ثبت شده است و تصمیم گیری لازم است."
 
+#, fuzzy
 msgid "editor.submission.roundStatus.resubmitForReview"
 msgstr "دست نوشته، باید دوباره برای یک دور داوری دیگر ارسال شود."
 
+#, fuzzy
 msgid "editor.submission.roundStatus.submissionResubmitted"
 msgstr "دست نوشته، برای یک دور داوری دیگر، مجدداً ارسال شده است."
 
@@ -1319,6 +1322,7 @@ msgstr "در انتظار پاسخ از داوران."
 msgid "editor.submission.roundStatus.reviewsReady"
 msgstr "داوری های جدید ثبت شدند."
 
+#, fuzzy
 msgid "editor.submission.roundStatus.reviewsCompleted"
 msgstr "همه داورها، پاسخ داده اند و تصمیم گیری لازم است."
 

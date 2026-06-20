@@ -16,18 +16,19 @@
 
 namespace PKP\task;
 
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\submission\Submission;
 use PKP\core\Core;
 use PKP\scheduledTask\ScheduledTask;
+use PKP\observers\events\MetadataChanged;
+
 
 class PublishSubmissions extends ScheduledTask
 {
     /**
      * @copydoc ScheduledTask::getName()
      */
-    public function getName()
+    public function getName(): string
     {
         return __('admin.scheduledTask.publishSubmissions');
     }
@@ -35,9 +36,9 @@ class PublishSubmissions extends ScheduledTask
     /**
      * @copydoc ScheduledTask::executeActions()
      */
-    public function executeActions()
+    public function executeActions(): bool
     {
-        $contextIds = Services::get('context')->getIds([
+        $contextIds = app()->get('context')->getIds([
             'isEnabled' => true,
         ]);
         foreach ($contextIds as $contextId) {
@@ -51,6 +52,8 @@ class PublishSubmissions extends ScheduledTask
                 $datePublished = $submission->getCurrentPublication()->getData('datePublished');
                 if ($datePublished && strtotime($datePublished) <= strtotime(Core::getCurrentDate())) {
                     Repo::publication()->publish($submission->getCurrentPublication());
+                    // dispatch the MetadataChanged event after publishing
+                    event(new MetadataChanged($submission));
                 }
             }
         }

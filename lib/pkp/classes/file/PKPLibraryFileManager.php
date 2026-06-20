@@ -16,27 +16,20 @@
 
 namespace PKP\file;
 
+use Illuminate\Support\Str;
 use PKP\context\LibraryFile;
 use PKP\context\LibraryFileDAO;
-use PKP\file\TemporaryFile;
-use PKP\core\PKPString;
 use PKP\db\DAORegistry;
 use PKP\plugins\Hook;
 
 class PKPLibraryFileManager extends PrivateFileManager
 {
-    /** @var int Context id for the current context */
-    public $contextId;
-
     /**
      * Constructor
-     *
-     * @param int $contextId
      */
-    public function __construct($contextId)
+    public function __construct(public int $contextId)
     {
         parent::__construct();
-        $this->contextId = $contextId;
     }
 
     /**
@@ -51,17 +44,15 @@ class PKPLibraryFileManager extends PrivateFileManager
 
     /**
      * Delete a file by ID.
-     *
-     * @param int $fileId
      */
-    public function deleteById($fileId)
+    public function deleteById(int $fileId): int
     {
         $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /** @var LibraryFileDAO $libraryFileDao */
         $libraryFile = $libraryFileDao->getById($fileId);
 
         parent::deleteByPath($this->getBasePath() . $libraryFile->getServerFileName());
 
-        $libraryFileDao->deleteById($fileId);
+        return $libraryFileDao->deleteById($fileId);
     }
 
     /**
@@ -77,8 +68,8 @@ class PKPLibraryFileManager extends PrivateFileManager
         $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /** @var LibraryFileDAO $libraryFileDao */
         $suffix = $this->getFileSuffixFromType($type);
         $ext = $this->getExtension($originalFileName);
-        $truncated = $this->truncateFileName($originalFileName, 127 - PKPString::strlen($suffix) - 1);
-        $baseName = PKPString::substr($truncated, 0, PKPString::strpos($originalFileName, $ext) - 1);
+        $truncated = $this->truncateFileName($originalFileName, 127 - Str::length($suffix) - 1);
+        $baseName = Str::substr($truncated, 0, Str::position($originalFileName, $ext) - 1);
 
         // Try a simple syntax first
         $fileName = $baseName . '-' . $suffix . '.' . $ext;
@@ -89,9 +80,9 @@ class PKPLibraryFileManager extends PrivateFileManager
         for ($i = 1; ; $i++) {
             $fullSuffix = $suffix . '-' . $i;
             //truncate more if necessary
-            $truncated = $this->truncateFileName($originalFileName, 127 - PKPString::strlen($fullSuffix) - 1);
+            $truncated = $this->truncateFileName($originalFileName, 127 - Str::length($fullSuffix) - 1);
             // get the base name and append the suffix
-            $baseName = PKPString::substr($truncated, 0, PKPString::strpos($originalFileName, $ext) - 1);
+            $baseName = Str::substr($truncated, 0, Str::position($originalFileName, $ext) - 1);
 
             //try the following
             $fileName = $baseName . '-' . $fullSuffix . '.' . $ext;
@@ -124,31 +115,37 @@ class PKPLibraryFileManager extends PrivateFileManager
 
     /**
      * Routine to replace a library file from a temporary file.
+     *
      * @param $libraryFileType int LIBRARY_FILE_TYPE_...
+     *
      * @return LibraryFile|false the updated LibraryFile, or false on error
      */
-    function replaceFromTemporaryFile(TemporaryFile $temporaryFile, int $libraryFileType, LibraryFile $libraryFile) {
+    public function replaceFromTemporaryFile(TemporaryFile $temporaryFile, int $libraryFileType, LibraryFile $libraryFile)
+    {
         $originalServerFilename = $libraryFile->getServerFileName();
 
         $libraryFile = $this->assignFromTemporaryFile($temporaryFile, $libraryFileType, $libraryFile);
         if (!$this->copyFile($temporaryFile->getFilePath(), $this->getBasePath() . $libraryFile->getServerFileName())) {
-                return false;
+            return false;
         }
 
         if ($originalServerFilename !== $libraryFile->getServerFileName()) {
-                unlink($this->getBasePath() . $originalServerFilename);
+            unlink($this->getBasePath() . $originalServerFilename);
         }
         return $libraryFile;
     }
 
     /**
      * Routine to assign metadata to a library file from a temporary file
+     *
      * @param $temporaryFile TemporaryFile
      * @param $libraryFileType int LIBRARY_FILE_TYPE_...
      * @param $libraryFile LibraryFile
+     *
      * @return LibraryFile the updated LibraryFile
      */
-    function &assignFromTemporaryFile($temporaryFile, $libraryFileType, $libraryFile) {
+    public function &assignFromTemporaryFile($temporaryFile, $libraryFileType, $libraryFile)
+    {
         $libraryFile->setDateUploaded($temporaryFile->getDateUploaded());
         $libraryFile->setDateModified($temporaryFile->getDateUploaded());
         $libraryFile->setFileType($temporaryFile->getFileType());
@@ -165,7 +162,7 @@ class PKPLibraryFileManager extends PrivateFileManager
      */
     public function getFileSuffixFromType($type)
     {
-        $typeSuffixMap = & $this->getTypeSuffixMap();
+        $typeSuffixMap = &$this->getTypeSuffixMap();
         return $typeSuffixMap[$type];
     }
 
@@ -194,7 +191,7 @@ class PKPLibraryFileManager extends PrivateFileManager
      */
     public function getNameFromType($type)
     {
-        $typeNameMap = & $this->getTypeNameMap();
+        $typeNameMap = &$this->getTypeNameMap();
         if (isset($typeNameMap[$type])) {
             return $typeNameMap[$type];
         } else {
@@ -227,7 +224,7 @@ class PKPLibraryFileManager extends PrivateFileManager
      */
     public function getTitleKeyFromType($type)
     {
-        $typeTitleKeyMap = & $this->getTypeTitleKeyMap();
+        $typeTitleKeyMap = &$this->getTypeTitleKeyMap();
         return $typeTitleKeyMap[$type];
     }
 

@@ -1100,8 +1100,8 @@ msgstr "Snið dagsetningar og tíma"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "Veldu snið á dagsetningu og tíma. Hægt er að slá inn sérsnið með því að nota "
-"<a href='http://php.net/manual/en/function.strftime.php#refsect1-function."
-"strftime-parameters'>format characters</a>."
+"<a href='http://php.net/manual/en/datetime.format.php#refsect1-datetime."
+"format-parameters'>format characters</a>."
 
 msgid "manager.setup.dateTime.longDate"
 msgstr "Dags."
@@ -1976,26 +1976,6 @@ msgstr ""
 "Krefjast þess að höfundur leggi til lykilorð áður en viðkomandi samþykkir "
 "innsendingu."
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"Tungumál gefur til kynna aðaltungumál verks með því að nota "
-"tungumálakóða(\"en\"), mögulega með lengri landakóða (\"en_US\")."
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "Virkja tungumál lýsigagna"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr "Ekki biðja höfund um tungumál handrits á meðan á innsendingu stendur."
-
-msgid "manager.setup.metadata.languages.request"
-msgstr ""
-"Biðja höfund um að tilgreina tungumál handrits á meðan á innsendingu stendur."
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-"Krefjast þess að höfundur gefi upp tungumál handrits áður en viðkomandi "
-"samþykkir innsendinguna."
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "Öll réttindi sem hvíla á handritinu, t.d. hugverkaréttur, höfundaréttur og "
@@ -2331,15 +2311,6 @@ msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "Þessi tengill er bara sýndur ef það er búið að skrá eitthvað í \"Um tímaritið"
 "\" undir Stillingar > Tímarit."
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"Tengill á síðu sem sýnir upplýsingar á nafnplötu í Stillingar > Tímarit."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Þessi tengill er bara sýndur ef það er búið að skrá eitthvað í \"Editorial "
-"Team\" undir Stillingar>Tímarit."
 
 msgid "manager.navigationMenus.submissions.description"
 msgstr "Tengill á síðu sem sýnir leiðbeiningar um innsendingu handrita."
@@ -3401,6 +3372,9 @@ msgid "manager.setup.competingInterests.requireAuthors"
 msgstr ""
 "Biðja höfunda sem senda inn efni að skrá um leið yfirlýsingu vegna "
 "hagsmunaárekstra."
+
+msgid "manager.setup.masthead"
+msgstr "Síðuhaus"
 
 msgid "plugins.importexport.common.validation"
 msgstr "Staðfestu XML áður en það er flutt út og skráð."

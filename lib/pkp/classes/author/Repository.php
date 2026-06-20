@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/author/Repository.php
  *
- * Copyright (c) 2014-2020 Simon Fraser University
- * Copyright (c) 2000-2020 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class Repository
@@ -16,14 +17,16 @@ namespace PKP\author;
 use APP\author\Author;
 use APP\author\DAO;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\submission\Submission;
 use PKP\context\Context;
+use PKP\identity\Identity;
 use PKP\plugins\Hook;
+use PKP\security\Role;
 use PKP\services\PKPSchemaService;
 use PKP\submission\PKPSubmission;
 use PKP\user\User;
+use PKP\userGroup\UserGroup;
 use PKP\validation\ValidatorFactory;
 
 class Repository
@@ -79,9 +82,14 @@ class Repository
      * Get an instance of the map class for mapping
      * authors to their schema
      */
-    public function getSchemaMap(): maps\Schema
+    public function getSchemaMap(Submission $submission): maps\Schema
     {
-        return app('maps')->withExtensions($this->schemaMap);
+        return app('maps')->withExtensions(
+            $this->schemaMap,
+            [
+                'submission' => $submission,
+            ]
+        );
     }
 
     /**
@@ -93,12 +101,14 @@ class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Author::validate [[$errors, $author, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate($author, $props, Submission $submission, Context $context)
     {
-        $schemaService = Services::get('schema');
-        $allowedLocales = $context->getSupportedSubmissionLocales();
+        $schemaService = app()->get('schema');
         $primaryLocale = $submission->getData('locale');
+        $allowedLocales = $submission->getPublicationLanguages($context->getSupportedSubmissionMetadataLocales());
 
         $validator = ValidatorFactory::make(
             $props,
@@ -122,16 +132,28 @@ class Repository
         ValidatorFactory::allowedLocales($validator, $schemaService->getMultilingualProps(PKPSchemaService::SCHEMA_AUTHOR), $allowedLocales);
 
         // The publicationId must match an existing publication that is not yet published
-        $validator->after(function ($validator) use ($props) {
+        $validator->after(function ($validator) use ($props, $submission, $context, $primaryLocale) {
             if (isset($props['publicationId']) && !$validator->errors()->get('publicationId')) {
                 $publication = Repo::publication()->get($props['publicationId']);
                 if (!$publication) {
                     $validator->errors()->add('publicationId', __('author.publicationNotFound'));
-                } elseif ($publication->getData('status') === PKPSubmission::STATUS_PUBLISHED) {
-                    $validator->errors()->add('publicationId', __('author.editPublishedDisabled'));
                 }
             }
+
+            // Author CI statement required?
+            if ($context->getSetting('requireAuthorCompetingInterests') && empty($props['competingInterests'][$primaryLocale])) {
+                $validator->errors()->add(
+                    "competingInterests.{$primaryLocale}",
+                    __('author.competingInterests.required')
+                );
+            }
         });
+
+        if (isset($props['orcid'])) {
+            $validator->after(function ($validator) use ($props) {
+                $validator->errors()->add('orcid', __('api.orcid.403.cannotUpdateAuthorOrcid'));
+            });
+        }
 
         $errors = [];
         if ($validator->fails()) {
@@ -145,6 +167,9 @@ class Repository
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::add()
+     *
+     * @hook Author::add [[$author]]
+     * @hook Author::add::before [[$author]]
      */
     public function add(Author $author): int
     {
@@ -154,6 +179,8 @@ class Repository
             $nextSeq = $this->dao->getNextSeq($author->getData('publicationId'));
             $author->setData('seq', $nextSeq);
         }
+
+        Hook::call('Author::add::before', [$author]);
 
         $authorId = $this->dao->insert($author);
         $author = Repo::author()->get($authorId);
@@ -165,8 +192,10 @@ class Repository
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::edit()
+     *
+     * @hook Author::edit [[$newAuthor, $author, $params]]
      */
-    public function edit(Author $author, array $params)
+    public function edit(Author $author, array $params = [])
     {
         $newAuthor = Repo::author()->newDataObject(array_merge($author->_data, $params));
 
@@ -179,6 +208,8 @@ class Repository
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::delete()
+     *
+     * @hook Author::delete::before [[$author]]
      */
     public function delete(Author $author)
     {
@@ -194,19 +225,41 @@ class Repository
      * Create an Author object from a User object
      *
      * This does not save the author in the database.
+     *
+     * @hook Author::newAuthorFromUser [[$author, $user]]
      */
-    public function newAuthorFromUser(User $user): Author
+    public function newAuthorFromUser(User $user, Submission $submission, Context $context): Author
     {
         $author = Repo::author()->newDataObject();
-        $author->setGivenName($user->getGivenName(null), null);
-        $author->setFamilyName($user->getFamilyName(null), null);
-        $author->setAffiliation($user->getAffiliation(null), null);
+        // set author multilingual data only in allowed locales
+        $multilingualData = [Identity::IDENTITY_SETTING_GIVENNAME, Identity::IDENTITY_SETTING_FAMILYNAME, 'biography'];
+        $allowedLocales = $submission->getPublicationLanguages($context->getSupportedSubmissionMetadataLocales());
+        $submissionLocale = $submission->getData('locale');
+
+        foreach ($multilingualData as $dataKey) {
+            $data = $user->getData($dataKey, null);
+            if (!empty($data)) {
+                $author->setData(
+                    $dataKey,
+                    array_filter($data, fn ($key) => in_array($key, $allowedLocales), ARRAY_FILTER_USE_KEY),
+                    null
+                );
+            }
+        }
+        // given name has to exist in the submission locale:
+        // if there is no user given name in the submission locale
+        // copy the given name in the user's default (site) locale
+        if (!array_key_exists($submissionLocale, $user->getGivenName(null))) {
+            $author->setGivenName($user->getGivenName($user->getDefaultLocale()), $submissionLocale);
+        }
+
+        $migratedAffiliations = Repo::affiliation()->migrateUserAffiliation($user, $submission, $context);
+        $author->setAffiliations($migratedAffiliations ? [$migratedAffiliations] : null);
         $author->setCountry($user->getCountry());
         $author->setEmail($user->getEmail());
         $author->setUrl($user->getUrl());
-        $author->setBiography($user->getBiography(null), null);
         $author->setIncludeInBrowse(1);
-        $author->setOrcid($user->getOrcid());
+        $author->setVerifiedOrcidOAuthData($user->getAllData());
 
         Hook::call('Author::newAuthorFromUser', [$author, $user]);
 
@@ -239,9 +292,18 @@ class Repository
                     // copy only the given name with the old locale to the new locale, because the given name is required
                     $author->setGivenName($author->getGivenName($oldLocale), $newLocale);
                 }
-
-                $this->dao->update($author);
             }
+
+            $newAffiliations = [];
+            foreach ($author->getAffiliations() as $affiliation) {
+                if (!$affiliation->getRor()) {
+                    $affiliation->setName($affiliation->getName($oldLocale), $newLocale);
+                }
+                $newAffiliations[] = $affiliation;
+            }
+            $author->setAffiliations($newAffiliations);
+
+            $this->dao->update($author);
         }
     }
 

@@ -27,7 +27,6 @@ use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
 use PKP\security\authorization\UserRequiredPolicy;
-use PKP\session\SessionManager;
 use PKP\user\form\APIProfileForm;
 use PKP\user\form\ChangePasswordForm;
 use PKP\user\form\ContactForm;
@@ -85,7 +84,11 @@ class ProfileTabHandler extends Handler
             $identityForm->execute();
             $notificationMgr = new NotificationManager();
             $notificationMgr->createTrivialNotification($request->getUser()->getId());
-            return new JSONMessage(true);
+
+            $json = new JSONMessage(true);
+            $identityForm->initData();
+            $json->setEvent('refreshForm', $identityForm->fetch($request));
+            return $json;
         }
         return new JSONMessage(true, $identityForm->fetch($request));
     }
@@ -120,12 +123,26 @@ class ProfileTabHandler extends Handler
 
         $contactForm = new ContactForm($request->getUser());
         $contactForm->readInputData();
+
+        if ($contactForm->getData('action') == ContactForm::ACTION_CANCEL_EMAIL_CHANGE) {
+            $contactForm->cancelPendingEmail();
+
+            $notificationMgr = new NotificationManager();
+            $notificationMgr->createTrivialNotification($request->getUser()->getId());
+
+            $contactForm->initData();
+            return new JSONMessage(true, $contactForm->fetch($request));
+        }
+
         if ($contactForm->validate()) {
             $contactForm->execute();
             $notificationMgr = new NotificationManager();
             $notificationMgr->createTrivialNotification($request->getUser()->getId());
-            return new JSONMessage(true);
+
+            $contactForm->initData();
+            return new JSONMessage(true, $contactForm->fetch($request));
         }
+
         return new JSONMessage(true, $contactForm->fetch($request));
     }
 
@@ -313,9 +330,6 @@ class ProfileTabHandler extends Handler
 
         if ($passwordForm->validate()) {
             $passwordForm->execute();
-
-            $sessionManager = SessionManager::getManager();
-            $sessionManager->invalidateSessions($user->getId(), $sessionManager->getUserSession()->getId());
 
             $notificationMgr = new NotificationManager();
             $notificationMgr->createTrivialNotification($user->getId());

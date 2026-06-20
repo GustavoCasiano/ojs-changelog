@@ -1,8 +1,8 @@
 {**
  * templates/frontend/objects/article_details.tpl
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @brief View of an Article which displays all details about the article.
@@ -64,6 +64,10 @@
  * @uses $licenseUrl string URL to license. Only assigned if license should be
  *   included with published submissions.
  * @uses $ccLicenseBadge string An image and text with details about the license
+ *
+ * @hook Templates::Article::Main []
+ * @hook Templates::Article::Details::Reference []
+ * @hook Templates::Article::Details []
  *}
  {if !$heading}
  	{assign var="heading" value="h3"}
@@ -71,9 +75,9 @@
 <article class="obj_article_details">
 
 	{* Indicate if this is only a preview *}
-	{if $publication->getData('status') !== \PKP\submission\PKPSubmission::STATUS_PUBLISHED}
+	{if $publication->getData('status') !== PKP\submission\PKPSubmission::STATUS_PUBLISHED}
 	<div class="cmp_notification notice">
-		{capture assign="submissionUrl"}{url page="workflow" op="access" path=$article->getId()}{/capture}
+		{capture assign="submissionUrl"}{url page="dashboard" op="editorial" workflowSubmissionId=$article->getId()}{/capture}
 		{translate key="submission.viewingPreview" url=$submissionUrl}
 	</div>
 	{* Notification that this is an old version *}
@@ -109,27 +113,30 @@
 							<span class="name">
 								{$author->getFullName()|escape}
 							</span>
-							{if $author->getLocalizedData('affiliation')}
+							{if count($author->getAffiliations()) > 0}
 								<span class="affiliation">
-									{$author->getLocalizedData('affiliation')|escape}
-									{if $author->getData('rorId')}
-										<a href="{$author->getData('rorId')|escape}">{$rorIdIcon}</a>
-									{/if}
+									{foreach name="affiliations" from=$author->getAffiliations() item="affiliation"}
+										<span>{$affiliation->getLocalizedName()|escape}</span>
+										{if $affiliation->getRor()}<a href="{$affiliation->getRor()|escape}">{$rorIdIcon}</a>{/if}
+										{if !$smarty.foreach.affiliations.last}{translate key="common.commaListSeparator"}{/if}
+									{/foreach}
 								</span>
 							{/if}
 							{assign var=authorUserGroup value=$userGroupsById[$author->getData('userGroupId')]}
-							{if $authorUserGroup->getShowTitle()}
+							{if $authorUserGroup->showTitle}
 								<span class="userGroup">
-									{$authorUserGroup->getLocalizedName()|escape}
+									{$authorUserGroup->getLocalizedData('name')|escape}
 								</span>
 							{/if}
 							{if $author->getData('orcid')}
 								<span class="orcid">
-									{if $author->getData('orcidAccessToken')}
+									{if $author->hasVerifiedOrcid()}
 										{$orcidIcon}
+									{else}
+										{$orcidUnauthenticatedIcon}
 									{/if}
 									<a href="{$author->getData('orcid')|escape}" target="_blank">
-										{$author->getData('orcid')|escape}
+										{$author->getOrcidDisplayValue()|escape}
 									</a>
 								</span>
 							{/if}
@@ -156,7 +163,6 @@
 				</section>
 			{/if}
 
-
 			{* Keywords *}
 			{if !empty($publication->getLocalizedData('keywords'))}
 			<section class="item keywords">
@@ -166,7 +172,7 @@
 				</h2>
 				<span class="value">
 					{foreach name="keywords" from=$publication->getLocalizedData('keywords') item="keyword"}
-						{$keyword|escape}{if !$smarty.foreach.keywords.last}{translate key="common.commaListSeparator"}{/if}
+						{$keyword.name|escape}{if !$smarty.foreach.keywords.last}{translate key="common.commaListSeparator"}{/if}					
 					{/foreach}
 				</span>
 			</section>
@@ -182,7 +188,7 @@
 
 			{call_hook name="Templates::Article::Main"}
 
-			{* Usage statistics chart*}
+			{* Usage statistics chart *}
 			{if $activeTheme && $activeTheme->getOption('displayStats') != 'none'}
 				{$activeTheme->displayUsageStatsGraph($article->getId())}
 				<section class="item downloads_chart">
@@ -219,10 +225,10 @@
 						{if $author->getLocalizedData('biography')}
 							<li class="sub_item">
 								<div class="label">
-									{if $author->getLocalizedData('affiliation')}
+									{if $author->getLocalizedAffiliationNamesAsString()}
 										{capture assign="authorName"}{$author->getFullName()|escape}{/capture}
-										{capture assign="authorAffiliation"} {$author->getLocalizedData('affiliation')|escape} {/capture}
-										{translate key="submission.authorWithAffiliation" name=$authorName affiliation=$authorAffiliation}
+										{capture assign="authorAffiliations"} {$author->getLocalizedAffiliationNamesAsString(null, ', ')|escape} {/capture}
+										{translate key="submission.authorWithAffiliation" name=$authorName affiliation=$authorAffiliations}
 									{else}
 										{$author->getFullName()|escape}
 									{/if}
@@ -238,13 +244,13 @@
 			{/if}
 
 			{* References *}
-			{if $parsedCitations || $publication->getData('citationsRaw')}
+			{if count($parsedCitations) || (string) $publication->getData('citationsRaw')}
 				<section class="item references">
 					<h2 class="label">
 						{translate key="submission.citations"}
 					</h2>
 					<div class="value">
-						{if $parsedCitations}
+						{if count($parsedCitations)}
 							{foreach from=$parsedCitations item="parsedCitation"}
 								<p>{$parsedCitation->getCitationWithLinks()|strip_unsafe_html} {call_hook name="Templates::Article::Details::Reference" citation=$parsedCitation}</p>
 							{/foreach}
@@ -367,7 +373,7 @@
 							</h2>
 							<div class="value">
 								<a class="title" href="{url page="issue" op="view" path=$issue->getBestIssueId()}">
-									{$issue->getIssueIdentification()}
+									{$issue->getIssueIdentification()|escape}
 								</a>
 							</div>
 						</section>
@@ -392,7 +398,7 @@
 							<div class="value">
 								<ul class="categories">
 									{foreach from=$categories item=category}
-										<li><a href="{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="catalog" op="category" path=$category->getPath()|escape}">{$category->getLocalizedTitle()|escape}</a></li>
+										<li><a href="{url router=PKP\core\PKPApplication::ROUTE_PAGE page="catalog" op="category" path=$category->getPath()|escape}">{$category->getLocalizedTitle()|escape}</a></li>
 									{/foreach}
 								</ul>
 							</div>
@@ -406,7 +412,7 @@
 				{if $pubIdPlugin->getPubIdType() == 'doi'}
 					{continue}
 				{/if}
-				{assign var=pubId value=$article->getStoredPubId($pubIdPlugin->getPubIdType())}
+				{assign var=pubId value=$publication->getStoredPubId($pubIdPlugin->getPubIdType())}
 				{if $pubId}
 					<section class="item pubid">
 						<h2 class="label">

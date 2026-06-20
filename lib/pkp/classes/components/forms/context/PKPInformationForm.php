@@ -19,14 +19,10 @@ namespace PKP\components\forms\context;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FormComponent;
 
-define('FORM_INFORMATION', 'information');
-
 class PKPInformationForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_INFORMATION;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_INFORMATION = 'information';
+    public $id = self::FORM_INFORMATION;
     public $method = 'PUT';
 
     /**
@@ -53,7 +49,7 @@ class PKPInformationForm extends FormComponent
                 'groupId' => 'descriptions',
                 'value' => $context->getData('readerInformation'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,lists,image,code',
+                'plugins' => ['link','lists','image','code'],
                 'uploadUrl' => $imageUploadUrl,
             ]))
             ->addField(new FieldRichTextarea('authorInformation', [
@@ -62,7 +58,7 @@ class PKPInformationForm extends FormComponent
                 'groupId' => 'descriptions',
                 'value' => $context->getData('authorInformation'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,lists,image,code',
+                'plugins' => ['link','lists','image','code'],
                 'uploadUrl' => $imageUploadUrl,
             ]))
             ->addField(new FieldRichTextarea('librarianInformation', [
@@ -71,7 +67,7 @@ class PKPInformationForm extends FormComponent
                 'groupId' => 'descriptions',
                 'value' => $context->getData('librarianInformation'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,lists,image,code',
+                'plugins' => ['link','lists','image','code'],
                 'uploadUrl' => $imageUploadUrl,
             ]));
     }

@@ -31,17 +31,15 @@ use PKP\core\Core;
 use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\db\DAORegistry;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\linkAction\request\RedirectAction;
-use PKP\notification\NotificationDAO;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\authorization\WorkflowStageAccessPolicy;
 use PKP\security\Role;
 use PKP\security\Validation;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 
 class StageParticipantGridHandler extends CategoryGridHandler
 {
@@ -149,9 +147,10 @@ class StageParticipantGridHandler extends CategoryGridHandler
                 $request,
                 PKPApplication::ROUTE_PAGE,
                 null,
-                'workflow',
-                'access',
-                $submissionId
+                'dashboard',
+                'editorial',
+                null,
+                ['workflowSubmissionId' => $submissionId]
             );
             $this->addAction(
                 new LinkAction(
@@ -176,7 +175,6 @@ class StageParticipantGridHandler extends CategoryGridHandler
                     new AjaxModal(
                         $router->url($request, null, null, 'addParticipant', null, $this->getRequestArgs()),
                         __('editor.submission.addStageParticipant'),
-                        'modal_add_user'
                     ),
                     __('common.assign'),
                     'add_user'
@@ -202,14 +200,15 @@ class StageParticipantGridHandler extends CategoryGridHandler
         $submission = $this->getSubmission();
         $stageId = $this->getStageId();
 
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getBySubmissionAndStageId(
-            $submission->getId(),
-            $stageId,
-            $userGroup->getId()
-        );
+        // Replaces StageAssignmentDAO::getBySubmissionAndStageId
+        $stageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withStageIds([$stageId])
+            ->withUserGroupId($userGroup->id)
+            ->get();
 
-        return $stageAssignments->toAssociativeArray();
+        return $stageAssignments->mapWithKeys(function ($stageAssignment) {
+            return [$stageAssignment->id => $stageAssignment];
+        })->all();
     }
 
     /**
@@ -265,18 +264,13 @@ class StageParticipantGridHandler extends CategoryGridHandler
      */
     protected function loadData($request, $filter)
     {
-        $submission = $this->getSubmission();
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getBySubmissionAndStageId(
-            $this->getSubmission()->getId(),
-            $this->getStageId()
-        );
-
         // Make a list of the active (non-reviewer) user groups.
-        $userGroupIds = [];
-        while ($stageAssignment = $stageAssignments->next()) {
-            $userGroupIds[] = $stageAssignment->getUserGroupId();
-        }
+        // Replaces StageAssignmentDAO::getBySubmissionAndStageId
+        $userGroupIds = StageAssignment::withSubmissionIds([$this->getSubmission()->getId()])
+            ->withStageIds([$this->getStageId()])
+            ->get()
+            ->pluck('userGroupId')
+            ->all();
 
         // Fetch the desired user groups as objects.
         $result = [];
@@ -285,13 +279,13 @@ class StageParticipantGridHandler extends CategoryGridHandler
             $this->getStageId()
         );
         foreach ($userGroups as $userGroup) {
-            if ($userGroup->getRoleId() == Role::ROLE_ID_REVIEWER) {
+            if ($userGroup->roleId == Role::ROLE_ID_REVIEWER) {
                 continue;
             }
-            if (!in_array($userGroup->getId(), $userGroupIds)) {
+            if (!in_array($userGroup->id, $userGroupIds)) {
                 continue;
             }
-            $result[$userGroup->getId()] = $userGroup;
+            $result[$userGroup->id] = $userGroup;
         }
         return $result;
     }
@@ -342,15 +336,18 @@ class StageParticipantGridHandler extends CategoryGridHandler
         $form = new AddParticipantForm($submission, $stageId, $assignmentId);
         $form->readInputData();
         if ($form->validate()) {
+            $stageAssignment = $assignmentId ? StageAssignment::find($assignmentId) : null;
+            if ($stageAssignment && !Validation::canEditParticipant($request->getUser(), $submission, $stageAssignment)) {
+                return new JSONMessage(true, $form->fetch($request));
+            }
+
             [$userGroupId, $userId, $stageAssignmentId] = $form->execute();
 
             $notificationMgr = new NotificationManager();
 
             // Check user group role id.
-            $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-
             $userGroup = Repo::userGroup()->get($userGroupId);
-            if ($userGroup->getRoleId() == Role::ROLE_ID_MANAGER) {
+            if ($userGroup->roleId == Role::ROLE_ID_MANAGER) {
                 $notificationMgr->updateNotification(
                     $request,
                     $notificationMgr->getDecisionStageNotifications(),
@@ -363,18 +360,25 @@ class StageParticipantGridHandler extends CategoryGridHandler
             $stages = Application::getApplicationStages();
             foreach ($stages as $workingStageId) {
                 // remove the 'editor required' task if we now have an editor assigned
-                if ($stageAssignmentDao->editorAssignedToStage($submission->getId(), $workingStageId)) {
-                    $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-                    $notificationDao->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $submission->getId(), null, PKPNotification::NOTIFICATION_TYPE_EDITOR_ASSIGNMENT_REQUIRED);
+                // Replaces StageAssignmentDAO::editorAssignedToStage
+                $assignedEditors = StageAssignment::withSubmissionIds([$submission->getId()])
+                    ->withStageIds([$workingStageId])
+                    ->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+                    ->exists();
+
+                if ($assignedEditors) {
+                    Notification::withAssoc(Application::ASSOC_TYPE_SUBMISSION, $submission->getId())
+                        ->withType(Notification::NOTIFICATION_TYPE_EDITOR_ASSIGNMENT_REQUIRED)
+                        ->delete();
                 }
             }
 
             // Create trivial notification.
             $user = $request->getUser();
             if ($stageAssignmentId != $assignmentId) { // New assignment added
-                $notificationMgr->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.addedStageParticipant')]);
+                $notificationMgr->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.addedStageParticipant')]);
             } else {
-                $notificationMgr->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.editStageParticipant')]);
+                $notificationMgr->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.editStageParticipant')]);
             }
 
 
@@ -390,7 +394,7 @@ class StageParticipantGridHandler extends CategoryGridHandler
                 'dateLogged' => Core::getCurrentDate(),
                 'userFullName' => $assignedUser->getFullName(),
                 'username' => $assignedUser->getUsername(),
-                'userGroupName' => $userGroup->getData('name')
+                'userGroupName' => $userGroup->name,
             ]);
             Repo::eventLog()->add($eventLog);
 
@@ -414,14 +418,13 @@ class StageParticipantGridHandler extends CategoryGridHandler
         $stageId = $this->getStageId();
         $assignmentId = (int) $request->getUserVar('assignmentId');
 
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignment = $stageAssignmentDao->getById($assignmentId);
-        if (!$request->checkCSRF() || !$stageAssignment || $stageAssignment->getSubmissionId() != $submission->getId()) {
+        $stageAssignment = StageAssignment::find($assignmentId);
+        if (!$request->checkCSRF() || !$stageAssignment || $stageAssignment->submissionId != $submission->getId()) {
             return new JSONMessage(false);
         }
 
         // Delete the assignment
-        $stageAssignmentDao->deleteObject($stageAssignment);
+        $stageAssignment->delete();
 
         // FIXME: perhaps we can just insert the notification on page load
         // instead of having it there all the time?
@@ -440,10 +443,10 @@ class StageParticipantGridHandler extends CategoryGridHandler
             $notificationMgr->updateNotification(
                 $request,
                 [
-                    PKPNotification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
-                    PKPNotification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
-                    PKPNotification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
-                    PKPNotification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
+                    Notification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
+                    Notification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
+                    Notification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
+                    Notification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
                 ],
                 null,
                 Application::ASSOC_TYPE_SUBMISSION,
@@ -452,8 +455,8 @@ class StageParticipantGridHandler extends CategoryGridHandler
         }
 
         // Log removal.
-        $assignedUser = Repo::user()->get($stageAssignment->getUserId(), true);
-        $userGroup = Repo::userGroup()->get($stageAssignment->getUserGroupId());
+        $assignedUser = Repo::user()->get($stageAssignment->userId, true);
+        $userGroup = Repo::userGroup()->get($stageAssignment->userGroupId);
 
         $eventLog = Repo::eventLog()->newDataObject([
             'assocType' => PKPApplication::ASSOC_TYPE_SUBMISSION,
@@ -465,12 +468,12 @@ class StageParticipantGridHandler extends CategoryGridHandler
             'dateLogged' => Core::getCurrentDate(),
             'userFullName' => $assignedUser->getFullName(),
             'username' => $assignedUser->getUsername(),
-            'userGroupName' => $userGroup->getData('name')
+            'userGroupName' => $userGroup->name,
         ]);
         Repo::eventLog()->add($eventLog);
 
         // Redraw the category
-        return \PKP\db\DAO::getDataChangedEvent($stageAssignment->getUserGroupId());
+        return \PKP\db\DAO::getDataChangedEvent($stageAssignment->userGroupId);
     }
 
     /**
@@ -493,10 +496,10 @@ class StageParticipantGridHandler extends CategoryGridHandler
         $users = $collector->getMany();
 
         $userGroup = Repo::userGroup()->get($userGroupId);
-        $roleId = $userGroup->getRoleId();
+        $roleId = $userGroup->roleId;
 
         $sectionId = $submission->getSectionId();
-        $contextId = $submission->getContextId();
+        $contextId = $submission->getData('contextId');
 
         $userList = [];
         foreach ($users as $user) {
@@ -552,10 +555,10 @@ class StageParticipantGridHandler extends CategoryGridHandler
                 $notificationMgr->updateNotification(
                     $request,
                     [
-                        PKPNotification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
-                        PKPNotification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
-                        PKPNotification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
-                        PKPNotification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
+                        Notification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
+                        Notification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
+                        Notification::NOTIFICATION_TYPE_ASSIGN_PRODUCTIONUSER,
+                        Notification::NOTIFICATION_TYPE_AWAITING_REPRESENTATIONS,
                     ],
                     null,
                     Application::ASSOC_TYPE_SUBMISSION,

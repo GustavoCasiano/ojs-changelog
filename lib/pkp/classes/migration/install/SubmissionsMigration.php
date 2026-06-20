@@ -45,7 +45,7 @@ class SubmissionsMigration extends \PKP\migration\Migration
             $table->datetime('date_submitted')->nullable();
             $table->datetime('last_modified')->nullable();
             $table->bigInteger('stage_id')->default($this->defaultStageId);
-            $table->string('locale', 14)->nullable();
+            $table->string('locale', 28)->nullable();
 
             $table->smallInteger('status')->default(PKPSubmission::STATUS_QUEUED);
 
@@ -66,7 +66,7 @@ class SubmissionsMigration extends \PKP\migration\Migration
             $table->foreign('submission_id')->references('submission_id')->on('submissions')->onDelete('cascade');
             $table->index(['submission_id'], 'submission_settings_submission_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
 
@@ -81,19 +81,19 @@ class SubmissionsMigration extends \PKP\migration\Migration
             // The foreign key relationship on this table is defined with the publications table.
             $table->bigInteger('publication_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
 
             $table->unique(['publication_id', 'locale', 'setting_name'], 'publication_settings_unique');
         });
         // Add partial index (DBMS-specific)
-        switch (DB::getDriverName()) {
-            case 'mysql': DB::unprepared('CREATE INDEX publication_settings_name_value ON publication_settings (setting_name(50), setting_value(150))');
-                break;
-            case 'pgsql': DB::unprepared("CREATE INDEX publication_settings_name_value ON publication_settings (setting_name, setting_value) WHERE setting_name IN ('indexingState', 'medra::registeredDoi', 'datacite::registeredDoi', 'pub-id::publisher-id')");
-                break;
-        }
+        match (DB::getDriverName()) {
+            'mysql', 'mariadb' =>
+                DB::unprepared('CREATE INDEX publication_settings_name_value ON publication_settings (setting_name(50), setting_value(150))'),
+            'pgsql' =>
+                DB::unprepared("CREATE INDEX publication_settings_name_value ON publication_settings (setting_name, setting_value) WHERE setting_name IN ('indexingState', 'medra::registeredDoi', 'datacite::registeredDoi', 'pub-id::publisher-id')")
+        };
 
         // Authors for submissions.
         Schema::create('authors', function (Blueprint $table) {
@@ -105,7 +105,7 @@ class SubmissionsMigration extends \PKP\migration\Migration
             // The foreign key relationship on this table is defined with the publications table.
             $table->bigInteger('publication_id');
 
-            $table->float('seq', 8, 2)->default(0);
+            $table->float('seq')->default(0);
 
             $table->bigInteger('user_group_id')->nullable();
             $table->foreign('user_group_id')->references('user_group_id')->on('user_groups')->onDelete('cascade');
@@ -120,7 +120,7 @@ class SubmissionsMigration extends \PKP\migration\Migration
             $table->foreign('author_id', 'author_settings_author_id')->references('author_id')->on('authors')->onDelete('cascade');
             $table->index(['author_id'], 'author_settings_author_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
 
@@ -205,7 +205,7 @@ class SubmissionsMigration extends \PKP\migration\Migration
             $table->bigInteger('assoc_type');
             $table->bigInteger('assoc_id');
             $table->smallInteger('stage_id');
-            $table->float('seq', 8, 2)->default(0);
+            $table->float('seq')->default(0);
             $table->datetime('date_posted')->nullable();
             $table->datetime('date_modified')->nullable();
             $table->smallInteger('closed')->default(0);

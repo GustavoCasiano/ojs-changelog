@@ -15,7 +15,6 @@
 namespace APP\plugins\generic\htmlArticleGalley;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\file\PublicFileManager;
 use APP\observers\events\UsageEvent;
@@ -37,8 +36,8 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
             return false;
         }
         if ($this->getEnabled($mainContextId)) {
-            Hook::add('ArticleHandler::view::galley', [$this, 'articleViewCallback'], Hook::SEQUENCE_LATE);
-            Hook::add('ArticleHandler::download', [$this, 'articleDownloadCallback'], Hook::SEQUENCE_LATE);
+            Hook::add('ArticleHandler::view::galley', $this->articleViewCallback(...), Hook::SEQUENCE_LATE);
+            Hook::add('ArticleHandler::download', $this->articleDownloadCallback(...), Hook::SEQUENCE_LATE);
         }
         return true;
     }
@@ -79,11 +78,11 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
      */
     public function articleViewCallback($hookName, $args)
     {
-        $request = & $args[0];
-        $issue = & $args[1];
+        $request = &$args[0];
+        $issue = &$args[1];
         /** @var \PKP\galley\Galley */
-        $galley = & $args[2];
-        $article = & $args[3];
+        $galley = &$args[2];
+        $article = &$args[3];
 
         if ($galley && $galley->getFileType() === 'text/html') {
             /** @var ?Publication */
@@ -116,12 +115,15 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
      *
      * @param string $hookName
      * @param array $args
+     *
+     * @hook HtmlArticleGalleyPlugin::articleDownload [[$article, &$galley, &$fileId]]
+     * @hook HtmlArticleGalleyPlugin::articleDownloadFinished [[&$returner]]
      */
     public function articleDownloadCallback($hookName, $args)
     {
-        $article = & $args[0];
-        $galley = & $args[1];
-        $fileId = & $args[2];
+        $article = &$args[0];
+        $galley = &$args[1];
+        $fileId = &$args[2];
         $request = Application::get()->getRequest();
 
         if (!$galley) {
@@ -162,7 +164,7 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
     {
         $submissionFile = $galley->getFile();
         $submissionId = $submissionFile->getData('submissionId');
-        $contents = Services::get('file')->fs->read($submissionFile->getData('path'));
+        $contents = app()->get('file')->fs->read($submissionFile->getData('path'));
 
         // Replace media file references
         $embeddableFiles = Repo::submissionFile()
@@ -233,7 +235,7 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
         // Perform replacement for ojs://... URLs
         $contents = preg_replace_callback(
             '/(<[^<>]*")[Oo][Jj][Ss]:\/\/([^"]+)("[^<>]*>)/',
-            [$this, '_handleOjsUrl'],
+            $this->_handleOjsUrl(...),
             $contents
         );
         if ($contents === null) {
@@ -274,7 +276,7 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
         }
         $urlParts = explode('/', $url);
         if (isset($urlParts[0])) {
-            switch (strtolower_codesafe($urlParts[0])) {
+            switch (strtolower($urlParts[0])) {
                 case 'journal':
                     $url = $request->url(
                         $urlParts[1] ?? $request->getRouter()->getRequestedContextPath($request),
@@ -291,7 +293,7 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
                             null,
                             'article',
                             'view',
-                            $urlParts[1],
+                            [$urlParts[1]],
                             null,
                             $anchor
                         );
@@ -303,7 +305,7 @@ class HtmlArticleGalleyPlugin extends \PKP\plugins\GenericPlugin
                             null,
                             'issue',
                             'view',
-                            $urlParts[1],
+                            [$urlParts[1]],
                             null,
                             $anchor
                         );

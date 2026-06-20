@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/submission/Repository.php
  *
- * Copyright (c) 2014-2020 Simon Fraser University
- * Copyright (c) 2000-2020 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class Repository
@@ -16,13 +17,13 @@ namespace PKP\submission;
 use APP\author\Author;
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\publication\Publication;
 use APP\section\Section;
 use APP\submission\Collector;
 use APP\submission\DAO;
 use APP\submission\Submission;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Enumerable;
 use Illuminate\Support\LazyCollection;
 use PKP\context\Context;
@@ -32,14 +33,15 @@ use PKP\doi\exceptions\DoiException;
 use PKP\facades\Locale;
 use PKP\observers\events\SubmissionSubmitted;
 use PKP\plugins\Hook;
-use PKP\query\QueryDAO;
 use PKP\security\Role;
 use PKP\security\RoleDAO;
 use PKP\services\PKPSchemaService;
-use PKP\stageAssignment\StageAssignmentDAO;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
+use PKP\submission\Collector as SubmissionCollector;
+use PKP\submission\reviewAssignment\Collector as ReviewCollector;
 use PKP\submissionFile\SubmissionFile;
 use PKP\user\User;
+use PKP\userGroup\UserGroup;
 use PKP\validation\ValidatorFactory;
 
 abstract class Repository
@@ -169,29 +171,37 @@ abstract class Repository
         $submissionContext = $request->getContext();
 
         if (!$submissionContext || $submissionContext->getId() != $submission->getData('contextId')) {
-            $submissionContext = Services::get('context')->get($submission->getData('contextId'));
+            $submissionContext = app()->get('context')->get($submission->getData('contextId'));
         }
 
         $dispatcher = $request->getDispatcher();
 
         // Check if the user is an author of this submission
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $authorUserGroupIds = Repo::userGroup()->getArrayIdByRoleId(Role::ROLE_ID_AUTHOR);
-        $stageAssignmentsFactory = $stageAssignmentDao->getBySubmissionAndStageId($submission->getId(), null, null, $user->getId());
+        $authorUserGroupIds = UserGroup::withContextIds([$submission->getData('contextId')])
+            ->withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->get()
+            ->map(fn ($userGroup) => $userGroup->id)
+            ->toArray();
+
+        // Replaces StageAssignmentDAO::getBySubmissionAndStageId
+        $stageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withUserId($user->getId())
+            ->get();
 
         $authorDashboard = false;
-        while ($stageAssignment = $stageAssignmentsFactory->next()) {
-            if (in_array($stageAssignment->getUserGroupId(), $authorUserGroupIds)) {
+        foreach ($stageAssignments as $stageAssignment) {
+            if (in_array($stageAssignment->userGroupId, $authorUserGroupIds)) {
                 $authorDashboard = true;
+                break;
             }
         }
 
         // Send authors, journal managers and site admins to the submission
         // wizard for incomplete submissions
-        if ($submission->getSubmissionProgress() &&
+        if ($submission->getData('submissionProgress') &&
             ($authorDashboard ||
                 $user->hasRole([Role::ROLE_ID_MANAGER], $submissionContext->getId()) ||
-                $user->hasRole([Role::ROLE_ID_SITE_ADMIN], Application::CONTEXT_SITE))) {
+                $user->hasRole([Role::ROLE_ID_SITE_ADMIN], Application::SITE_CONTEXT_ID))) {
             return $dispatcher->url(
                 $request,
                 Application::ROUTE_PAGE,
@@ -209,15 +219,20 @@ abstract class Repository
                 $request,
                 Application::ROUTE_PAGE,
                 $submissionContext->getPath(),
-                'authorDashboard',
-                'submission',
-                $submission->getId()
+                'dashboard',
+                'mySubmissions',
+                null,
+                ['workflowSubmissionId' => $submission->getId()]
             );
         }
 
         // Send reviewers to review wizard
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignment = $reviewAssignmentDao->getLastReviewRoundReviewAssignmentByReviewer($submission->getId(), $user->getId());
+        $reviewAssignment = Repo::reviewAssignment()->getCollector()
+            ->filterBySubmissionIds([$submission->getId()])
+            ->filterByReviewerIds([$user->getId()], true)
+            ->getMany()
+            ->first();
+
         if ($reviewAssignment && !$reviewAssignment->getCancelled() && !$reviewAssignment->getDeclined()) {
             return $dispatcher->url(
                 $request,
@@ -225,7 +240,7 @@ abstract class Repository
                 $submissionContext->getPath(),
                 'reviewer',
                 'submission',
-                $submission->getId()
+                [$submission->getId()]
             );
         }
 
@@ -235,9 +250,10 @@ abstract class Repository
             $request,
             Application::ROUTE_PAGE,
             $submissionContext->getPath(),
-            'workflow',
-            'access',
-            $submission->getId()
+            'dashboard',
+            'editorial',
+            null,
+            ['workflowSubmissionId' => $submission->getId()]
         );
     }
 
@@ -250,11 +266,17 @@ abstract class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Submission::validate [[&$errors, $submission, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate(?Submission $submission, array $props, Context $context): array
     {
-        $primaryLocale = $props['locale'] ?? $submission?->getLocale() ?? $context->getPrimaryLocale();
+        $primaryLocale = $props['locale'] ?? $submission?->getData('locale') ?? $context->getSupportedDefaultSubmissionLocale();
         $allowedLocales = $context->getSupportedSubmissionLocales();
+
+        if (!in_array($primaryLocale, $allowedLocales)) {
+            $allowedLocales[] = $primaryLocale;
+        }
 
         $errors = [];
 
@@ -269,8 +291,8 @@ abstract class Repository
             $submission,
             $this->schemaService->getRequiredProps(PKPSchemaService::SCHEMA_SUBMISSION),
             $this->schemaService->getMultilingualProps(PKPSchemaService::SCHEMA_SUBMISSION),
-            $primaryLocale,
-            $allowedLocales
+            $allowedLocales,
+            $primaryLocale
         );
 
         // Check for input from disallowed locales
@@ -288,7 +310,7 @@ abstract class Repository
         // The contextId must match an existing context
         $validator->after(function ($validator) use ($props) {
             if (isset($props['contextId']) && !$validator->errors()->get('contextId')) {
-                $submissionContext = Services::get('context')->exists($props['contextId']);
+                $submissionContext = app()->get('context')->exists($props['contextId']);
                 if (!$submissionContext) {
                     $validator->errors()->add('contextId', __('submission.submit.noContext'));
                 }
@@ -334,6 +356,8 @@ abstract class Repository
      * Check if a submission meets all requirements to be submitted
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Submission::validateSubmit [[&$errors, $submission, $context]]
      */
     public function validateSubmit(Submission $submission, Context $context): array
     {
@@ -353,7 +377,7 @@ abstract class Repository
                             Application::get()->getRequest(),
                             Application::ROUTE_PAGE,
                             $context->getData('path'),
-                            'submissions'
+                            'dashboard'
                         )
                 ]
             );
@@ -367,12 +391,23 @@ abstract class Repository
         // Author names required in submission locale
         foreach ($publication->getData('authors') as $author) {
             /** @var Author $author */
-            if (!$author->getGivenName($submission->getLocale())) {
+            if (!$author->getGivenName($submission->getData('locale'))) {
                 if (!isset($errors['contributors'])) {
                     $errors['contributors'] = [];
                 }
-                $errors['contributors'][] = __('submission.wizard.missingContributorLanguage', ['language' => Locale::getMetadata($locale)->getDisplayName()]);
+                $errors['contributors'][] = __('submission.wizard.missingContributorLanguage', ['language' => Locale::getSubmissionLocaleDisplayNames([$locale])[$locale]]);
                 break;
+            }
+            foreach ($author->getAffiliations() as $affiliation) {
+                if (!$affiliation->getRor()) {
+                    if (!$affiliation->getName($submission->getData('locale'))) {
+                        if (!isset($errors['contributors'])) {
+                            $errors['contributors'] = [];
+                        }
+                        $errors['contributors'][] = __('submission.wizard.missingContributorAffiliationLanguage', ['language' => Locale::getSubmissionLocaleDisplayNames([$locale])[$locale]]);
+                        break;
+                    }
+                }
             }
         }
 
@@ -391,9 +426,9 @@ abstract class Repository
             if (!$schema) {
                 continue;
             }
-            if (empty($schema->multilingual) && empty($publication->getData($metadata))) {
+            if (empty($schema->multilingual) && empty((string) $publication->getData($metadata))) {
                 $errors[$metadata] = [__('validator.required')];
-            } elseif (!empty($schema->multilingual) && empty($publication->getData($metadata, $locale))) {
+            } elseif (!empty($schema->multilingual) && empty((string) $publication->getData($metadata, $locale))) {
                 $errors[$metadata] = [$locale => [__('validator.required')]];
             }
         }
@@ -459,24 +494,18 @@ abstract class Repository
             return false;
         }
 
-        $canDelete = false;
-
         // Only allow admins and journal managers to delete submissions, except
         // for authors who can delete their own incomplete submissions
-        if ($currentUser->hasRole([Role::ROLE_ID_MANAGER], $contextId) || $currentUser->hasRole([Role::ROLE_ID_SITE_ADMIN], Application::CONTEXT_SITE)) {
-            $canDelete = true;
-        } else {
-            if ($submission->getData('submissionProgress')) {
-                $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-                $assignments = $stageAssignmentDao->getBySubmissionAndRoleIds($submission->getId(), [Role::ROLE_ID_AUTHOR], WORKFLOW_STAGE_ID_SUBMISSION, $currentUser->getId());
-                $assignment = $assignments->next();
-                if ($assignment) {
-                    $canDelete = true;
-                }
-            }
-        }
-
-        return $canDelete;
+        return ($currentUser->hasRole([Role::ROLE_ID_MANAGER], $contextId) || $currentUser->hasRole([Role::ROLE_ID_SITE_ADMIN], Application::SITE_CONTEXT_ID))
+            || (
+                $submission->getData('submissionProgress') &&
+                StageAssignment::withSubmissionIds([$submission->getId()])
+                    ->withRoleIds([Role::ROLE_ID_AUTHOR])
+                    ->withStageIds([WORKFLOW_STAGE_ID_SUBMISSION])
+                    ->withUserId($currentUser->getId())
+                    ->get()
+                    ->isNotEmpty()
+            );
     }
 
     /**
@@ -484,20 +513,36 @@ abstract class Repository
      */
     public function canEditPublication(int $submissionId, int $userId): bool
     {
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getBySubmissionAndUserIdAndStageId($submissionId, $userId, null)->toArray();
-        // Check for permission from stage assignments
-        foreach ($stageAssignments as $stageAssignment) {
-            if ($stageAssignment->getCanChangeMetadata()) {
-                return true;
-            }
-        }
-        // If user has no stage assigments, check if user can edit anyway ie. is manager
+        // block authors can never edit a published publication even if an editor granted them canChangeMetadata
+        $assignments = StageAssignment::withSubmissionIds([$submissionId])
+            ->withUserId($userId)
+            ->get();
+
+        $submission = $this->get($submissionId);
+
+        // if user has no stage assigments, check if user can edit anyway ie. is manager
         $context = Application::get()->getRequest()->getContext();
-        if (count($stageAssignments) == 0 && $this->_canUserAccessUnassignedSubmissions($context->getId(), $userId)) {
+        if ($this->_canUserAccessUnassignedSubmissions($context->getId(), $userId)) {
             return true;
         }
-        // Else deny access
+
+        // any published or scheduled then probe
+        $hasLockedPublication = $submission?->getData('publications')
+            ->contains(
+                fn (Publication $p) =>
+                    in_array(
+                        $p->getData('status'),
+                        [Submission::STATUS_PUBLISHED, Submission::STATUS_SCHEDULED]
+                    )
+            );
+
+        if ($hasLockedPublication && !$assignments->contains(fn (StageAssignment $sa) => $sa->userGroup && $sa->userGroup->roleId != Role::ROLE_ID_AUTHOR)) {
+            return false;
+        }
+
+        if ($assignments->contains(fn($sa) => $sa->canChangeMetadata)) {
+            return true;
+        }
         return false;
     }
 
@@ -517,11 +562,13 @@ abstract class Repository
         }
 
         if ($user) {
-            /** @var StageAssignmentDAO */
-            $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-            $stageAssignments = $stageAssignmentDao->getBySubmissionAndRoleId($submission->getId(), Role::ROLE_ID_AUTHOR, null, $user->getId());
-            $stageAssignment = $stageAssignments->next();
-            if ($stageAssignment) {
+            // Replaces StageAssignmentDAO::getBySubmissionAndRoleId
+            $stageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+                ->withRoleIds([Role::ROLE_ID_AUTHOR])
+                ->withUserId($user->getId())
+                ->get();
+
+            if ($stageAssignments->isNotEmpty()) {
                 return true;
             }
         }
@@ -530,6 +577,8 @@ abstract class Repository
 
     /**
      * Add a new submission
+     *
+     * @hook Submission::add [[$submission]]
      */
     public function add(Submission $submission, Publication $publication, Context $context): int
     {
@@ -542,7 +591,7 @@ abstract class Repository
             $submission->setData('status', Submission::STATUS_QUEUED);
         }
         if (!$submission->getData('locale')) {
-            $submission->setData('locale', $context->getPrimaryLocale());
+            $submission->setData('locale', $context->getSupportedDefaultSubmissionLocale());
         }
         $submissionId = $this->dao->insert($submission);
         $submission = Repo::submission()->get($submissionId);
@@ -598,9 +647,7 @@ abstract class Repository
         );
 
         if ($submission->getData('commentsForTheEditors')) {
-            /** @var QueryDAO $queryDao */
-            $queryDao = DAORegistry::getDAO('QueryDAO');
-            $queryDao->addCommentsForEditorsQuery($submission);
+            Repo::query()->addCommentsForEditorsQuery($submission);
         }
     }
 
@@ -638,6 +685,8 @@ abstract class Repository
      *
      * @param ?Section $section If this submission is being deleted, its previous section ID should be specified
      *    in order to ensure a correctly created tombstone.
+     *
+     * @hook Submission::updateStatus [[&$newStatus, $status, $submission]]
      */
     public function updateStatus(Submission $submission, ?int $newStatus = null, ?Section $section = null)
     {
@@ -734,9 +783,10 @@ abstract class Repository
             Application::get()->getRequest(),
             Application::ROUTE_PAGE,
             $context->getData('urlPath'),
-            'authorDashboard',
-            'submission',
-            $submissionId
+            'dashboard',
+            'mySubmissions',
+            null,
+            ['workflowSubmissionId' => $submissionId]
         );
     }
 
@@ -749,9 +799,10 @@ abstract class Repository
             Application::get()->getRequest(),
             Application::ROUTE_PAGE,
             $context->getData('urlPath'),
-            'workflow',
-            'access',
-            $submissionId
+            'dashboard',
+            'editorial',
+            null,
+            ['workflowSubmissionId' => $submissionId]
         );
     }
 
@@ -771,6 +822,430 @@ abstract class Repository
                 ? ['id' => $submissionId]
                 : null
         );
+    }
+
+    /**
+     * Get all views, views count to be retrieved separately due to performance reasons
+     */
+    public function getDashboardViews(Context $context, User $user, array $selectedRoleIds = [], bool $includeCount = false): Collection
+    {
+        $types = DashboardView::getTypes()->flip();
+        $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
+        $roles = $roleDao->getByUserId($user->getId(), $context->getId());
+        $roleIds = [];
+        foreach ($roles as $role) {
+            $roleIds[] = $role->getRoleId();
+        }
+        if ($selectedRoleIds) {
+            $roleIds = array_values(array_intersect($roleIds, $selectedRoleIds));
+        }
+
+        $canAccessUnassignedSubmission = !empty(array_intersect([Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER], $roleIds));
+
+        $views = $this->mapDashboardViews($types, $context, $user, $canAccessUnassignedSubmission, $selectedRoleIds);
+        $filteredViews = $this->filterViewsByUserRoles($views, $roleIds);
+
+        if ($includeCount) {
+            return $this->setViewsCount($filteredViews);
+        }
+
+        return $filteredViews;
+    }
+
+    /**
+     * Returns a Collection of mapped dashboard views
+     */
+    protected function mapDashboardViews(Collection $types, Context $context, User $user, bool $canAccessUnassignedSubmission, array $selectedRoleIds = []): Collection
+    {
+        return $types->map(function (int $item, string $key) use ($context, $user, $canAccessUnassignedSubmission, $selectedRoleIds) {
+            switch ($key) {
+                case DashboardView::TYPE_ASSIGNED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.assigned'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        Repo::submission()->getCollector()
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByStatus([PKPSubmission::STATUS_QUEUED])
+                            ->assignedTo([$user->getId()], $selectedRoleIds),
+                        'assigned',
+                        ['status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $selectedRoleIds]
+                    );
+                case DashboardView::TYPE_ACTIVE:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.active'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT, Role::ROLE_ID_AUTHOR],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $assignedWithRoles],
+                    );
+                case DashboardView::TYPE_NEEDS_EDITOR:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.needsEditor'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER],
+                        Repo::submission()->getCollector()
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByisUnassigned(true)
+                            ->filterByStatus([PKPSubmission::STATUS_QUEUED]),
+                        null,
+                        ['isUnassigned' => true, 'status' => [PKPSubmission::STATUS_QUEUED]]
+                    );
+                case DashboardView::TYPE_SUBMISSION:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStageIds([WORKFLOW_STAGE_ID_SUBMISSION])
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.submissionStageAll'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['stageIds' => [WORKFLOW_STAGE_ID_SUBMISSION], 'status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_REVIEW_EXTERNAL:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStageIds([WORKFLOW_STAGE_ID_EXTERNAL_REVIEW])
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAll'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['stageIds' => [WORKFLOW_STAGE_ID_EXTERNAL_REVIEW], 'status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_NEEDS_REVIEWS:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByNumReviewsConfirmedLimit(
+                            $context->getNumReviewsPerSubmission() == Context::REVIEWS_DEFAULT_COUNT ?
+                                Context::REVIEWS_REQUIRED_COUNT :
+                                $context->getNumReviewsPerSubmission()
+                        )
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.needsReviews'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        'reviews',
+                        ['needsReviews' => true, 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_AWAITING_REVIEWS:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByAwaitingReviews(true)
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.awaitingReviews'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        'reviews',
+                        ['awaitingReviews' => true, 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_REVIEWS_SUBMITTED:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByReviewsSubmitted(true)
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewsSubmitted'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        'reviews',
+                        ['reviewsSubmitted' => true, 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_REVIEWS_OVERDUE:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByReviewsOverdue(true)
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewsOverdue'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        'reviews',
+                        ['reviewsOverdue' => true, 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_COPYEDITING:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStageIds([WORKFLOW_STAGE_ID_EDITING])
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.copyediting'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['stageIds' => [WORKFLOW_STAGE_ID_EDITING], 'status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_PRODUCTION:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStageIds([WORKFLOW_STAGE_ID_PRODUCTION])
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.production'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['stageIds' => [WORKFLOW_STAGE_ID_PRODUCTION], 'status' => [PKPSubmission::STATUS_QUEUED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_SCHEDULED:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStatus([PKPSubmission::STATUS_SCHEDULED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.scheduled'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT, Role::ROLE_ID_AUTHOR],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['status' => [PKPSubmission::STATUS_SCHEDULED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_PUBLISHED:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStatus([PKPSubmission::STATUS_PUBLISHED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.published'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT, Role::ROLE_ID_AUTHOR],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['status' => [PKPSubmission::STATUS_PUBLISHED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_DECLINED:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByStatus([PKPSubmission::STATUS_DECLINED]);
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.declined'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_AUTHOR],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        $canAccessUnassignedSubmission ? null : 'assigned',
+                        ['status' => [PKPSubmission::STATUS_DECLINED], 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_REVISIONS_REQUESTED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.revisionsRequested'),
+                        [Role::ROLE_ID_AUTHOR],
+                        Repo::submission()->getCollector()
+                            ->assignedTo([$user->getId()], $selectedRoleIds)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByRevisionsRequested(true)
+                            ->filterByStatus([PKPSubmission::STATUS_QUEUED]),
+                        'reviews',
+                        ['revisionsRequested' => true, 'assignedWithRoles' => $selectedRoleIds]
+                    );
+                case DashboardView::TYPE_REVISIONS_SUBMITTED:
+                    $assignedWithRoles = $canAccessUnassignedSubmission ? null : $selectedRoleIds;
+
+                    $collector = Repo::submission()->getCollector()
+                        ->filterByContextIds([$context->getId()])
+                        ->filterByRevisionsSubmitted(true)
+                        ->filterByStatus([PKPSubmission::STATUS_QUEUED]);
+                    return new DashboardView(
+                        $key,
+                        in_array(Role::ROLE_ID_AUTHOR, $selectedRoleIds) ? __('submission.list.revisionsSubmitted') : __('submission.dashboard.view.revisionsSubmitted'),
+                        [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT, Role::ROLE_ID_AUTHOR],
+                        $canAccessUnassignedSubmission
+                            ? $collector
+                            : $collector->assignedTo([$user->getId()], $assignedWithRoles),
+                        'reviews',
+                        ['revisionsSubmitted' => true, 'assignedWithRoles' => $assignedWithRoles]
+                    );
+                case DashboardView::TYPE_INCOMPLETE_SUBMISSIONS:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.incompleteSubmissions'),
+                        [Role::ROLE_ID_AUTHOR],
+                        Repo::submission()->getCollector()
+                            ->assignedTo([$user->getId()], $selectedRoleIds)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByIncomplete(true),
+                        'assigned',
+                        ['isIncomplete' => true, 'assignedWithRoles' => $selectedRoleIds]
+                    );
+                case DashboardView::TYPE_REVIEWER_ACTION_REQUIRED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.actionRequired'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByActionRequiredByReviewer(true),
+                        'reviewerAssignments',
+                        ['actionRequired' => true]
+                    );
+                case DashboardView::TYPE_REVIEWER_ASSIGNMENTS_ALL:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.all'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByActive(true),
+                        'reviewerAssignments',
+                        ['active' => true]
+                    );
+                case DashboardView::TYPE_REVIEWER_ASSIGNMENTS_COMPLETED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.completed'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByCompleted(true),
+                        'reviewerAssignments',
+                        ['completed' => true]
+                    );
+                case DashboardView::TYPE_REVIEWER_ASSIGNMENTS_PUBLISHED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.published'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByPublished(true),
+                        'reviewerAssignments',
+                        ['published' => true]
+                    );
+                case DashboardView::TYPE_REVIEWER_ASSIGNMENTS_ARCHIVED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.archived'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByIsArchived(true),
+                        'reviewerAssignments',
+                        ['archived' => true]
+                    );
+                case DashboardView::TYPE_REVIEWER_ASSIGNMENTS_DECLINED:
+                    return new DashboardView(
+                        $key,
+                        __('submission.dashboard.view.reviewAssignments.declined'),
+                        [Role::ROLE_ID_REVIEWER],
+                        Repo::reviewAssignment()->getCollector()
+                            ->filterByReviewerIds([$user->getId()], true)
+                            ->filterByContextIds([$context->getId()])
+                            ->filterByDeclined(true),
+                        'reviewerAssignments',
+                        ['declined' => true]
+                    );
+
+            }
+        });
+    }
+
+    protected function filterViewsByUserRoles(Collection $views, array $roleIds): Collection
+    {
+        return $views->filter(function (?DashboardView $view) use ($roleIds) {
+            if (!is_null($view)) { // null check to filter out views not used by the application
+                return array_intersect($roleIds, $view->getRoles());
+            }
+        });
+    }
+
+    /**
+     * @param Collection<DashboardView> $dashboardViews
+     *
+     * Set the submissions/reviews count to the list of dashboard views
+     */
+    protected function setViewsCount(Collection $dashboardViews): Collection
+    {
+        $submissionCollectors = collect();
+        $reviewCollectors = collect();
+        foreach ($dashboardViews as $id => $dashboardView) {
+            $collector = $dashboardView->getCollector();
+            is_a($collector, SubmissionCollector::class) ?
+                $submissionCollectors->put($id, $collector) :
+                $reviewCollectors->put($id, $collector);
+        }
+
+        $submissionsCount = $submissionCollectors->isNotEmpty() ?
+            get_object_vars(SubmissionCollector::getViewsCountBuilder($submissionCollectors)?->first() ?? []) :
+            [];
+
+        $reviewsCount = $reviewCollectors->isNotEmpty() ?
+            get_object_vars(ReviewCollector::getViewsCountBuilder($reviewCollectors)?->first() ?? []) :
+            [];
+
+
+        foreach (array_merge($submissionsCount, $reviewsCount) as $viewId => $count) {
+            $view = $dashboardViews->get($viewId); /** @var DashboardView $view */
+            $view->setCount($count);
+        }
+
+        return $dashboardViews;
     }
 
     /**
@@ -877,7 +1352,6 @@ abstract class Repository
      * Checks if this user is granted access to preview
      * based on their roles in the context (i.e. Manager, Editor, etc).
      *
-     * @param User $user
      *
      */
     protected function _roleCanPreview(?User $user, Submission $submission): bool
@@ -893,7 +1367,7 @@ abstract class Repository
             Role::ROLE_ID_SUBSCRIPTION_MANAGER
         ];
 
-        /** @var RoleDAO */
+        /** @var RoleDAO $roleDao */
         $roleDao = DAORegistry::getDAO('RoleDAO');
         $roles = $roleDao->getByUserId($user->getId(), $submission->getData('contextId'));
         foreach ($roles as $role) {

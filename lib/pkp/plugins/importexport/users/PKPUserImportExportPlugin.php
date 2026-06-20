@@ -126,7 +126,7 @@ abstract class PKPUserImportExportPlugin extends ImportExportPlugin
                 $json = new JSONMessage(true);
                 $json->setEvent('addTab', [
                     'title' => __('plugins.importexport.users.results'),
-                    'url' => $request->url(null, null, null, ['plugin', $this->getName(), 'import'], ['temporaryFileId' => $request->getUserVar('temporaryFileId'), 'csrfToken' => $request->getSession()->getCSRFToken()]),
+                    'url' => $request->url(null, null, null, ['plugin', $this->getName(), 'import'], ['temporaryFileId' => $request->getUserVar('temporaryFileId'), 'csrfToken' => $request->getSession()->token()]),
                 ]);
                 header('Content-Type: application/json');
                 return $json->getString();
@@ -190,8 +190,7 @@ abstract class PKPUserImportExportPlugin extends ImportExportPlugin
                 $fileManager->deleteByPath($exportFileName);
                 break;
             default:
-                $dispatcher = $request->getDispatcher();
-                $dispatcher->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
     }
 
@@ -252,7 +251,7 @@ abstract class PKPUserImportExportPlugin extends ImportExportPlugin
         if ($userXml) {
             $xml = $userXml->saveXml();
         } else {
-            fatalError('Could not convert users.');
+            throw new \Exception('Could not convert users.');
         }
         return $xml;
     }

@@ -20,6 +20,7 @@ use APP\facades\Repo;
 use APP\submission\Submission;
 use PKP\controllers\grid\DataObjectGridCellProvider;
 use PKP\controllers\grid\GridColumn;
+use PKP\user\User;
 
 class UserSelectGridCellProvider extends DataObjectGridCellProvider
 {
@@ -55,7 +56,7 @@ class UserSelectGridCellProvider extends DataObjectGridCellProvider
     public function getTemplateVarsFromRowColumn($row, $column)
     {
         $element = $row->getData();
-        assert(is_a($element, 'User'));
+        assert($element instanceof User);
         switch ($column->getId()) {
             case 'select': // Displays the radio option
                 return ['rowId' => $row->getId(), 'userId' => $this->_userId];
@@ -66,6 +67,13 @@ class UserSelectGridCellProvider extends DataObjectGridCellProvider
             case 'assignments': //User's assignments count
                 $countUserAssignments = $this->getCountUserAssignments($element->getId());
                 return ['label' => $countUserAssignments];
+
+            case 'affiliation': // User's affiliations
+                return ['label' => $element->getLocalizedAffiliation()];
+
+            case 'interests': // User's interests
+                $interests = implode(', ', Repo::userInterest()->getInterestsForUser($element));
+                return ['label' => $interests];
         }
         assert(false);
     }

@@ -63,6 +63,7 @@ class ReviewsMigration extends \PKP\migration\Migration
             $table->datetime('date_notified')->nullable();
             $table->datetime('date_confirmed')->nullable();
             $table->datetime('date_completed')->nullable();
+            $table->datetime('date_considered')->nullable();
             $table->datetime('date_acknowledged')->nullable();
             $table->datetime('date_due')->nullable();
             $table->datetime('date_response_due')->nullable();
@@ -70,6 +71,7 @@ class ReviewsMigration extends \PKP\migration\Migration
             $table->smallInteger('reminder_was_automatic')->default(0);
             $table->smallInteger('declined')->default(0);
             $table->smallInteger('cancelled')->default(0);
+            $table->datetime('date_cancelled')->nullable();
             $table->datetime('date_rated')->nullable();
             $table->datetime('date_reminded')->nullable();
             $table->smallInteger('quality')->nullable();

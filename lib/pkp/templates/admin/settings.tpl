@@ -6,6 +6,10 @@
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * Administration settings page.
+ *
+ * @hook Template::Settings::admin::setup []
+ * @hook Template::Settings::admin::appearance []
+ * @hook Template::Settings::admin []
  *}
 {extends file="layouts/backend.tpl"}
 
@@ -27,7 +31,7 @@
 				{if $componentAvailability['siteConfig']}
 				<tab id="settings" label="{translate key="admin.settings"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_SITE_CONFIG}"
+						v-bind="components.{PKP\components\forms\site\PKPSiteConfigForm::FORM_SITE_CONFIG}"
 						@set="set"
 					/>
 				</tab>
@@ -35,22 +39,22 @@
 				{if $componentAvailability['siteInfo']}
 				<tab id="info" label="{translate key="manager.setup.information"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_SITE_INFO}"
+						v-bind="components.{PKP\components\forms\site\PKPSiteInformationForm::FORM_SITE_INFO}"
 						@set="set"
 					/>
 				</tab>
 				{/if}
 				{if $componentAvailability['languages']}
 				<tab id="languages" label="{translate key="common.languages"}">
-					{capture assign=languagesUrl}{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.admin.languages.AdminLanguageGridHandler" op="fetchGrid" escape=false}{/capture}
+					{capture assign=languagesUrl}{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.admin.languages.AdminLanguageGridHandler" op="fetchGrid" escape=false}{/capture}
 					{load_url_in_div id="languageGridContainer" url=$languagesUrl}
 				</tab>
 				{/if}
 				{if $componentAvailability['navigationMenus']}
 				<tab id="nav" label="{translate key="manager.navigationMenus"}">
-					{capture assign=navigationMenusGridUrl}{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.navigationMenus.NavigationMenusGridHandler" op="fetchGrid" escape=false}{/capture}
+					{capture assign=navigationMenusGridUrl}{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.navigationMenus.NavigationMenusGridHandler" op="fetchGrid" escape=false}{/capture}
 					{load_url_in_div id="navigationMenuGridContainer" url=$navigationMenusGridUrl}
-					{capture assign=navigationMenuItemsGridUrl}{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.navigationMenus.NavigationMenuItemsGridHandler" op="fetchGrid" escape=false}{/capture}
+					{capture assign=navigationMenuItemsGridUrl}{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.navigationMenus.NavigationMenuItemsGridHandler" op="fetchGrid" escape=false}{/capture}
 					{load_url_in_div id="navigationMenuItemsGridContainer" url=$navigationMenuItemsGridUrl}
 				</tab>
 				{/if}
@@ -65,7 +69,7 @@
 				{if $componentAvailability['bulkEmails']}
 				<tab id="bulkEmails" label="{translate key="admin.settings.enableBulkEmails.label"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_SITE_BULK_EMAILS}"
+						v-bind="components.{PKP\components\forms\site\PKPSiteBulkEmailsForm::FORM_SITE_BULK_EMAILS}"
 						@set="set"
 					/>
 				</tab>
@@ -73,11 +77,19 @@
 				{if $componentAvailability['statistics']}
 				<tab id="statistics" label="{translate key="manager.setup.statistics"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_SITE_STATISTICS}"
+						v-bind="components.{PKP\components\forms\site\PKPSiteStatisticsForm::FORM_SITE_STATISTICS}"
 						@set="set"
 					/>
 				</tab>
 				{/if}
+                {if $componentAvailability['orcidSiteSettings']}
+                    <tab id="orcidSiteSettings" label="{translate key="orcid.displayName"}">
+                        <pkp-form
+                            v-bind="components.orcidSiteSettings"
+                            @set="set"
+                        />
+                    </tab>
+                {/if}
 				{call_hook name="Template::Settings::admin::setup"}
 			</tabs>
 		</tab>
@@ -88,7 +100,7 @@
 				{if $componentAvailability['siteTheme']}
 				<tab id="theme" label="{translate key="manager.setup.theme"}">
 					<theme-form
-						v-bind="components.{$smarty.const.FORM_THEME}"
+						v-bind="components.{PKP\components\forms\context\PKPThemeForm::FORM_THEME}"
 						@set="set"
 					/>
 				</tab>
@@ -96,7 +108,7 @@
 				{if $componentAvailability['siteAppearanceSetup']}
 				<tab id="setup" label="{translate key="navigation.setup"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_SITE_APPEARANCE}"
+						v-bind="components.{PKP\components\forms\site\PKPSiteAppearanceForm::FORM_SITE_APPEARANCE}"
 						@set="set"
 					/>
 				</tab>
@@ -110,7 +122,7 @@
 			<tabs :is-side-tabs="true" :track-history="true">
 				<tab id="announcement-settings" label="{translate key="admin.settings"}">
 					<pkp-form
-						v-bind="components.{$smarty.const.FORM_ANNOUNCEMENT_SETTINGS}"
+						v-bind="components.{PKP\components\forms\context\PKPAnnouncementSettingsForm::FORM_ANNOUNCEMENT_SETTINGS}"
 						@set="set"
 					></pkp-form>
 				</tab>
@@ -126,7 +138,7 @@
 				</tab>
 				<tab id="announcement-types" label="{translate key="manager.announcementTypes"}">
 					<template v-if="announcementsEnabled">
-						{capture assign=announcementTypeGridUrl}{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.announcements.AnnouncementTypeGridHandler" op="fetchGrid" escape=false}{/capture}
+						{capture assign=announcementTypeGridUrl}{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.announcements.AnnouncementTypeGridHandler" op="fetchGrid" escape=false}{/capture}
 						{load_url_in_div id="announcementTypeGridContainer" url=$announcementTypeGridUrl inVueEl=true}
 					</template>
 					<p v-else>

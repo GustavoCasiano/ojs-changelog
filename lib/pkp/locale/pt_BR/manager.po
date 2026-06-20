@@ -1,15 +1,17 @@
 # Felipe Geremia Nievinski <fgnievinski@gmail.com>, 2021.
-# Diego José Macêdo <diegojmacedo@gmail.com>, 2021, 2022, 2023, 2024.
+# Diego José Macêdo <diegojmacedo@gmail.com>, 2021, 2022, 2023, 2024, 2025, 2026.
 # Alex Mendonça <alex.mendonca@scielo.org>, 2022, 2023.
 # Daniel Caixeta <daniel.caixeta@inep.gov.br>, 2022.
 # Danilo Silva <profdanilocsilva@outlook.com>, 2023.
 # Martin Brändle <martin.braendle@uzh.ch>, 2023.
+# Carolina Miki Tanigushi <carolina.tanigushi@scielo.org>, 2025.
+# Lívia Carolina Gouvêa de Faria <livia@mail.mayfirst.org>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-09-30T11:54:13-07:00\n"
-"PO-Revision-Date: 2024-11-09 14:37+0000\n"
+"PO-Revision-Date: 2026-03-30 14:34+0000\n"
 "Last-Translator: Diego José Macêdo <diegojmacedo@gmail.com>\n"
 "Language-Team: Portuguese (Brazil) <http://translate.pkp.sfu.ca/projects/"
 "pkp-lib/manager/pt_BR/>\n"
@@ -1195,7 +1197,7 @@ msgid "manager.setup.dateTime.description"
 msgstr ""
 "Escolha o formato de preferência para datas e horas. Um formato customizado "
 "pode ser inserido usando os <a href='https://www.php.net/manual/pt_BR/"
-"function.strftime.php#refsect1-function.strftime-parameters'>caracteres de "
+"datetime.format.php#refsect1-datetime.format-parameters'>caracteres de "
 "formato especiais</a> ."
 
 msgid "manager.setup.dateTime.longDate"
@@ -1397,7 +1399,7 @@ msgid "plugins.categories.metadata"
 msgstr "Plugins de metadados"
 
 msgid "plugins.categories.metadata.description"
-msgstr "Plugins de metadados implementam padrões adicionais de metadados."
+msgstr "Os plugins de metadados implementam padrões adicionais de metadados."
 
 msgid "plugins.categories.auth"
 msgstr "Plugins de Autenticação"
@@ -1740,8 +1742,8 @@ msgstr "Permitir autoregistro de usuários"
 
 msgid "settings.roles.recommendOnly"
 msgstr ""
-"Este papel é permite apenas recomendar uma decisão de avaliação e exigirá "
-"um(a) editor(a) autorizado(a) para registrar uma decisão final."
+"Permitir a este papel apenas recomendar uma decisão (isso exigirá que um(a) "
+"editor(a) autorizado(a) registre uma decisão final)."
 
 msgid "settings.roles.roleName"
 msgstr "Nome do Papel"
@@ -2110,26 +2112,6 @@ msgid "manager.setup.metadata.keywords.require"
 msgstr ""
 "Exigir do autor que sugira palavras-chave antes de aceitar sua submissão."
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"Idioma indica o idioma principal do trabalho utilizando um código de idioma "
-"(\"en\") com um código de país opcional (\"en_US\")."
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "Habilitar metadados de idioma"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr "Não exigir do autor os idiomas da submissão durante a submissão."
-
-msgid "manager.setup.metadata.languages.request"
-msgstr ""
-"Solicitar ao autor que indique o idioma da submissão durante a submissão."
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-"Exigir do autor para inserir os idiomas da submissão antes de aceitar sua "
-"submissão."
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "Quaisquer direitos detidos sobre a submissão, que podem incluir Direitos de "
@@ -2475,16 +2457,6 @@ msgstr ""
 "Este link será exibido somente se você tiver preenchido a seção Sobre a "
 "Revista em Configurações > Revista."
 
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"Link exibindo o conteúdo da página Equipe Editorial em Configurações > "
-"Revista."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Este link apenas será exibido se você tiver preenchido a seção Equipe "
-"Editorial em Configurações > Revista."
-
 msgid "manager.navigationMenus.submissions.description"
 msgstr "Link para a página exibindo as instruções de submissão."
 
@@ -2690,13 +2662,12 @@ msgstr "Até {$date}"
 
 msgid "stats.description.acceptRejectRate"
 msgstr ""
-"A porcentagem para o período selecionado é calculada para envios que foram "
-"submetidos durante esse período e receberam uma decisão final. <br> <br>Por "
-"exemplo, considere o caso em que dez submissões foram feitas durante esse "
-"período. Quatro foram aceitas, quatro foram rejeitadas e dois ainda aguardam "
-"uma decisão final. <br> <br> A taxa de aceitação será de 50% (4 de 8 "
-"submissões) porque as duas submissões que não chegaram a uma decisão final "
-"não são contadas."
+"A porcentagem para o período selecionado é calculada para submissões feitas "
+"durante esse período que receberam uma decisão final. <br> <br>Por exemplo, "
+"num caso em que dez submissões foram feitas durante esse período. Quatro "
+"foram aceitas, quatro foram rejeitadas e duas estão aguardando uma decisão "
+"final. <br><br>A taxa de aceitação será de 50% (4 de 8 submissões) porque as "
+"duas submissões que não têm uma decisão final não são contadas."
 
 msgid "stats.description.daysToDecision"
 msgstr ""
@@ -2969,7 +2940,6 @@ msgstr "Os arquivos enviados pelo avaliador"
 msgid "emailTemplate.variable.review.name"
 msgstr "O nome do avaliador"
 
-#, fuzzy
 msgid "emailTemplate.variable.reviewType"
 msgstr ""
 "Uma descrição do método de avaliação padrão, como duplo anônimo ou aberto."
@@ -3845,8 +3815,152 @@ msgstr "Incluir detalhes associados"
 msgid "manager.statistics.counterR5Report.settings.excludeMonthlyDetails"
 msgstr "Excluir detalhes mensais"
 
+msgid "manager.setup.masthead"
+msgstr "Expediente"
+
 msgid "plugins.importexport.common.validation"
 msgstr "Valide o XML antes da exportação e registro."
 
 msgid "manager.plugins.pluginGallery.installed"
 msgstr "Versão instalada: {$version}"
+
+msgid "manager.language.websiteLanguages"
+msgstr "Idiomas do site"
+
+msgid "manager.language.submissionLanguages"
+msgstr "Idiomas de submissão"
+
+msgid "manager.language.gridAction.addLangauage"
+msgstr "Adicionar/Remover idiomas"
+
+msgid "manager.language.submissionMetadata"
+msgstr "Metadados"
+
+msgid "manager.language.submission.form.description"
+msgstr "Selecione os idiomas de submissão e metadados."
+
+msgid "manager.language.submission.from.error"
+msgstr "Pelo menos um idioma precisa ser selecionado."
+
+msgid "manager.setup.reviewOptions.reminders.response.before"
+msgstr "Resposta da solicitação de avaliação - antes da data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.response.after"
+msgstr "Resposta da solicitação de avaliação - Após a data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.submit.before"
+msgstr "Envio da Avaliação - antes da data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.submit.after"
+msgstr "Envio da Avaliação - após a data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.label.before.days"
+msgstr "{$value} dias antes da data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.label.after.days"
+msgstr "{$value} dias após a data de vencimento"
+
+msgid "manager.setup.reviewOptions.reminders.min.label"
+msgstr "Nenhum"
+
+msgid "manager.setup.reviewOptions.reminders.disbale.label"
+msgstr "Nenhum lembrete definido"
+
+msgid "manager.setup.reviewOptions.numReviewersPerSubmission"
+msgstr "Número de avaliadores recomendados"
+
+msgid "manager.setup.reviewOptions.reminders"
+msgstr "Definir lembretes para avaliação"
+
+msgid "manager.setup.reviewOptions.reminders.description"
+msgstr ""
+"Envie um lembrete por e-mail antes ou depois da resposta da solicitação de "
+"avaliação (se o avaliador ainda não respondeu à solicitação de avaliação) ou "
+"do envio da avaliação (se o avaliador ainda não enviou a avaliação)"
+
+msgid "manager.setup.reviewOptions.numReviewersPerSubmission.description"
+msgstr ""
+"Número suficiente de avaliadores necessários por submissão para fazer "
+"recomendações antes de tomar uma decisão"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled"
+msgstr "Sugestão do avaliador na submissão"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.description"
+msgstr ""
+"O autor pode sugerir vários avaliadores em potencial antes de concluir a "
+"submissão, o que pode agilizar o processo de avaliação e fornecer "
+"informações valiosas para a equipe editorial."
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.label"
+msgstr ""
+"Permitir que os autores sugiram possíveis avaliadores no processo de "
+"submissão"
+
+msgid "notification.defaultLocaleSettingsCannotBeSaved"
+msgstr ""
+"A configuração de idioma não pôde ser salva. Todas as opções precisam ser "
+"habilitadas."
+
+msgid "notification.submissionLocales"
+msgstr "Idiomas de submissões atualizadas."
+
+msgid "plugins.importexport.common.error.missingAffiliationName"
+msgstr ""
+"O autor {$authorName} não tem um nome de afiliação no idioma da submissão, "
+"{$localeName}. A submissão não pode ser importado sem essas informações."
+
+msgid "settings.roles.masthead"
+msgstr "Mostrar as pessoas com este papel na equipe editorial da revista"
+
+msgid "settings.roles.permitSettings"
+msgstr "Permitir alterações nas configurações"
+
+msgid "manager.setup.appearance.editorialMasthead.description"
+msgstr "Defina a ordem dos papéis da equipe editorial para exibição pública."
+
+msgid "manager.setup.workflow.reviewerSuggestionsHelp.description"
+msgstr ""
+"O conteúdo a seguir é mostrado aos autores durante a etapa de sugestões do "
+"avaliador. Forneça uma breve explicação de quais informações o autor deve "
+"fornecer sobre si mesmo, coautores e quaisquer outros contribuidores."
+
+msgid "manager.navigationMenus.editorialMasthead.description"
+msgstr ""
+"Link para uma página que exibe todos os serviços ativos da equipe editorial."
+
+msgid "manager.setup.editorialMasthead.editorialHistory.description"
+msgstr ""
+"Forneça o histórico editorial, incluindo o nome completo, afiliação e datas "
+"de início e término de cada editor."
+
+msgid "manager.setup.editorialMasthead.order.description"
+msgstr "Defina a ordem dos papéis do expediente para exibição pública."
+
+msgid "manager.setup.editorialMasthead.order.reviewers.description"
+msgstr ""
+"Os avaliadores serão exibidos em um formato padronizado para manter a "
+"uniformidade e facilitar a sua identificação nesta seção."
+
+msgid "mailable.changeProfileEmailInvitationNotify.name"
+msgstr "Convite para alterar endereço de e-mail"
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission"
+msgstr "Número mínimo de avaliações confirmadas exigidas"
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission.description"
+msgstr "Número mínimo de avaliações confirmadas exigidas para uma submissão"
+
+# fuzzy
+msgid "manager.navigationMenus.items.form.title.required"
+msgstr "O título do item do menu é obrigatório."
+
+msgid "manager.categories.form.removeCoverImageOnDifferentContextNowAllowed"
+msgstr ""
+"A categoria não existe ou pertence a um contexto diferente. Certifique-se de "
+"que você está trabalhando no contexto correto e tente novamente."
+
+msgid "manager.categories.form.removeCoverImageFileNotFound"
+msgstr ""
+"Não foi possível encontrar os arquivos da imagem de capa e da miniatura. "
+"Eles podem já ter sido excluídos. Tente recarregar a página."

@@ -29,6 +29,7 @@ use PKP\services\PKPSchemaService;
 
 /**
  * @template T of Doi
+ *
  * @extends EntityDAO<T>
  */
 abstract class DAO extends EntityDAO
@@ -96,15 +97,15 @@ abstract class DAO extends EntityDAO
 
     /**
      * Get a collection of DOIs matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
-
-        return LazyCollection::make(function () use ($rows) {
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
             foreach ($rows as $row) {
                 yield $row->doi_id => $this->fromRow($row);
             }

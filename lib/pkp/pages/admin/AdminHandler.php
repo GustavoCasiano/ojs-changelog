@@ -16,8 +16,8 @@
 
 namespace PKP\pages\admin;
 
+use APP\components\forms\context\ContextForm;
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\file\PublicFileManager;
 use APP\handler\Handler;
@@ -25,15 +25,24 @@ use APP\template\TemplateManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PDO;
-use PKP\announcement\Collector;
-use PKP\cache\CacheManager;
-use PKP\components\forms\highlight\HighlightForm;
-use PKP\components\listPanels\HighlightsListPanel;
+use PKP\announcement\Announcement;
 use PKP\components\forms\announcement\PKPAnnouncementForm;
 use PKP\components\forms\context\PKPAnnouncementSettingsForm;
+use PKP\components\forms\context\PKPContextForm;
+use PKP\components\forms\context\PKPSearchIndexingForm;
+use PKP\components\forms\context\PKPThemeForm;
+use PKP\components\forms\highlight\HighlightForm;
+use PKP\components\forms\site\OrcidSiteSettingsForm;
+use PKP\components\forms\site\PKPSiteAppearanceForm;
+use PKP\components\forms\site\PKPSiteBulkEmailsForm;
+use PKP\components\forms\site\PKPSiteConfigForm;
+use PKP\components\forms\site\PKPSiteInformationForm;
+use PKP\components\forms\site\PKPSiteStatisticsForm;
+use PKP\components\listPanels\HighlightsListPanel;
 use PKP\components\listPanels\PKPAnnouncementsListPanel;
 use PKP\config\Config;
 use PKP\core\JSONMessage;
+use PKP\core\PKPApplication;
 use PKP\core\PKPContainer;
 use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
@@ -42,9 +51,9 @@ use PKP\job\resources\HttpFailedJobResource;
 use PKP\scheduledTask\ScheduledTaskHelper;
 use PKP\security\authorization\PKPSiteAccessPolicy;
 use PKP\security\Role;
-use PKP\session\SessionDAO;
 use PKP\site\VersionCheck;
 use PKP\site\VersionDAO;
+use PKP\userGroup\UserGroup;
 
 class AdminHandler extends Handler
 {
@@ -98,7 +107,7 @@ class AdminHandler extends Handler
     /**
      * @copydoc PKPHandler::initialize()
      */
-    public function initialize($request)
+    public function initialize($request, $args = null)
     {
         $templateMgr = TemplateManager::getManager($request);
 
@@ -112,7 +121,7 @@ class AdminHandler extends Handler
                 'breadcrumbs' => [
                     [
                         'id' => 'admin',
-                        'url' => $router->url($request, 'index', 'admin'),
+                        'url' => $router->url($request, Application::SITE_CONTEXT_PATH, 'admin'),
                         'name' => __('navigation.admin'),
                     ]
                 ]
@@ -120,19 +129,19 @@ class AdminHandler extends Handler
         }
 
         // Interact with the beacon (if enabled) and determine if a new version exists
-        $latestVersion = VersionCheck::checkIfNewVersionExists();
-
-        // Display a warning message if there is a new application version available
-        if (Config::getVar('general', 'show_upgrade_warning') && $latestVersion) {
-            $currentVersion = VersionCheck::getCurrentDBVersion();
-            $templateMgr->assign([
-                'newVersionAvailable' => true,
-                'currentVersion' => $currentVersion,
-                'latestVersion' => $latestVersion,
-            ]);
+        if (Config::getVar('general', 'show_upgrade_warning')) {
+            $latestVersion = VersionCheck::checkIfNewVersionExists();
+            if ($latestVersion) {
+                $currentVersion = VersionCheck::getCurrentDBVersion();
+                $templateMgr->assign([
+                    'newVersionAvailable' => true,
+                    'currentVersion' => $currentVersion,
+                    'latestVersion' => $latestVersion,
+                ]);
+            }
         }
 
-        return parent::initialize($request);
+        return parent::initialize($request, $args);
     }
 
     /**
@@ -185,11 +194,11 @@ class AdminHandler extends Handler
         $site = $request->getSite();
         $dispatcher = $request->getDispatcher();
 
-        $apiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::CONTEXT_ID_ALL, 'site');
-        $themeApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::CONTEXT_ID_ALL, 'site/theme');
-        $temporaryFileApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::CONTEXT_ID_ALL, 'temporaryFiles');
-        $announcementsApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::CONTEXT_ID_ALL, 'announcements');
-        $publicFileApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::CONTEXT_ID_ALL, '_uploadPublicFile');
+        $apiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'site');
+        $themeApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'site/theme');
+        $temporaryFileApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'temporaryFiles');
+        $announcementsApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'announcements');
+        $publicFileApiUrl = $dispatcher->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, '_uploadPublicFile');
 
         $publicFileManager = new PublicFileManager();
         $baseUrl = $request->getBaseUrl() . '/' . $publicFileManager->getSiteFilesPath();
@@ -197,14 +206,15 @@ class AdminHandler extends Handler
         $locales = $site->getSupportedLocaleNames();
         $locales = array_map(fn (string $locale, string $name) => ['key' => $locale, 'label' => $name], array_keys($locales), $locales);
 
-        $contexts = Services::get('context')->getManySummary();
+        $contexts = app()->get('context')->getManySummary();
 
-        $siteAppearanceForm = new \PKP\components\forms\site\PKPSiteAppearanceForm($apiUrl, $locales, $site, $baseUrl, $temporaryFileApiUrl);
-        $siteConfigForm = new \PKP\components\forms\site\PKPSiteConfigForm($apiUrl, $locales, $site);
-        $siteInformationForm = new \PKP\components\forms\site\PKPSiteInformationForm($apiUrl, $locales, $site);
-        $siteBulkEmailsForm = new \PKP\components\forms\site\PKPSiteBulkEmailsForm($apiUrl, $site, $contexts);
-        $themeForm = new \PKP\components\forms\context\PKPThemeForm($themeApiUrl, $locales);
-        $siteStatisticsForm = new \PKP\components\forms\site\PKPSiteStatisticsForm($apiUrl, $locales, $site);
+        $siteAppearanceForm = new PKPSiteAppearanceForm($apiUrl, $locales, $site, $baseUrl, $temporaryFileApiUrl);
+        $siteConfigForm = new PKPSiteConfigForm($apiUrl, $locales, $site);
+        $siteInformationForm = new PKPSiteInformationForm($apiUrl, $locales, $site);
+        $siteBulkEmailsForm = new PKPSiteBulkEmailsForm($apiUrl, $site, $contexts);
+        $orcidSettingsForm = new OrcidSiteSettingsForm($apiUrl, $locales, $site);
+        $themeForm = new PKPThemeForm($themeApiUrl, $locales);
+        $siteStatisticsForm = new PKPSiteStatisticsForm($apiUrl, $locales, $site);
         $highlightsListPanel = $this->getHighlightsListPanel();
         $announcementSettingsForm = new PKPAnnouncementSettingsForm($apiUrl, $locales, $site);
         $announcementsForm = new PKPAnnouncementForm($announcementsApiUrl, $locales, Repo::announcement()->getFileUploadBaseUrl(), $temporaryFileApiUrl, $publicFileApiUrl);
@@ -213,21 +223,22 @@ class AdminHandler extends Handler
         $templateMgr = TemplateManager::getManager($request);
 
         $templateMgr->setConstants([
-            'FORM_ANNOUNCEMENT_SETTINGS' => FORM_ANNOUNCEMENT_SETTINGS,
+            'FORM_ANNOUNCEMENT_SETTINGS' => PKPAnnouncementSettingsForm::FORM_ANNOUNCEMENT_SETTINGS,
         ]);
 
         $templateMgr->setState([
             'announcementsEnabled' => (bool) $site->getData('enableAnnouncements'),
             'components' => [
                 $announcementsListPanel->id => $announcementsListPanel->getConfig(),
-                FORM_SITE_APPEARANCE => $siteAppearanceForm->getConfig(),
-                FORM_SITE_CONFIG => $siteConfigForm->getConfig(),
-                FORM_SITE_INFO => $siteInformationForm->getConfig(),
-                FORM_SITE_BULK_EMAILS => $siteBulkEmailsForm->getConfig(),
-                FORM_THEME => $themeForm->getConfig(),
-                FORM_SITE_STATISTICS => $siteStatisticsForm->getConfig(),
+                $siteAppearanceForm::FORM_SITE_APPEARANCE => $siteAppearanceForm->getConfig(),
+                $siteConfigForm::FORM_SITE_CONFIG => $siteConfigForm->getConfig(),
+                $siteInformationForm::FORM_SITE_INFO => $siteInformationForm->getConfig(),
+                $siteBulkEmailsForm::FORM_SITE_BULK_EMAILS => $siteBulkEmailsForm->getConfig(),
+                $orcidSettingsForm->id => $orcidSettingsForm->getConfig(),
+                $themeForm::FORM_THEME => $themeForm->getConfig(),
+                $siteStatisticsForm::FORM_SITE_STATISTICS => $siteStatisticsForm->getConfig(),
                 $highlightsListPanel->id => $highlightsListPanel->getConfig(),
-                FORM_ANNOUNCEMENT_SETTINGS => $announcementSettingsForm->getConfig(),
+                $announcementSettingsForm::FORM_ANNOUNCEMENT_SETTINGS => $announcementSettingsForm->getConfig(),
             ],
         ]);
 
@@ -248,12 +259,11 @@ class AdminHandler extends Handler
     /**
      * Business logic for site settings single/multiple contexts availability
      *
-     * @return array<string,bool> List of tabs, where the key is the tab name and the value its availability
      */
     private function siteSettingsAvailability(): array
     {
         // The multi context UI is also displayed when the journal has no contexts
-        $isMultiContextSite = Services::get('context')->getCount() !== 1;
+        $isMultiContextSite = app()->get('context')->getCount() !== 1;
         return [
             'siteSetup' => true,
             'languages' => true,
@@ -264,10 +274,11 @@ class AdminHandler extends Handler
             'siteConfig' => $isMultiContextSite,
             'siteInfo' => $isMultiContextSite,
             'navigationMenus' => $isMultiContextSite,
-            'highlights' => $isMultiContextSite && Config::getVar('features', 'highlights'),
+            'highlights' => $isMultiContextSite,
             'siteTheme' => $isMultiContextSite,
             'siteAppearanceSetup' => $isMultiContextSite,
-            'announcements' => $isMultiContextSite && Config::getVar('features', 'site_announcements'),
+            'announcements' => $isMultiContextSite,
+            'orcidSiteSettings' => $isMultiContextSite,
         ];
     }
 
@@ -284,14 +295,14 @@ class AdminHandler extends Handler
         $dispatcher = $request->getDispatcher();
 
         if (!isset($args[0]) || !ctype_digit((string) $args[0])) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
-        $contextService = Services::get('context');
+        $contextService = app()->get('context');
         $context = $contextService->get((int) $args[0]);
 
         if (empty($context)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $apiUrl = $dispatcher->url($request, Application::ROUTE_API, $context->getPath(), 'contexts/' . $context->getId());
@@ -301,21 +312,19 @@ class AdminHandler extends Handler
         $locales = $context->getSupportedFormLocaleNames();
         $locales = array_map(fn (string $locale, string $name) => ['key' => $locale, 'label' => $name], array_keys($locales), $locales);
 
-        $contextForm = new \APP\components\forms\context\ContextForm($apiUrl, $locales, $request->getBaseUrl(), $context);
-        $themeForm = new \PKP\components\forms\context\PKPThemeForm($themeApiUrl, $locales, $context);
-        $indexingForm = new \PKP\components\forms\context\PKPSearchIndexingForm($apiUrl, $locales, $context, $sitemapUrl);
+        $contextForm = new ContextForm($apiUrl, $locales, $request->getBaseUrl(), $context);
+        $themeForm = new PKPThemeForm($themeApiUrl, $locales, $context);
+        $indexingForm = new PKPSearchIndexingForm($apiUrl, $locales, $context, $sitemapUrl);
 
         $components = [
-            FORM_CONTEXT => $contextForm->getConfig(),
-            FORM_SEARCH_INDEXING => $indexingForm->getConfig(),
-            FORM_THEME => $themeForm->getConfig(),
+            $contextForm::FORM_CONTEXT => $contextForm->getConfig(),
+            $indexingForm::FORM_SEARCH_INDEXING => $indexingForm->getConfig(),
+            $themeForm::FORM_THEME => $themeForm->getConfig(),
         ];
 
         $bulkEmailsEnabled = in_array($context->getId(), (array) $request->getSite()->getData('enableBulkEmails'));
         if ($bulkEmailsEnabled) {
-            $userGroups = Repo::userGroup()->getCollector()
-                ->filterByContextIds([$context->getId()])
-                ->getMany();
+            $userGroups = UserGroup::withContextIds([$context->getId()])->get();
 
             $restrictBulkEmailsForm = new \PKP\components\forms\context\PKPRestrictBulkEmailsForm($apiUrl, $context, $userGroups);
             $components[$restrictBulkEmailsForm->id] = $restrictBulkEmailsForm->getConfig();
@@ -331,7 +340,7 @@ class AdminHandler extends Handler
         $breadcrumbs[] = [
             'id' => 'contexts',
             'name' => __('admin.hostedContexts'),
-            'url' => $router->url($request, 'index', 'admin', 'contexts'),
+            'url' => $router->url($request, Application::SITE_CONTEXT_PATH, 'admin', 'contexts'),
         ];
         $breadcrumbs[] = [
             'id' => 'wizard',
@@ -344,6 +353,9 @@ class AdminHandler extends Handler
             'editContext' => $context,
             'pageTitle' => __('manager.settings.wizard'),
         ]);
+
+        $templateMgr->registerClass(PKPSearchIndexingForm::class, PKPSearchIndexingForm::class); // FORM_SEARCH_INDEXING
+        $templateMgr->registerClass(PKPContextForm::class, PKPContextForm::class); // FORM_CONTEXT
 
         $templateMgr->display('admin/contextSettings.tpl');
     }
@@ -363,7 +375,6 @@ class AdminHandler extends Handler
 
         if ($request->getUserVar('versionCheck')) {
             $latestVersionInfo = VersionCheck::getLatestVersion();
-            $latestVersionInfo['patch'] = VersionCheck::getPatch($latestVersionInfo);
         } else {
             $latestVersionInfo = null;
         }
@@ -421,8 +432,7 @@ class AdminHandler extends Handler
             return new JSONMessage(false);
         }
 
-        $sessionDao = DAORegistry::getDAO('SessionDAO'); /** @var SessionDAO $sessionDao */
-        $sessionDao->deleteAllSessions();
+        Application::get()->getRequest()->getSessionGuard()->removeAllSession();
         $request->redirect(null, 'login');
     }
 
@@ -456,11 +466,7 @@ class AdminHandler extends Handler
             return new JSONMessage(false);
         }
 
-        // Clear the CacheManager's caches
-        $cacheManager = CacheManager::getManager();
-        $cacheManager->flush();
-
-        //clear laravel cache
+        // Clear Laravel caches
         $cacheManager = PKPContainer::getInstance()['cache'];
         $cacheManager->store()->flush();
 
@@ -514,10 +520,10 @@ class AdminHandler extends Handler
             'name' => __('navigation.tools.jobs'),
         ];
 
-        $templateMgr->setState($this->getJobsTableState($request));
+        $templateMgr->setState(['pageInitConfig' => $this->getJobsTableState($request)]);
 
         $templateMgr->assign([
-            'pageComponent' => 'JobsPage',
+            'pageComponent' => 'Page',
             'breadcrumbs' => $breadcrumbs,
             'pageTitle' => 'navigation.tools.jobs',
         ]);
@@ -560,7 +566,7 @@ class AdminHandler extends Handler
                     'value' => 'created_at',
                 ]
             ],
-            'apiUrl' => $request->getDispatcher()->url($request, Application::ROUTE_API, 'index', 'jobs/all'),
+            'apiUrl' => $request->getDispatcher()->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'jobs/all'),
         ];
     }
 
@@ -582,10 +588,10 @@ class AdminHandler extends Handler
             'name' => __('navigation.tools.jobs.failed'),
         ];
 
-        $templateMgr->setState($this->getFailedJobsTableState($request));
+        $templateMgr->setState(['pageInitConfig' => $this->getFailedJobsTableState($request)]);
 
         $templateMgr->assign([
-            'pageComponent' => 'FailedJobsPage',
+            'pageComponent' => 'Page',
             'breadcrumbs' => $breadcrumbs,
             'pageTitle' => 'navigation.tools.jobs.failed',
         ]);
@@ -633,8 +639,8 @@ class AdminHandler extends Handler
                     'value' => 'action',
                 ],
             ],
-            'apiUrl' => $request->getDispatcher()->url($request, Application::ROUTE_API, 'index', 'jobs/failed/all'),
-            'apiUrlRedispatchAll' => $request->getDispatcher()->url($request, Application::ROUTE_API, 'index', 'jobs/redispatch/all'),
+            'apiUrl' => $request->getDispatcher()->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'jobs/failed/all'),
+            'apiUrlRedispatchAll' => $request->getDispatcher()->url($request, Application::ROUTE_API, Application::SITE_CONTEXT_PATH, 'jobs/redispatch/all'),
         ];
     }
 
@@ -653,14 +659,14 @@ class AdminHandler extends Handler
         $failedJob = Repo::failedJob()->get((int) $args[0]);
 
         if (!$failedJob) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $rows = collect(array_merge(HttpFailedJobResource::toResourceArray($failedJob), [
             'payload' => $failedJob->getRawOriginal('payload'),
         ]))
             ->map(fn ($value, $attribute) => is_array($value) ? null : [
-                'attribute' => '<b>' . __('admin.jobs.list.' . Str::of($attribute)->snake()->replace('_', ' ')->camel()->value()) . '</b>',
+                'attribute' => __('admin.jobs.list.' . Str::of($attribute)->snake()->replace('_', ' ')->camel()->value()),
                 'value' => isValidJson($value) ? json_encode(json_decode($value, true), JSON_PRETTY_PRINT) : $value
             ])
             ->filter()
@@ -672,25 +678,29 @@ class AdminHandler extends Handler
             'name' => __('navigation.tools.jobs.failed.details'),
         ];
 
-        $templateMgr->setState([
-            'label' => __('navigation.tools.job.failed.details.view', ['id' => $failedJob->id]),
-            'columns' => [
-                [
-                    'name' => 'attribute',
-                    'label' => __('admin.job.failed.list.attribute'),
-                    'value' => 'attribute',
-                ],
-                [
-                    'name' => 'value',
-                    'label' => __('admin.job.failed.list.attribute.value'),
-                    'value' => 'value',
-                ],
-            ],
-            'rows' => $rows,
-        ]);
+        $templateMgr->setState(
+            [
+                'pageInitConfig' => [
+                    'label' => __('navigation.tools.job.failed.details.view', ['id' => $failedJob->id]),
+                    'columns' => [
+                        [
+                            'name' => 'attribute',
+                            'label' => __('admin.job.failed.list.attribute'),
+                            'value' => 'attribute',
+                        ],
+                        [
+                            'name' => 'value',
+                            'label' => __('admin.job.failed.list.attribute.value'),
+                            'value' => 'value',
+                        ],
+                    ],
+                    'rows' => $rows,
+                ]
+            ]
+        );
 
         $templateMgr->assign([
-            'pageComponent' => 'FailedJobDetailsPage',
+            'pageComponent' => 'Page',
             'breadcrumbs' => $breadcrumbs,
             'pageTitle' => 'navigation.tools.jobs.failed.details',
         ]);
@@ -703,20 +713,12 @@ class AdminHandler extends Handler
      */
     protected function getHighlightsListPanel(): HighlightsListPanel
     {
-        if (!Config::getVar('features', 'highlights')) {
-            return new HighlightsListPanel(
-                'highlights',
-                '',
-                []
-            );
-        }
-
         $request = Application::get()->getRequest();
         $dispatcher = $request->getDispatcher();
         $apiUrl = $dispatcher->url(
             $request,
             Application::ROUTE_API,
-            Application::CONTEXT_ID_ALL,
+            Application::SITE_CONTEXT_PATH,
             'highlights'
         );
 
@@ -726,7 +728,7 @@ class AdminHandler extends Handler
             $dispatcher->url(
                 Application::get()->getRequest(),
                 Application::ROUTE_API,
-                Application::CONTEXT_ID_ALL,
+                Application::SITE_CONTEXT_PATH,
                 'temporaryFiles'
             )
         );
@@ -756,13 +758,11 @@ class AdminHandler extends Handler
      */
     protected function getAnnouncementsListPanel(string $apiUrl, PKPAnnouncementForm $form): PKPAnnouncementsListPanel
     {
-        $collector = Repo::announcement()
-            ->getCollector()
-            ->withSiteAnnouncements(Collector::SITE_ONLY);
+        $announcements = Announcement::withContextIds([PKPApplication::SITE_CONTEXT_ID]);
 
-        $itemsMax = $collector->getCount();
+        $itemsMax = $announcements->count();
         $items = Repo::announcement()->getSchemaMap()->summarizeMany(
-            $collector->limit(30)->getMany()
+            $announcements->limit(30)->orderBy(Announcement::CREATED_AT, 'desc')->get()
         );
 
         return new PKPAnnouncementsListPanel(
@@ -772,7 +772,7 @@ class AdminHandler extends Handler
                 'apiUrl' => $apiUrl,
                 'form' => $form,
                 'getParams' => [
-                    'contextIds' => [Application::CONTEXT_ID_NONE],
+                    'contextIds' => [PKPApplication::SITE_CONTEXT_ID],
                     'count' => 30,
                 ],
                 'items' => $items->values(),

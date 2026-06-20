@@ -30,6 +30,7 @@ use PKP\config\Config;
 use PKP\core\Core;
 use PKP\core\Registry;
 use PKP\db\DAORegistry;
+use PKP\facades\Locale;
 use PKP\file\FileManager;
 use PKP\submission\Genre;
 
@@ -414,7 +415,7 @@ trait ConvertLogFile
                     Application::ASSOC_TYPE_ISSUE_GALLEY => [
                         'issue/download']
                 ];
-                $pageAndOp[Application::getContextAssocType()][] = 'index';
+                $pageAndOp[Application::getContextAssocType()][] = Application::SITE_CONTEXT_PATH;
                 break;
             case 'omp':
                 // Before 3.4 OMP did not have chapter assoc type i.e. chapter landing page
@@ -438,7 +439,7 @@ trait ConvertLogFile
                     Application::ASSOC_TYPE_SUBMISSION => [
                         'preprint/view']
                 ];
-                $pageAndOp[Application::getContextAssocType()][] = 'index';
+                $pageAndOp[Application::getContextAssocType()][] = Application::SITE_CONTEXT_PATH;
                 break;
             default:
                 throw new Exception('Unrecognized application name.');
@@ -476,7 +477,7 @@ trait ConvertLogFile
         for ($key = 0; $key < $contextDepth; $key++) {
             $contextPaths[$key] = (
                 isset($contextPaths[$key]) && !empty($contextPaths[$key]) ?
-                $contextPaths[$key] : 'index'
+                $contextPaths[$key] : Application::SITE_CONTEXT_PATH
             );
             $contextPaths[$key] = Core::cleanFileVar($contextPaths[$key]);
         }
@@ -490,7 +491,7 @@ trait ConvertLogFile
      */
     protected static function getPage(string $urlInfo, bool $isPathInfo): string
     {
-        $page = self::getUrlComponents($urlInfo, $isPathInfo, 0, 'page');
+        $page = self::getUrlComponents($urlInfo, $isPathInfo, self::getOffset($urlInfo, $isPathInfo, 0), 'page');
         return Core::cleanFileVar($page ?? '');
     }
 
@@ -501,7 +502,7 @@ trait ConvertLogFile
      */
     protected static function getOp(string $urlInfo, bool $isPathInfo): string
     {
-        $operation = self::getUrlComponents($urlInfo, $isPathInfo, 1, 'op');
+        $operation = self::getUrlComponents($urlInfo, $isPathInfo, self::getOffset($urlInfo, $isPathInfo, 1), 'op');
         return Core::cleanFileVar($operation ?: 'index');
     }
 
@@ -513,7 +514,25 @@ trait ConvertLogFile
      */
     protected static function getArgs(string $urlInfo, bool $isPathInfo): array
     {
-        return self::getUrlComponents($urlInfo, $isPathInfo, 2, 'path');
+        return self::getUrlComponents($urlInfo, $isPathInfo, self::getOffset($urlInfo, $isPathInfo, 2), 'path');
+    }
+
+    /**
+     * Get offset. Add 1 extra if localization present in URL
+     */
+    private static function getOffset(string $urlInfo, bool $isPathInfo, int $varOffset): int
+    {
+        return $varOffset + (int) !!self::getLocalization($urlInfo, $isPathInfo);
+    }
+
+    /**
+     * Get localization path present into the passed
+     * url information.
+     */
+    public static function getLocalization(string $urlInfo, bool $isPathInfo): string
+    {
+        $locale = self::getUrlComponents($urlInfo, $isPathInfo, 0);
+        return Locale::isLocaleValid($locale) ? $locale : '';
     }
 
     /**
@@ -567,6 +586,7 @@ trait ConvertLogFile
             $canonicalUrlPage,
             $canonicalUrlOp,
             $canonicalUrlArgs,
+            urlLocaleForPage: ''
         );
 
         // Make sure we log the server name and not aliases.

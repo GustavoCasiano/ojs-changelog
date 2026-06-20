@@ -87,6 +87,7 @@
 		"citations": {
 			"type": "string",
 			"description": "Enable citations metadata. `0` is disabled. `enable` will make it available in the workflow. `request` will allow an author to enter a value during submission. `require` will require that the author enter a value during submission.",
+            "default": "request",
 			"validation": [
 				"nullable",
 				"in:0,enable,request,require"
@@ -267,7 +268,7 @@
 				"nullable"
 			]
 		},
-		"editorialTeam": {
+		"editorialHistory": {
 			"type": "string",
 			"multilingual": true,
 			"validation": [
@@ -467,14 +468,6 @@
 				"in:0,enable,request,require"
 			]
 		},
-		"languages": {
-			"type": "string",
-			"description": "Enable languages metadata. `0` is disabled. `enable` will make it available in the workflow. `request` will allow an author to enter a value during submission. `require` will require that the author enter a value during submission.",
-			"validation": [
-				"nullable",
-				"in:0,enable,request,require"
-			]
-		},
 		"librarianInformation": {
 			"type": "string",
 			"multilingual": true,
@@ -503,6 +496,15 @@
 				"nullable"
 			]
 		},
+		"mastheadUserGroupIds": {
+			"type": "array",
+			"validation": [
+				"nullable"
+			],
+			"items": {
+				"type": "integer"
+			}
+		},
 		"name": {
 			"type": "string",
 			"multilingual": true,
@@ -526,14 +528,28 @@
 				"min:0"
 			]
 		},
-		"numDaysBeforeInviteReminder": {
+		"numDaysAfterReviewResponseReminderDue": {
 			"type": "integer",
 			"validation": [
 				"nullable",
 				"min:0"
 			]
 		},
-		"numDaysBeforeSubmitReminder": {
+		"numDaysBeforeReviewResponseReminderDue": {
+			"type": "integer",
+			"validation": [
+				"nullable",
+				"min:0"
+			]
+		},
+		"numDaysAfterReviewSubmitReminderDue": {
+			"type": "integer",
+			"validation": [
+				"nullable",
+				"min:0"
+			]
+		},
+		"numDaysBeforeReviewSubmitReminderDue": {
 			"type": "integer",
 			"validation": [
 				"nullable",
@@ -564,6 +580,14 @@
 				"min:0"
 			]
 		},
+		"numReviewsPerSubmission": {
+			"type": "integer",
+			"default": 0,
+			"validation": [
+				"nullable",
+				"min:0"
+			]
+		},
 		"openAccessPolicy": {
 			"type": "string",
 			"multilingual": true,
@@ -571,6 +595,53 @@
 			"validation": [
 				"nullable"
 			]
+		},
+		"orcidApiType": {
+			"type": "string",
+			"validation": [
+				"nullable",
+				"in:publicProduction,publicSandbox,memberProduction,memberSandbox"
+			]
+		},
+		"orcidCity": {
+			"type": "string",
+			"default": "",
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidClientId": {
+			"type": "string",
+			"default": "",
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidClientSecret": {
+			"type": "string",
+			"default": "",
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidEnabled": {
+			"type": "boolean",
+			"default": false,
+			"description": "Whether ORCID functionality is enabled",
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidLogLevel": {
+			"type": "string",
+			"default": "ERROR",
+			"validation": [
+				"in:ERROR,INFO"
+			]
+		},
+		"orcidSendMailToAuthorsOnPublication":{
+			"type": "boolean",
+			"default": false
 		},
 		"pageFooter": {
 			"type": "string",
@@ -776,12 +847,27 @@
 			"default": false,
 			"description": "Whether or not submitting authors should be asked to select categories when they make a new submission."
 		},
+		"supportedAddedSubmissionLocales": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"validation": [
+					"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
+				]
+			}
+		},
+		"supportedDefaultSubmissionLocale": {
+			"type": "string",
+			"validation": [
+				"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
+			]
+		},
 		"supportedFormLocales": {
 			"type": "array",
 			"items": {
 				"type": "string",
 				"validation": [
-					"regex:/^([a-z]{2})((_[A-Z]{2})?)(@[a-z]{0,})?$/"
+					"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
 				]
 			}
 		},
@@ -790,7 +876,7 @@
 			"items": {
 				"type": "string",
 				"validation": [
-					"regex:/^([a-z]{2})((_[A-Z]{2})?)(@[a-z]{0,})?$/"
+					"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
 				]
 			}
 		},
@@ -799,7 +885,16 @@
 			"items": {
 				"type": "string",
 				"validation": [
-					"regex:/^([a-z]{2})((_[A-Z]{2})?)(@[a-z]{0,})?$/"
+					"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
+				]
+			}
+		},
+		"supportedSubmissionMetadataLocales": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"validation": [
+					"regex:/^([A-Za-z]{2,4})(?<sc>[_-]([A-Za-z]{4,5}|[0-9]{4}))?([_-]([A-Za-z]{2}|[0-9]{3}))?(@[a-z]{2,30}(?&sc)?)?$/"
 				]
 			}
 		},

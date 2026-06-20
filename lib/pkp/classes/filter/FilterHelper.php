@@ -15,7 +15,7 @@
 
 namespace PKP\filter;
 
-use PKP\core\PKPString;
+use APP\core\Application;
 use PKP\db\DAORegistry;
 use PKP\xml\XMLNode;
 
@@ -87,7 +87,7 @@ class FilterHelper
         // We have to include the filter class before going on
         // so that all required constants are defined before they
         // might be used in settings.
-        if (PKPString::regexp_match('/^[a-zA-Z0-9.]+$/', $filterClassName)) {
+        if (preg_match('/^[a-zA-Z0-9.]+$/', $filterClassName)) {
             import($filterClassName);
         }
 
@@ -107,8 +107,8 @@ class FilterHelper
 
                 case 'filter':
                     // Recursively configure sub-filters.
-                    $subFilter = & $this->configureFilter($subNode, false);
-                    $subFilters[] = & $subFilter;
+                    $subFilter = &$this->configureFilter($subNode, false);
+                    $subFilters[] = &$subFilter;
                     unset($subFilter);
                     break;
             }
@@ -116,7 +116,7 @@ class FilterHelper
 
         // We ensure idempotence of plug-in installation by checking
         // for existing identical filters.
-        $similarFilters = $filterDao->getObjectsByGroupAndClass($filterGroupSymbolic, $filterClassName, 0, (bool) $isTemplate)->toArray();
+        $similarFilters = $filterDao->getObjectsByGroupAndClass($filterGroupSymbolic, $filterClassName, Application::SITE_CONTEXT_ID, (bool) $isTemplate)->toArray();
 
         if (count($similarFilters) > 0) {
             // Go through similar filters and eliminate them if they don't have the exact same settings.
@@ -138,7 +138,7 @@ class FilterHelper
         }
 
         // Configure (and optionally install) the filter.
-        $installedFilter = $filterDao->configureObject($filterClassName, $filterGroupSymbolic, $settings, (bool) $isTemplate, 0, $subFilters, $persist);
+        $installedFilter = $filterDao->configureObject($filterClassName, $filterGroupSymbolic, $settings, (bool) $isTemplate, Application::SITE_CONTEXT_ID, $subFilters, $persist);
         if (!$installedFilter instanceof \PKP\filter\PersistableFilter) {
             throw new \Exception($filterClassName . ' expected to be an instance of PersistableFilter');
         }
@@ -171,7 +171,7 @@ class FilterHelper
             // Compare sub-filters of composite filters.
             foreach ($filterBSubfilters as $filterBSubfilter) { /** @var PersistableFilter $filterBSubfilter */
                 $seq = $filterBSubfilter->getSequence();
-                $filterASubfilter = & $filterA->getFilter($seq);
+                $filterASubfilter = &$filterA->getFilter($seq);
                 if (!$filterASubfilter || !$filterBSubfilter || get_class($filterASubfilter) != get_class($filterBSubfilter)) {
                     return false;
                 }
@@ -186,7 +186,7 @@ class FilterHelper
 
                 // Extract sub-filter sub-filters.
                 if ($filterBSubfilter instanceof \PKP\filter\CompositeFilter) {
-                    $filterBSubfilterSubfilters = & $filterBSubfilter->getFilters();
+                    $filterBSubfilterSubfilters = &$filterBSubfilter->getFilters();
                 } else {
                     $filterBSubfilterSubfilters = [];
                 }
@@ -210,18 +210,18 @@ class FilterHelper
      *
      * @param XMLNode $settingNode
      *
-     * @return $setting array a key-value pair.
+     * @return array A key-value pair.
      */
     public function getFilterSetting($settingNode)
     {
         // Retrieve the setting name.
-        $nameNode = & $settingNode->getChildByName('name');
+        $nameNode = &$settingNode->getChildByName('name');
         assert($nameNode instanceof XMLNode);
         $name = $nameNode->getValue();
 
         // Retrieve the setting value.
         $type = $settingNode->getAttribute('type');
-        $valueNode = & $settingNode->getChildByName('value');
+        $valueNode = &$settingNode->getChildByName('value');
         assert($valueNode instanceof XMLNode);
         switch ($type) {
             case 'string':
@@ -244,7 +244,7 @@ class FilterHelper
 
             case 'object':
                 $value = [];
-                $arrayNode = & $valueNode->getChildByName('array');
+                $arrayNode = &$valueNode->getChildByName('array');
                 $value = $this->readArraySetting($arrayNode);
                 break;
 

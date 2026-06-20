@@ -57,7 +57,6 @@ class CitationsParsingTool extends \PKP\cliTool\CommandLineTool
      */
     public function execute()
     {
-        $citationDao = DAORegistry::getDAO('CitationDAO');
         $contextDao = Application::getContextDAO();
 
         switch (array_shift($this->parameters)) {
@@ -109,7 +108,7 @@ class CitationsParsingTool extends \PKP\cliTool\CommandLineTool
         /** @var CitationDAO */
         $citationDao = DAORegistry::getDAO('CitationDAO');
         foreach ($submission->getData('publications') as $publication) {
-            if (!empty($publication->getData('citationsRaw'))) {
+            if (!empty((string) $publication->getData('citationsRaw'))) {
                 $citationDao->importCitations($publication->getId(), $publication->getData('citationsRaw'));
             }
         }

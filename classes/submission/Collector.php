@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/submission/Collector.php
  *
@@ -13,9 +14,9 @@
 
 namespace APP\submission;
 
+use APP\core\Application;
 use APP\facades\Repo;
 use Illuminate\Database\Query\Builder;
-use PKP\doi\Doi;
 
 class Collector extends \PKP\submission\Collector
 {
@@ -56,25 +57,24 @@ class Collector extends \PKP\submission\Collector
         // By issue IDs
         if (is_array($this->issueIds)) {
             $q->whereIn('s.submission_id', function ($query) {
-                $query->select('issue_p.submission_id')
-                    ->from('publications AS issue_p')
-                    ->join('publication_settings as issue_ps', 'issue_p.publication_id', '=', 'issue_ps.publication_id')
-                    ->where('issue_ps.setting_name', '=', 'issueId')
-                    ->whereIn('issue_ps.setting_value', array_map('strval', $this->issueIds));
+                $query->select('p.submission_id')
+                    ->from('publications as p')
+                    ->whereIn('p.issue_id', $this->issueIds);
             });
         }
 
         // By section IDs
         if (is_array($this->sectionIds)) {
             $q->whereIn('s.submission_id', function ($query) {
-                $query->select('section_p.submission_id')
-                    ->from('publications AS section_p')
-                    ->whereIn('section_p.section_id', $this->sectionIds);
+                $query->select('p.submission_id')
+                    ->from('publications as p')
+                    ->whereIn('p.section_id', $this->sectionIds);
             });
         }
 
         return $q;
     }
+
 
     /**
      * Add APP-specific filtering methods for submission sub objects DOI statuses
@@ -123,6 +123,34 @@ class Collector extends \PKP\submission\Collector
                                 $q->whereNotNull('current_g.galley_id');
                             });
                         });
+                    });
+                });
+        });
+    }
+
+    /** @copydoc PKP/classes/submission/Collector::addFilterByAssociatedDoiIdsToQuery() */
+    protected function addFilterByAssociatedDoiIdsToQuery(Builder $q)
+    {
+        $q->whereIn('s.submission_id', function (Builder $query) {
+            $context = Application::get()->getRequest()->getContext();
+
+            // Does two things:
+            // 1 - Defaults to empty result when no DOIs are enabled.
+            // 2 - Ensures that the union clause can be safely used if the query with the union clause is the only one that is executed.
+            $query->selectRaw('NULL AS submission_id')->whereRaw('1 = 0');
+            $query->when($context->isDoiTypeEnabled(Repo::doi()::TYPE_REPRESENTATION), function (Builder $q) {
+                $q->select('p.submission_id')
+                    ->from('publication_galleys AS g')
+                    ->join('dois AS d', 'g.doi_id', '=', 'd.doi_id')
+                    ->join('publications AS p', 'g.publication_id', '=', 'p.publication_id')
+                    ->whereLike('d.doi', "{$this->searchPhrase}%");
+            })
+                ->when($context->isDoiTypeEnabled(Repo::doi()::TYPE_PUBLICATION), function (Builder $q) {
+                    $q->union(function (Builder $q) {
+                        $q->select('p.submission_id')
+                            ->from('publications AS p')
+                            ->join('dois AS d', 'p.doi_id', '=', 'd.doi_id')
+                            ->whereLike('d.doi', "{$this->searchPhrase}%");
                     });
                 });
         });

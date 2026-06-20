@@ -9,8 +9,6 @@
  *
  * @class ItemIterator
  *
- * @ingroup db
- *
  * @brief Generic iterator class; needs to be overloaded by subclasses
  * providing specific implementations.
  */
@@ -18,7 +16,7 @@
 namespace PKP\core;
 
 /**
- * @template TKey
+ * @template TKey of array-key
  * @template TValue
  */
 class ItemIterator
@@ -32,100 +30,80 @@ class ItemIterator
 
     /**
      * Return the next item in the iterator.
-     *
-     * @return TValue
      */
-    public function next()
+    public function next(): mixed
     {
         return null;
     }
 
     /**
      * Return the next item with key.
-     *
-     * @return array<Tkey,TValue>
      */
-    public function nextWithKey()
+    public function nextWithKey(): array
     {
         return [null, null];
     }
 
     /**
      * Determine whether this iterator represents the first page of a set.
-     *
-     * @return bool
      */
-    public function atFirstPage()
+    public function atFirstPage(): bool
     {
         return true;
     }
 
     /**
      * Determine whether this iterator represents the last page of a set.
-     *
-     * @return bool
      */
-    public function atLastPage()
+    public function atLastPage(): bool
     {
         return true;
     }
 
     /**
      * Get the page number of a set that this iterator represents.
-     *
-     * @return int
      */
-    public function getPage()
+    public function getPage(): int
     {
         return 1;
     }
 
     /**
      * Get the total number of items in the set.
-     *
-     * @return int
      */
-    public function getCount()
+    public function getCount(): int
     {
         return 0;
     }
 
     /**
      * Get the total number of pages in the set.
-     *
-     * @return int
      */
-    public function getPageCount()
+    public function getPageCount(): int
     {
         return 0;
     }
 
     /**
      * Return a boolean indicating whether or not we've reached the end of results
-     *
-     * @return bool
      */
-    public function eof()
+    public function eof(): bool
     {
         return true;
     }
 
     /**
      * Return a boolean indicating whether or not this iterator was empty from the beginning
-     *
-     * @return bool
      */
-    public function wasEmpty()
+    public function wasEmpty(): bool
     {
         return true;
     }
 
     /**
      * Convert this iterator to an array.
-     *
-     * @return TValue[]
      */
-    public function toArray()
+    public function toArray(): array
     {
         return [];
     }

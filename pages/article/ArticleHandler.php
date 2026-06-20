@@ -3,8 +3,8 @@
 /**
  * @file pages/article/ArticleHandler.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class ArticleHandler
@@ -18,7 +18,6 @@
 namespace APP\pages\article;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\issue\IssueAction;
@@ -28,11 +27,13 @@ use APP\payment\ojs\OJSPaymentManager;
 use APP\security\authorization\OjsJournalMustPublishPolicy;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
-use Firebase\JWT\JWT;
-use PKP\citation\CitationDAO;
+use Firebase\JWT\Key;
 use PKP\config\Config;
+use PKP\core\Core;
 use PKP\core\PKPApplication;
+use PKP\core\PKPJwt as JWT;
 use PKP\db\DAORegistry;
+use PKP\orcid\OrcidManager;
 use PKP\plugins\Hook;
 use PKP\plugins\PluginRegistry;
 use PKP\security\authorization\ContextRequiredPolicy;
@@ -41,6 +42,8 @@ use PKP\submission\Genre;
 use PKP\submission\GenreDAO;
 use PKP\submission\PKPSubmission;
 use PKP\submissionFile\SubmissionFile;
+use PKP\userGroup\UserGroup;
+use stdClass;
 
 class ArticleHandler extends Handler
 {
@@ -82,7 +85,8 @@ class ArticleHandler extends Handler
                     return $templateMgr->display('frontend/pages/message.tpl');
                 }
                 try {
-                    $apiToken = JWT::decode($jwt, $secret, ['HS256']);
+                    $headers = new stdClass();
+                    $apiToken = ((array)JWT::decode($jwt, new Key($secret, 'HS256'), $headers))[0]; /** @var string $apiToken */
                     // Compatibility with old API keys
                     // https://github.com/pkp/pkp-lib/issues/6462
                     if (substr($apiToken, 0, 2) === '""') {
@@ -123,15 +127,14 @@ class ArticleHandler extends Handler
 
         // Serve 404 if no submission available OR submission is unpublished and no user is logged in OR submission is unpublished and we have a user logged in but the user does not have access to preview
         if (!$submission || ($submission->getData('status') !== PKPSubmission::STATUS_PUBLISHED && !$user) || ($submission->getData('status') !== PKPSubmission::STATUS_PUBLISHED && $user && !Repo::submission()->canPreview($user, $submission))) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         // If the urlPath does not match the urlPath of the current
         // publication, redirect to the current URL
         $currentUrlPath = $submission->getBestId();
-        if ($currentUrlPath && $currentUrlPath != $urlPath) {
-            $newArgs = array_merge([$currentUrlPath], $args);
-            $request->redirect(null, $request->getRequestedPage(), $request->getRequestedOp(), $newArgs);
+        if ($currentUrlPath != $urlPath) {
+            $request->redirect(null, $request->getRequestedPage(), $request->getRequestedOp(), [$currentUrlPath, ...$args]);
         }
 
         $this->article = $submission;
@@ -146,7 +149,7 @@ class ArticleHandler extends Handler
                 }
             }
             if (!$this->publication) {
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
         } else {
             $this->publication = $this->article->getCurrentPublication();
@@ -154,7 +157,7 @@ class ArticleHandler extends Handler
         }
 
         if ($this->publication->getData('status') !== PKPSubmission::STATUS_PUBLISHED && !Repo::submission()->canPreview($user, $submission)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         if ($galleyId && in_array($request->getRequestedOp(), ['view', 'download'])) {
@@ -164,8 +167,8 @@ class ArticleHandler extends Handler
                     $this->galley = $galley;
                     break;
 
-                // In some cases, a URL to a galley may use the ID when it should use
-                // the urlPath. Redirect to the galley's correct URL.
+                    // In some cases, a URL to a galley may use the ID when it should use
+                    // the urlPath. Redirect to the galley's correct URL.
                 } elseif (ctype_digit($galleyId) && $galley->getId() == $galleyId) {
                     $request->redirect(null, $request->getRequestedPage(), $request->getRequestedOp(), [$submission->getBestId(), $galley->getBestGalleyId()]);
                 }
@@ -182,7 +185,7 @@ class ArticleHandler extends Handler
                         }
                     }
                 }
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
 
             // Store the file id if it exists
@@ -204,6 +207,9 @@ class ArticleHandler extends Handler
      *
      * @param array $args
      * @param \APP\core\Request $request
+     *
+     * @hook ArticleHandler::view [[&$request, &$issue, &$article, $publication]]
+     * @hook ArticleHandler::view::galley [[&$request, &$issue, &$this->galley, &$article, $publication]]
      */
     public function view($args, $request)
     {
@@ -239,7 +245,7 @@ class ArticleHandler extends Handler
         ]);
 
         if ($this->galley && !$this->userCanViewGalley($request, $article->getId(), $this->galley->getId())) {
-            fatalError('Cannot view galley.');
+            throw new \Exception('Cannot view galley.');
         }
 
         $templateMgr->assign([
@@ -266,7 +272,7 @@ class ArticleHandler extends Handler
             }, $supplementaryGenres);
 
             foreach ($galleys as $galley) {
-                $remoteUrl = $galley->getRemoteURL();
+                $remoteUrl = $galley->getData('urlRemote');
                 $file = Repo::submissionFile()->get((int) $galley->getData('submissionFileId'));
                 if (!$remoteUrl && !$file) {
                     continue;
@@ -281,17 +287,18 @@ class ArticleHandler extends Handler
         $templateMgr->assign([
             'primaryGalleys' => $primaryGalleys,
             'supplementaryGalleys' => $supplementaryGalleys,
-            'userGroupsById' => Repo::userGroup()->getCollector()->filterByPublicationIds([$this->publication->getId()])->getMany()->toArray()
+            'userGroupsById' => UserGroup::withPublicationIds([$this->publication->getId()])
+                ->get()
+                ->all()
         ]);
 
         // Citations
-        if ($publication->getData('citationsRaw')) {
-            $citationDao = DAORegistry::getDAO('CitationDAO'); /** @var CitationDAO $citationDao */
-            $parsedCitations = $citationDao->getByPublicationId($publication->getId());
-            $templateMgr->assign([
-                'parsedCitations' => $parsedCitations->toArray(),
-            ]);
-        }
+        $templateMgr->assign([
+            'parsedCitations' => $publication->getData('citations'),
+        ]);
+
+        $rorIconPath = Core::getBaseDir() . '/' . PKP_LIB_PATH . '/templates/images/ror.svg';
+        $rorIdIcon = file_exists($rorIconPath) ? file_get_contents($rorIconPath) : '';
 
         // Assign deprecated values to the template manager for
         // compatibility with older themes
@@ -302,20 +309,23 @@ class ArticleHandler extends Handler
             'copyrightYear' => $publication->getData('copyrightYear'),
             'pubIdPlugins' => PluginRegistry::loadCategory('pubIds', true),
             'keywords' => $publication->getData('keywords'),
+            'orcidIcon' => OrcidManager::getIcon(),
+            'orcidUnauthenticatedIcon' => OrcidManager::getUnauthenticatedIcon(),
+            'rorIdIcon' => $rorIdIcon
         ]);
 
         // Fetch and assign the galley to the template
-        if ($this->galley && $this->galley->getRemoteURL()) {
-            $request->redirectUrl($this->galley->getRemoteURL());
+        if ($this->galley && $this->galley->getData('urlRemote')) {
+            $request->redirectUrl($this->galley->getData('urlRemote'));
         }
 
         if (empty($this->galley)) {
             // No galley: Prepare the article landing page.
 
             // Ask robots not to index outdated versions and point to the canonical url for the latest version
-            if ($publication->getId() !== $article->getCurrentPublication()->getId()) {
+            if ($publication->getId() != $article->getData('currentPublicationId')) {
                 $templateMgr->addHeader('noindex', '<meta name="robots" content="noindex">');
-                $url = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, 'article', 'view', $article->getBestId());
+                $url = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, 'article', 'view', [$article->getBestId()]);
                 $templateMgr->addHeader('canonical', '<link rel="canonical" href="' . $url . '">');
             }
 
@@ -364,7 +374,7 @@ class ArticleHandler extends Handler
 
             // Galley: Prepare the galley file download.
             if (!Hook::call('ArticleHandler::view::galley', [&$request, &$issue, &$this->galley, &$article, $publication])) {
-                if ($this->publication->getId() !== $this->article->getCurrentPublication()->getId()) {
+                if ($this->publication->getId() != $this->article->getData('currentPublicationId')) {
                     $redirectPath = [
                         $article->getBestId(),
                         'version',
@@ -410,8 +420,7 @@ class ArticleHandler extends Handler
         $articleId = $args[0] ?? 0;
         $article = Repo::submission()->get($articleId);
         if (!$article) {
-            $dispatcher = $request->getDispatcher();
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
         $suppId = $args[1] ?? 0;
 
@@ -435,8 +444,7 @@ class ArticleHandler extends Handler
                 }
             }
         }
-        $dispatcher = $request->getDispatcher();
-        $dispatcher->handle404();
+        throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
     }
 
     /**
@@ -444,14 +452,17 @@ class ArticleHandler extends Handler
      *
      * @param array $args
      * @param \APP\core\Request $request
+     *
+     * @hook ArticleHandler::download [[$this->article, &$this->galley, &$this->submissionFileId]]
+     * @hook FileManager::downloadFileFinished [[&$returner]]
      */
     public function download($args, $request)
     {
         if (!isset($this->galley)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
-        if ($this->galley->getRemoteURL()) {
-            $request->redirectUrl($this->galley->getRemoteURL());
+        if ($this->galley->getData('urlRemote')) {
+            $request->redirectUrl($this->galley->getData('urlRemote'));
         } elseif ($this->userCanViewGalley($request, $this->article->getId(), $this->galley->getId())) {
             if (!$this->submissionFileId) {
                 $this->submissionFileId = $this->galley->getData('submissionFileId');
@@ -459,7 +470,7 @@ class ArticleHandler extends Handler
 
             // If no file ID could be determined, treat it as a 404.
             if (!$this->submissionFileId) {
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
 
             // If the file ID is not the galley's file ID, ensure it is a dependent file, or else 404.
@@ -476,18 +487,18 @@ class ArticleHandler extends Handler
                     ->toArray();
 
                 if (!in_array($this->submissionFileId, $dependentFileIds)) {
-                    $request->getDispatcher()->handle404();
+                    throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
                 }
             }
 
             if (!Hook::call('ArticleHandler::download', [$this->article, &$this->galley, &$this->submissionFileId])) {
                 $submissionFile = Repo::submissionFile()->get($this->submissionFileId);
 
-                if (!Services::get('file')->fs->has($submissionFile->getData('path'))) {
-                    $request->getDispatcher()->handle404();
+                if (!app()->get('file')->fs->has($submissionFile->getData('path'))) {
+                    throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
                 }
 
-                $filename = Services::get('file')->formatFilename($submissionFile->getData('path'), $submissionFile->getLocalizedData('name'));
+                $filename = app()->get('file')->formatFilename($submissionFile->getData('path'), $submissionFile->getLocalizedData('name'));
 
                 // if the file is a galley file (i.e. not a dependent file e.g. CSS or images), fire an usage event.
                 if ($this->galley->getData('submissionFileId') == $this->submissionFileId) {
@@ -503,7 +514,7 @@ class ArticleHandler extends Handler
                 }
                 $returner = true;
                 Hook::call('FileManager::downloadFileFinished', [&$returner]);
-                Services::get('file')->download($submissionFile->getData('fileId'), $filename);
+                app()->get('file')->download($submissionFile->getData('fileId'), $filename);
             }
         } else {
             header('HTTP/1.0 403 Forbidden');
@@ -536,7 +547,7 @@ class ArticleHandler extends Handler
         }
 
         // Make sure the reader has rights to view the article/issue.
-        if ($issue && $issue->getPublished() && $submission->getStatus() == PKPSubmission::STATUS_PUBLISHED) {
+        if ($issue && $issue->getPublished() && $submission->getData('status') == PKPSubmission::STATUS_PUBLISHED) {
             $subscriptionRequired = $issueAction->subscriptionRequired($issue, $context);
             $isSubscribedDomain = $issueAction->subscribedDomain($request, $context, $issue->getId(), $submission->getId());
 

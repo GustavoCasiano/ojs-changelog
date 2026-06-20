@@ -381,6 +381,8 @@ abstract class PKPStatsEditorialQueryBuilder
      *
      * The dateStart and dateEnd filters are not handled here because
      * the dates must be applied differently for each set of data.
+     *
+     * @hook Stats::editorial::queryObject [[&$q, $this]]
      */
     protected function _getObject(): Builder
     {
@@ -491,11 +493,9 @@ abstract class PKPStatsEditorialQueryBuilder
      */
     private function _dateDiff(string $leftDate, string $rightDate)
     {
-        switch (Config::getVar('database', 'driver')) {
-            case 'mysql':
-            case 'mysqli':
-                return 'DATEDIFF(' . $leftDate . ',' . $rightDate . ')';
-        }
-        return "DATE_PART('day', " . $leftDate . ' - ' . $rightDate . ')';
+        return match (Config::getVar('database', 'driver')) {
+            'mysql', 'mysqli', 'mariadb' => 'DATEDIFF(' . $leftDate . ',' . $rightDate . ')',
+            default => "DATE_PART('day', " . $leftDate . ' - ' . $rightDate . ')'
+        };
     }
 }

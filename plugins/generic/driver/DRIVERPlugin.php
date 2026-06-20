@@ -43,14 +43,14 @@ class DRIVERPlugin extends GenericPlugin
             DAORegistry::registerDAO('DRIVERDAO', $driverDao);
 
             // Add DRIVER set to OAI results
-            Hook::add('OAIDAO::getJournalSets', [$this, 'sets']);
-            Hook::add('JournalOAI::records', [$this, 'recordsOrIdentifiers']);
-            Hook::add('JournalOAI::identifiers', [$this, 'recordsOrIdentifiers']);
-            Hook::add('OAIDAO::_returnRecordFromRow', [$this, 'addSet']);
-            Hook::add('OAIDAO::_returnIdentifierFromRow', [$this, 'addSet']);
+            Hook::add('OAIDAO::getJournalSets', $this->sets(...));
+            Hook::add('JournalOAI::records', $this->recordsOrIdentifiers(...));
+            Hook::add('JournalOAI::identifiers', $this->recordsOrIdentifiers(...));
+            Hook::add('OAIDAO::_returnRecordFromRow', $this->addSet(...));
+            Hook::add('OAIDAO::_returnIdentifierFromRow', $this->addSet(...));
 
             // consider DRIVER article in article tombstones
-            Hook::add('ArticleTombstoneManager::insertArticleTombstone', [$this, 'insertDRIVERArticleTombstone']);
+            Hook::add('ArticleTombstoneManager::insertArticleTombstone', $this->insertDRIVERArticleTombstone(...));
         }
         return $success;
     }
@@ -181,7 +181,7 @@ class DRIVERPlugin extends GenericPlugin
             }
 
             // is there a full text
-            $galleys = $submission->getGalleys();
+            $galleys = $publication->getData('galleys');
             if (!empty($galleys)) {
                 return $status == DRIVER_ACCESS_OPEN;
             }
@@ -233,7 +233,7 @@ class DRIVERPlugin extends GenericPlugin
         }
 
         // is there a full text
-        $galleys = $submission->getGalleys();
+        $galleys = $publication->getData('galleys');
         if (!empty($galleys)) {
             return $status == DRIVER_ACCESS_OPEN;
         }

@@ -50,7 +50,7 @@ use PKP\facades\Locale;
 use PKP\file\TemporaryFileManager;
 use PKP\mail\Mailer;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
-use PKP\notification\PKPNotification;
+use PKP\observers\events\MetadataChanged;
 use PKP\plugins\Hook;
 use PKP\plugins\PluginRegistry;
 use PKP\security\authorization\ContextAccessPolicy;
@@ -379,7 +379,13 @@ class IssueGridHandler extends GridHandler
             $publications = $submission->getData('publications');
             foreach ($publications as $publication) {
                 if ($publication->getData('issueId') === (int) $issue->getId()) {
-                    Repo::publication()->edit($publication, ['issueId' => '', 'status' => Submission::STATUS_QUEUED]);
+                    Repo::publication()->edit(
+                        $publication,
+                        [
+                            'issueId' => null,
+                            'status' => Submission::STATUS_QUEUED,
+                        ]
+                    );
                 }
             }
             $newSubmission = Repo::submission()->get($submission->getId());
@@ -529,6 +535,8 @@ class IssueGridHandler extends GridHandler
      *
      * @param array $args
      * @param Request $request
+     *
+     * @hook IssueGridHandler::publishIssue [[&$issue]]
      */
     public function publishIssue($args, $request)
     {
@@ -610,6 +618,9 @@ class IssueGridHandler extends GridHandler
                             $publication->setData('datePublished', $issue->getData('datePublished'));
                         }
                         Repo::publication()->publish($publication);
+
+                        // dispatch the MetadataChanged event after publishing
+                        event(new MetadataChanged($submission));
                     }
                 }
             }
@@ -640,7 +651,7 @@ class IssueGridHandler extends GridHandler
             $userIdsToNotify = $userIdsToNotify->diff($userIdsToMail);
 
             $jobs = [];
-            foreach ($userIdsToNotify->chunk(PKPNotification::NOTIFICATION_CHUNK_SIZE_LIMIT) as $notifyUserIds) {
+            foreach ($userIdsToNotify->chunk(Notification::NOTIFICATION_CHUNK_SIZE_LIMIT) as $notifyUserIds) {
                 $jobs[] = new IssuePublishedNotifyUsers(
                     $notifyUserIds,
                     $contextId,
@@ -671,6 +682,8 @@ class IssueGridHandler extends GridHandler
      *
      * @param array $args
      * @param Request $request
+     *
+     * @hook IssueGridHandler::unpublishIssue [[&$issue]]
      */
     public function unpublishIssue($args, $request)
     {
@@ -681,10 +694,8 @@ class IssueGridHandler extends GridHandler
             return new JSONMessage(false);
         }
 
-        // NB: Data set via params because setData('datePublished', null)
-        // removes the entry into _data rather than updating 'datePublished' to null.
         $updateParams = [
-            'published' => 0,
+            'published' => 0
         ];
 
         Hook::call('IssueGridHandler::unpublishIssue', [&$issue]);

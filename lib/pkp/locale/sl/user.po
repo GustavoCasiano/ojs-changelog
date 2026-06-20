@@ -1,12 +1,12 @@
-# Primož Svetek <primoz.svetek@gmail.com>, 2022, 2023, 2024.
+# Primož Svetek <primoz.svetek@gmail.com>, 2022, 2023, 2024, 2025, 2026.
 # Mitja Podreka <mitja.podreka@ff.uni-lj.si>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-19T10:50:02+00:00\n"
-"PO-Revision-Date: 2025-01-25 07:54+0000\n"
-"Last-Translator: Mitja Podreka <mitja.podreka@ff.uni-lj.si>\n"
+"PO-Revision-Date: 2026-03-30 06:55+0000\n"
+"Last-Translator: Primož Svetek <primoz.svetek@gmail.com>\n"
 "Language-Team: Slovenian <http://translate.pkp.sfu.ca/projects/pkp-lib/user/"
 "sl/>\n"
 "Language: sl\n"
@@ -98,7 +98,7 @@ msgid "user.editMyProfile"
 msgstr "Uredi moj račun"
 
 msgid "user.email"
-msgstr "E-naslov"
+msgstr "Email"
 
 msgid "user.givenName"
 msgstr "Ime"
@@ -522,3 +522,385 @@ msgstr "Uporabniško ime ali e-naslov"
 
 msgid "user.authorization.submission.incomplete.workflowAccessRestrict"
 msgstr "Dostop do delovnega toka ne dokončane oddaje je omejen."
+
+msgid "orcid.displayName"
+msgstr "Vtičnik za ORCID profil"
+
+msgid "orcid.description"
+msgstr "Omogoča uvoz uporabniških podatkov iz ORCID."
+
+msgid "orcid.instructions"
+msgstr "Obrazec lahko pednapolnite s podatki iz ORCID profila. Vnesite email naslvo ali ORCID iD, ki pripada ORCID profilu, in kliknite \"Pošlji\"."
+
+msgid "orcid.noData"
+msgstr "Iz ORCID ni bilo mogoče najti nobenih podatkov."
+
+msgid "orcid.emailOrOrcid"
+msgstr "Email naslov ali ORCID iD:"
+
+msgid "orcid.manager.settings.description"
+msgstr "Nastavite ORCID API za uporabo pri zajemanju podatkov iz ORCID profilov za uporabniške profile."
+
+msgid "orcid.manager.settings.orcidProfileAPIPath"
+msgstr "ORCID API"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.public"
+msgstr "Javno"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.publicSandbox"
+msgstr "Javni sandbox"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.member"
+msgstr "Član"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.memberSandbox"
+msgstr "Članski peskovnik"
+
+msgid "orcid.manager.settings.orcidClientId"
+msgstr "ID klienta"
+
+msgid "orcid.manager.settings.orcidClientSecret"
+msgstr "Secret klienta"
+
+msgid "orcid.authFailure"
+msgstr "OJS ni mogel komunicirati z ORCID servisom. Za pomoč kontaktirajte vašeka upravljalca revije skupaj z vašim imenom, ORCID iD-jem in podatki o vašem prispevku."
+
+msgid "orcid.fieldset"
+msgstr "ORCID"
+
+msgid "orcid.connect"
+msgstr "Ustvari ali poveži vaš ORCID iD"
+
+msgid "orcid.manager.settings.title"
+msgstr "Nastavitve za ORCID API"
+
+msgid "orcid.manager.settings.hidden"
+msgstr "skrito"
+
+msgid "orcid.manager.settings.description.globallyconfigured"
+msgstr "ORCID API je bil nastavljen globalno na strežniku. Nastavljene so bile naslednje nastavitve."
+
+msgid "orcid.manager.settings.orcidScope"
+msgstr "Področje dostopnosti profila"
+
+msgid "orcid.manager.settings.mailSectionTitle"
+msgstr "Email nastavitve"
+
+msgid "orcid.manager.settings.logSectionTitle"
+msgstr "ORCID dnevnik zahtevkov"
+
+msgid "orcid.manager.settings.logLevel.help"
+msgstr "Določite količino zapisov v dnevnik vtičnika"
+
+msgid "orcid.manager.settings.logLevel.error"
+msgstr "Napake"
+
+msgid "orcid.manager.settings.logLevel.all"
+msgstr "Vse"
+
+msgid "orcid.author.accessDenied"
+msgstr "ORCID dostop je bil zavrnjen"
+
+msgid "orcid.author.accessTokenStored"
+msgstr ""
+"Dostop do ORCID zapisa z dostopnostjo {$orcidAccessScope} je bil odobren z "
+"veljavnostjo do"
+
+msgid "orcid.author.requestAuthorization"
+msgstr "Pošlji email s prošnjo za ORCID avtorizacijo s strani sodelujočega"
+
+msgid "orcid.author.deleteORCID"
+msgstr "Zbirši ORCID iD in žeton za dostop!"
+
+msgid "orcid.author.orcidEmptyNotice"
+msgstr "Glej spodaj za zahtevo po avtenticiranem ORCID iD"
+
+msgid "orcid.author.unauthenticated"
+msgstr "ORCID iD ni avtenticiran! Prosimo zahtevajte avtentikacijo od sodelavca."
+
+msgid "orcid.verify.title"
+msgstr "ORCID avtorizacija"
+
+msgid "orcid.verify.sendSubmissionToOrcid.success"
+msgstr "Prispevek še ni bil dodan k vašemu ORCID zapisu."
+
+msgid "orcid.verify.sendSubmissionToOrcid.failure"
+msgstr "Prispevka ni bilo mogoče dodati k vašemu ORCID zapisu."
+
+msgid "orcid.verify.sendSubmissionToOrcid.notpublished"
+msgstr "Prispevek bo dodan k vašemu ORCID zapisu ob izdaji številke revije."
+
+msgid "orcid.verify.success"
+msgstr "Vaš ORCID iD je bil preverjen in uspešno povezan s prispevkom."
+
+msgid "orcid.verify.failure"
+msgstr "Vašega ORCID iDja ni bilo mogoče preveriti. Povezava ni več veljavna."
+
+msgid "orcid.verify.duplicateOrcid"
+msgstr "ORCID iD je bil že shranjen za ta prispevek."
+
+msgid "orcid.verify.denied"
+msgstr "Zavrnili ste dostop do vašega ORCID zapisa."
+
+msgid "orcid.failure.contact"
+msgstr "Prosimo kontaktirajte vašega upravljalca revije skupaj z vašim imenom, ORCID iD-jem in podatki o vašem prispevku."
+
+msgid "orcid.authorise"
+msgstr "Avtoriziraj in poveži vaš ORCID iD"
+
+msgid "orcid.about.title"
+msgstr "Kaj je ORCID?"
+
+msgid "orcid.about.howAndWhyPublicAPI"
+msgstr ""
+"Revija zbira vaš ORCID iD, da lahko povežemo prispevke in članke z vašimi "
+"ORCID podatki.\n"
+"\n"
+"Ko kliknete gumb \"Avtoriziraj\" v ORCID pojavnem oknu, vas bom prosili, da "
+"delite z nami vaš iD z uporabo avtoriziranega procesa: ali s <a href=\"https"
+"://support.orcid.org/hc/en-us/articles/360006897454\">kreiranjem novega "
+"ORCID računa</a> ali, če ORCID račun že imate, <a href=\"https://support."
+"orcid.org/hc/en-us/categories/360000661673\">z vpisom v vaš ORCID račun</a> "
+"in dovoljenjem dostopa do vašega ORCID iD. To je potrebno zaradi "
+"zagotavljanja vaše avtentičnosti in varne povezave z vašim ORCID id.<br>\n"
+" Več na <a href=\"https://info.orcid.org/whats-so-special-about-signing-in/\""
+">What’s so special about signing in</a>."
+
+msgid "orcid.about.orcidExplanation"
+msgstr "ORCID je neodvisna in nepridobitna organizacija, ki zagotavlja trajni identifikator, ORCID iD, za vašo enolično identifikacijo in mehanizem za povezavo med vašimi raziskovalnimi aktivnostmi in rezultati ter vašim ORCID iDjem. ORCID je integriran v veliko sistemov, ki jih uporabljajo založniki, sponzorji, institucije in ostalimi sistemi povezanimi z raziskovanjem. Več na <a href=\"https://orcid.org\">orcid.org</a>."
+
+msgid "orcid.about.howAndWhy.title"
+msgstr "Kako in zakaj shranjujemo ORCID iDje?"
+
+msgid "orcid.about.display.title"
+msgstr "Kje so ORCID iDji prikazani?"
+
+msgid "orcid.about.display"
+msgstr ""
+"Kot potrditev vaše uporabe vašega ORCID iDja in njegtovo avtorizacijo se "
+"prkazuje ORCID id ikona <img src=\"https://info.orcid.org/wp-content/uploads/"
+"2020/12/ORCIDiD_icon16x16.png\" alt=\"iD icon\" width=\"16\" height=\"16\" "
+"border=\"0\"> poleg vašega imena na strani članka in na vašem javnem "
+"profilu.<br>\n"
+" Več na <a href=\"https://info.orcid.org/blog/2013/02/22/"
+"how-should-an-orcid-id-be-displayed/\" >How should an ORCID iD be "
+"displayed.</a>"
+
+msgid "orcid.manager.settings.sendMailToAuthorsOnPublication"
+msgstr ""
+"Pošlji email z zahtevo za ORCID avtorizacijo od vseh avtorjev, ko je članek "
+"sprejet (gre v fazo lektoriranje)"
+
+msgid "orcid.about.howAndWhyMemberAPI"
+msgstr ""
+"Ta revija želi vaš ORCID iD zato, da smo mi in ostala šitša skupnost "
+"prepričani, da ste pravilno idenificirani in povezani z vašimi objavami. To "
+"bo zagotovilo povezavo z vsemi rezultati v vaši celotni karieri.<br>\n"
+"Ko kliknete gumb “Avtoriziraj” v ORCID oknu, vas bomo prosili, da nam "
+"posredujete vaš iD z uporbo overjenega postopka — ali z registriranjem za "
+"ORCID iD ali, če ga že imate, s prijavo v vaš ORCID račun ter dovoljenjem za "
+"dostop do vašega ORCID iDja. Želimo, da ste prepričani, da ste pravilno "
+"identificirani in varno povezani z vašim ORCID iD.<br>\n"
+"Več na <a href=\"https://info.orcid.org/whats-so-special-about-signing-in/\""
+">What’s so special about signing in.</a><br>\n"
+"Ta revija bo zbrala in prikazala avtorizirane ORCID iDje avtorjev in "
+"soavtorjev na OJS profilu in strani s člankom. Dodatno se bodo metapodatki "
+"članka avtomatično prenesli v vaš ORCID zapis, ki bo posodobljen s "
+"preverjenimi informacijami. Več na <a href=\"https://info.orcid.org/"
+"six-ways-to-make-your-orcid-id-work-for-you/\" >Six ways to make your ORCID "
+"iD work for you!</a>\n"
+
+msgid "orcid.manager.settings.orcidClientSecret.error"
+msgstr "Npaačen 'secret' klienta"
+
+msgid "orcid.manager.settings.orcidClientId.error"
+msgstr "Napačen ID klienta"
+
+msgid "orcid.manager.settings.saved"
+msgstr "Nastavitve so shranjene"
+
+msgid "orcid.manager.settings.city"
+msgstr "Mesto"
+
+msgid "orcid.manager.status.configuration.clientIdValid"
+msgstr "ID odjemalca je veljaven"
+
+msgid "orcid.invalidClient"
+msgstr "Neveljavne poverilnice odjemalca"
+
+msgid "orcid.manager.status.configuration.journal"
+msgstr "Nastavljeno na nivoju revije"
+
+msgid "orcid.manager.status.configuration.clientIdInvalid"
+msgstr "ID odjemalca je neveljaven, prosimo preverite vnešene podatke"
+
+msgid "orcid.manager.status.configuration.clientSecretValid"
+msgstr "Secret odjemalca je veljaven"
+
+msgid "orcid.manager.status.configuration.clientSecretInvalid"
+msgstr "Secret odjemalca je neveljaven, prosimo preverite vnešene podatke"
+
+msgid "orcid.verify.duplicateOrcidAuthor"
+msgstr "Zaznani so bili podvojeni ORCiD identifikatorji za avtorje."
+
+msgid "orcid.verify.hasUnauthenticatedOrcid"
+msgstr "Zaznani so bili neavtenticirani ORCiD identifikatorji za avtorje."
+
+msgid "user.affiliations.institution"
+msgstr "Ustanova"
+
+msgid "user.affiliations.translation"
+msgstr "Več informacij"
+
+msgid "user.affiliations.translationDeleteActionLabel"
+msgstr "Odstrani ustanovo"
+
+msgid "user.affiliations.translationActionsAriaLabel"
+msgstr "Kliknite za urejanje ali brisanje"
+
+msgid "user.affiliations.translationsSomeAvailable"
+msgstr "{$count} od {$total} jezikov je zaključenih"
+
+msgid "user.affiliations.typeTranslationNameInLanguageLabel"
+msgstr "Vpišite ime ustanove v jeziku {$language}"
+
+#, fuzzy
+msgid "user.affiliations.translationNameInLanguage"
+msgstr "Ime ustanove v jeziku {$language}"
+
+msgid "user.affiliations.deleteModal.title"
+msgstr "Ste prepričani?"
+
+#, fuzzy
+msgid "user.affiliations.searchPhraseLabel"
+msgstr "Tip ustanove v jeziku {$language}"
+
+msgid "user.affiliations.searchPhraseNothingFound"
+msgstr "Vaše iskalne fraze ni bilo mogoče najti"
+
+msgid "user.affiliations.primaryLocaleRequired"
+msgstr "Primarni jezik {$primaryLocale} je obvezen"
+
+msgid "user.profile.form.affiliationRequired.locale"
+msgstr "Prosimo dodajte ustanovo v jeziku prispevka."
+
+msgid "user.affiliations.translationEditActionLabel"
+msgstr "Uredi ime ustanove"
+
+msgid "user.pendingEmailChange"
+msgstr ""
+"Zahtevali ste sprememo vašega emaila v \"{$pendingEmail}\". Poslali smo vam "
+"email z navodili, kako lahko potrdite vaš novi email."
+
+msgid "user.futureRole.notification.description"
+msgstr ""
+"Do takrat lahko pregledate in posodobite svoj profil. Če mislite, da je to "
+"napaka, se prosimo obrnite na administratorja."
+
+msgid "user.affiliations.description"
+msgstr ""
+"Spodaj vpišite polno ime ustanove, brez okrajšav. Izberite ime v spustnem "
+"seznamu in kliknite \"Dodaj\", da dodate ustanovo v vaš profil. (npr. "
+"\"Univerza v Ljubljani\")."
+
+msgid "user.affiliations.translationsAllAvailable"
+msgstr "Vsi prevodi so na voljo"
+
+msgid "orcid.unauthenticated"
+msgstr "(neavtoriziran)"
+
+msgid "user.affiliations.deleteModal.message"
+msgstr "Ustanova <strong>{$affiliation}</strong> bo odstranjena."
+
+msgid "orcid.verify.success.redirect"
+msgstr "Avtomatično boste preusmerjeni nazaj na {$contextName}."
+
+msgid "user.authorization.submission.complete.reviewerSuggestionRestrict"
+msgstr ""
+"Dodajanje, urejanje ali brisanje recenzentskega priporočila za končan "
+"prispevek je omejeno."
+
+msgid "orcid.manager.context.enabled"
+msgstr "Omogoči ORCID funkcionalnost"
+
+msgid "user.preferredAvatarInitials"
+msgstr "Željene začetnice avatarja"
+
+msgid "orcid.manager.siteWide.enabled"
+msgstr "Omogoči ORCID funkcionalnost na celotnem spletišču"
+
+msgid "user.preferredAvatarInitials.description"
+msgstr ""
+"Vnesite dve črki, ki ju želite uporabljati kot vaš avatar. Te inicialke bodo "
+"prikazane kot vaše ime."
+
+msgid "orcid.manager.siteWide.description"
+msgstr ""
+"ORCID funkcionalnost je lahko omogočena in nastavljena na nivoju celotnega "
+"spletišča za vse revije/založbe/strežnike. Če je to omogočeno, bo to "
+"preglasilo vse nastavitve na conteksntih nivojih in bodo povsod uporabljene "
+"spodnje nastavitve za vse revije/založbe/strežnike na tej namestitvi."
+
+msgid "user.role.ended"
+msgstr "Vloga se je končala"
+
+msgid "orcid.field.verification.requested"
+msgstr "ORCID preverjanje je bilo zahtevano!"
+
+msgid "orcid.field.verification.request"
+msgstr "Zahtevajte preverjanje"
+
+msgid "orcid.field.verification.resendRequest"
+msgstr "Ponovno pošljite email za preverjanje"
+
+msgid "orcid.field.authorEmailModal.title"
+msgstr "Zahtevajte ORCID preverjanje"
+
+msgid "orcid.field.authorEmailModal.message"
+msgstr ""
+"Želite poslati email temu avtorju z zahtevo za preverjanje njegovega ORCIDa?"
+
+msgid "orcid.field.deleteOrcidModal.title"
+msgstr "Odstrani ORCID"
+
+msgid "orcid.field.deleteOrcidModal.message"
+msgstr "Ste prepričani, da želite odstraniti ta ORCID?"
+
+msgid "orcid.field.unverified.shouldRequest"
+msgstr ""
+"Ta ORCID ni bil potrjen. Prosimo odstranite ta nepotrjen ORCID in prosite za "
+"potrditev s strani uporabnika/avtorja direktno."
+
+#, fuzzy
+msgid "user.removeRole.message"
+msgstr ""
+"Ste prepričani, da želite trajno odstraniti to vlogo? S to akcijo boste "
+"uporabniku odvzeli dostope do vseh informacij in dovoljenj povezanih s to "
+"vlogo."
+
+msgid "user.futureRole.notification.message"
+msgstr "Začetek vaše vloge je bil nastavljen na {$roleStartDate}"
+
+msgid "user.disabledModal.description"
+msgstr "Trenutne vloge : {$roles}"
+
+msgid "user.disabledModal.title"
+msgstr "Onemogoči uporabnika {$fullName}"
+
+msgid "user.enabledModal.title"
+msgstr "Omogoči uporabnika {$fullName}"
+
+msgid "user.bioStatement"
+msgstr "Biografija"
+
+msgid "user.authorization.shouldBeAnonymous"
+msgstr "Uporabnik bi moral biti anonimen. Trenutno ste prijavljeni v sistem."
+
+msgid "user.removeRole.roleRemainMessage"
+msgstr "Vloge ne morete odstraniti. Uporabnik mora imeti vsaj eno vlogo."
+
+msgid "orcid.field.authorEmailModal.message.noAuthor"
+msgstr "Ta email bo poslan, ko bo ustvarjen uporabnik."
+
+msgid "user.login.activate.description"
+msgstr "Potrdite in aktivirajte svoj uporabniški račun"

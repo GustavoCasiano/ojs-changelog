@@ -25,7 +25,6 @@ use PKP\config\Config;
 use PKP\context\Context;
 use PKP\core\DataObject;
 use PKP\core\PKPApplication;
-use PKP\core\PKPString;
 use PKP\doi\Doi;
 use PKP\file\FileManager;
 use PKP\file\TemporaryFileManager;
@@ -273,7 +272,7 @@ class DataciteExportPlugin extends DOIPubIdExportPlugin
         if ($this->isTestMode($context)) {
             $testDOIPrefix = $this->getSetting($context->getId(), 'testDOIPrefix');
             assert(!empty($testDOIPrefix));
-            $doi = PKPString::regexp_replace('#^[^/]+/#', $testDOIPrefix . '/', $doi);
+            $doi = preg_replace('#^[^/]+/#', $testDOIPrefix . '/', $doi);
         }
         $url = $this->_getObjectUrl($request, $context, $object);
         assert(!empty($url));
@@ -459,18 +458,18 @@ class DataciteExportPlugin extends DOIPubIdExportPlugin
         $url = null;
         switch (true) {
             case $object instanceof Issue:
-                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'issue', 'view', $object->getBestIssueId(), null, null, true);
+                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'issue', 'view', [$object->getBestIssueId()], null, null, true, '');
                 break;
             case $object instanceof Submission:
-                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', $object->getBestId(), null, null, true);
+                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', [$object->getBestId()], null, null, true, '');
                 break;
             case $object instanceof Galley:
-                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', [$article->getBestId(), $object->getBestGalleyId()], null, null, true);
+                $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', [$article->getBestId(), $object->getBestGalleyId()], null, null, true, '');
                 break;
         }
         if ($this->isTestMode($context)) {
             // Change server domain for testing.
-            $url = PKPString::regexp_replace('#://[^\s]+/index.php#', '://example.com/index.php', $url);
+            $url = preg_replace('#://[^\s]+/index.php#', '://example.com/index.php', $url);
         }
         return $url;
     }

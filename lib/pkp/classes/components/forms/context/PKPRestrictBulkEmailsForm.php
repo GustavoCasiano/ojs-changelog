@@ -16,18 +16,14 @@
 namespace PKP\components\forms\context;
 
 use APP\core\Application;
-use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Collection;
 use PKP\components\forms\FieldOptions;
 use PKP\components\forms\FormComponent;
 
-define('FORM_RESTRICT_BULK_EMAILS', 'restrictBulkEmails');
-
 class PKPRestrictBulkEmailsForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_RESTRICT_BULK_EMAILS;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_RESTRICT_BULK_EMAILS = 'restrictBulkEmails';
+    public $id = self::FORM_RESTRICT_BULK_EMAILS;
     public $method = 'PUT';
 
     /**
@@ -35,14 +31,14 @@ class PKPRestrictBulkEmailsForm extends FormComponent
      *
      * @param string $action URL to submit the form to
      */
-    public function __construct($action, $context, LazyCollection $userGroups)
+    public function __construct($action, $context, Collection $userGroups)
     {
         $this->action = $action;
 
         $userGroupOptions = [];
         foreach ($userGroups as $userGroup) {
             $userGroupOptions[] = [
-                'value' => $userGroup->getId(),
+                'value' => $userGroup->id,
                 'label' => htmlspecialchars($userGroup->getLocalizedData('name')),
             ];
         }

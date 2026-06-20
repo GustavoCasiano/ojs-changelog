@@ -18,132 +18,43 @@ namespace PKP\task;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use Illuminate\Support\Facades\Mail;
-use PKP\context\Context;
-use PKP\core\Core;
-use PKP\core\PKPApplication;
-use PKP\db\DAORegistry;
-use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use Carbon\Carbon;
 use PKP\mail\mailables\ReviewRemindAuto;
 use PKP\mail\mailables\ReviewResponseRemindAuto;
 use PKP\scheduledTask\ScheduledTask;
-use PKP\security\AccessKeyManager;
 use PKP\submission\PKPSubmission;
-use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\jobs\email\ReviewReminder as ReviewReminderJob;
 
 class ReviewReminder extends ScheduledTask
 {
     /**
      * @copydoc ScheduledTask::getName()
      */
-    public function getName()
+    public function getName(): string
     {
         return __('admin.scheduledTask.reviewReminder');
     }
 
     /**
-     * Send the automatic review reminder to the reviewer.
-     */
-    public function sendReminder(
-        ReviewAssignment $reviewAssignment,
-        PKPSubmission $submission,
-        Context $context,
-        ReviewRemindAuto|ReviewResponseRemindAuto $mailable
-    ): void {
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewId = $reviewAssignment->getId();
-
-        $reviewer = Repo::user()->get($reviewAssignment->getReviewerId());
-        if (!isset($reviewer)) {
-            return;
-        }
-
-        $primaryLocale = $context->getPrimaryLocale();
-        $emailTemplate = Repo::emailTemplate()->getByKey($context->getId(), $mailable::getEmailTemplateKey());
-        $mailable->subject($emailTemplate->getLocalizedData('subject', $primaryLocale))
-            ->body($emailTemplate->getLocalizedData('body', $primaryLocale))
-            ->from($context->getData('contactEmail'), $context->getData('contactName'))
-            ->recipients([$reviewer]);
-
-        $mailable->setLocale($primaryLocale);
-
-        $application = Application::get();
-        $request = $application->getRequest();
-        $dispatcher = $application->getDispatcher();
-        $reviewerAccessKeysEnabled = $context->getData('reviewerAccessKeysEnabled');
-        if ($reviewerAccessKeysEnabled) { // Give one-click access if enabled
-            $accessKeyManager = new AccessKeyManager();
-
-            // Key lifetime is the typical review period plus four weeks
-            $keyLifetime = ($context->getData('numWeeksPerReview') + 4) * 7;
-            $accessKey = $accessKeyManager->createKey($context->getId(), $reviewer->getId(), $reviewId, $keyLifetime);
-
-            $reviewUrlArgs = ['submissionId' => $reviewAssignment->getSubmissionId(), 'reviewId' => $reviewId, 'key' => $accessKey];
-            $submissionReviewUrl = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'reviewer', 'submission', null, $reviewUrlArgs);
-            $mailable->addData(['submissionReviewUrl' => $submissionReviewUrl]);
-        }
-
-        // deprecated template variables OJS 2.x
-        $mailable->addData([
-            'messageToReviewer' => __('reviewer.step1.requestBoilerplate'),
-            'abstractTermIfEnabled' => ($submission->getLocalizedAbstract() == '' ? '' : __('common.abstract')),
-        ]);
-
-        Mail::send($mailable);
-
-        $reviewAssignment->setDateReminded(Core::getCurrentDate());
-        $reviewAssignment->setReminderWasAutomatic(1);
-        $reviewAssignmentDao->updateObject($reviewAssignment);
-
-        $eventLog = Repo::eventLog()->newDataObject([
-            'assocType' => PKPApplication::ASSOC_TYPE_SUBMISSION,
-            'assocId' => $submission->getId(),
-            'eventType' => PKPSubmissionEventLogEntry::SUBMISSION_LOG_REVIEW_REMIND_AUTO,
-            'userId' => null,
-            'message' => 'submission.event.reviewer.reviewerRemindedAuto',
-            'isTranslated' => false,
-            'dateLogged' => Core::getCurrentDate(),
-            'recipientId' => $reviewer->getId(),
-            'recipientName' => $reviewer->getFullName(),
-        ]);
-        Repo::eventLog()->add($eventLog);
-        /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-        $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-        $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_REMIND_AUTO, $mailable, $submission);
-    }
-
-    /**
      * @copydoc ScheduledTask::executeActions()
      */
-    public function executeActions()
+    public function executeActions(): bool
     {
         $submission = null;
         $context = null;
 
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
         $contextDao = Application::getContextDAO();
+        $incompleteAssignments = Repo::reviewAssignment()
+            ->getCollector()
+            ->filterByIsIncomplete(true)
+            ->orderByContextId()
+            ->orderBySubmissionId()
+            ->getMany();
 
-        $incompleteAssignments = $reviewAssignmentDao->getIncompleteReviewAssignments();
-        $inviteReminderDays = $submitReminderDays = null;
         foreach ($incompleteAssignments as $reviewAssignment) {
-            $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
-            $lastReviewRound = $reviewRoundDao->getLastReviewRoundBySubmissionId($reviewAssignment->getSubmissionId());
-
-            if ($reviewAssignment->getRound() != $lastReviewRound->getRound() || 
-                $reviewAssignment->getStageId() != $lastReviewRound->getStageId()) {
-                continue;
-            }
-
-            // Avoid review assignments that a reminder exists for.
-            if ($reviewAssignment->getDateReminded() !== null) {
-                continue;
-            }
-
+            
             // Fetch the submission
-            if ($submission == null || $submission->getId() != $reviewAssignment->getSubmissionId()) {
+            if ($submission == null || $submission?->getId() != $reviewAssignment->getSubmissionId()) {
                 unset($submission);
                 $submission = Repo::submission()->get($reviewAssignment->getSubmissionId());
                 // Avoid review assignments without submission in database.
@@ -152,35 +63,91 @@ class ReviewReminder extends ScheduledTask
                 }
             }
 
-            if ($submission->getStatus() != PKPSubmission::STATUS_QUEUED) {
+            if ($submission->getData('status') != PKPSubmission::STATUS_QUEUED) {
                 continue;
             }
 
             // Fetch the context
-            if ($context == null || $context->getId() != $submission->getContextId()) {
+            if ($context == null || $context?->getId() != $submission->getData('contextId')) {
                 unset($context);
-                $context = $contextDao->getById($submission->getContextId());
+                $context = $contextDao->getById($submission->getData('contextId'));
 
-                $inviteReminderDays = $context->getData('numDaysBeforeInviteReminder');
-                $submitReminderDays = $context->getData('numDaysBeforeSubmitReminder');
+                $numDaysBeforeReviewResponseReminderDue = (int) $context->getData('numDaysBeforeReviewResponseReminderDue');
+                $numDaysAfterReviewResponseReminderDue  = (int) $context->getData('numDaysAfterReviewResponseReminderDue');
+                $numDaysBeforeReviewSubmitReminderDue   = (int) $context->getData('numDaysBeforeReviewSubmitReminderDue');
+                $numDaysAfterReviewSubmitReminderDue    = (int) $context->getData('numDaysAfterReviewSubmitReminderDue');
             }
 
             $mailable = null;
-            if ($submitReminderDays >= 1 && $reviewAssignment->getDateDue() != null) {
-                $checkDate = strtotime($reviewAssignment->getDateDue());
-                if (time() - $checkDate > 60 * 60 * 24 * $submitReminderDays) {
-                    $mailable = new ReviewRemindAuto($context, $submission, $reviewAssignment);
+            $currentDate = Carbon::today();
+
+            $dateResponseDue = Carbon::parse($reviewAssignment->getDateResponseDue());
+            $dateDue = Carbon::parse($reviewAssignment->getDateDue());
+
+            // after a REVIEW REQUEST has been responded, the value of `dateReminded` and `reminderWasAutomatic`
+            // get reset, see \PKP\submission\reviewer\ReviewerAction::confirmReview. 
+            if ($reviewAssignment->getDateConfirmed() === null) {
+                // REVIEW REQUEST has not been responded
+                // only need to concern with BEFORE/AFTER REVIEW REQUEST RESPONSE reminder
+                
+                if ($reviewAssignment->getDateReminded() === null) {
+                    // There has not been any reminder sent yet
+                    // need to check should we sent a BEFORE REVIEW REQUEST RESPONSE reminder
+                    if ($numDaysBeforeReviewResponseReminderDue > 0 &&
+                        $dateResponseDue->gt($currentDate) &&
+                        (int)abs($dateResponseDue->diffInDays($currentDate)) <= $numDaysBeforeReviewResponseReminderDue) {
+                    
+                        // ACTION:-> we need to send BEFORE REVIEW REQUEST RESPONSE reminder
+                        $mailable = ReviewResponseRemindAuto::class;
+                    }
+                } else {
+                    // There has been a reminder already sent
+                    // need to check should we sent a AFTER REVIEW REQUEST RESPONSE reminder
+
+                    $dateReminded = Carbon::parse($reviewAssignment->getDateReminded());
+
+                    if ($numDaysAfterReviewResponseReminderDue > 0 &&
+                        $currentDate->gt($dateResponseDue) &&
+                        $dateReminded->lt($dateResponseDue) &&
+                        (int)abs($currentDate->diffInDays($dateResponseDue)) >= $numDaysAfterReviewResponseReminderDue) {
+                    
+                        // ACTION:-> we need to send AFTER REVIEW REQUEST RESPONSE reminder
+                        $mailable = ReviewResponseRemindAuto::class;
+                    }
                 }
-            }
-            if ($inviteReminderDays >= 1 && $reviewAssignment->getDateConfirmed() == null) {
-                $checkDate = strtotime($reviewAssignment->getDateResponseDue());
-                if (time() - $checkDate > 60 * 60 * 24 * $inviteReminderDays) {
-                    $mailable = new ReviewResponseRemindAuto($context, $submission, $reviewAssignment);
+            } else {
+                // REVIEW REQUEST has been responded
+                // only need to concern with BEFORE/AFTER REVIEW SUBMIT reminder
+
+                if ($reviewAssignment->getDateReminded() === null) {
+                    // There has not been any reminder sent after responding to REVIEW REQUEST
+                    // no REVIEW SUBMIT reminder has been sent
+                    if ($numDaysBeforeReviewSubmitReminderDue > 0 &&
+                        $currentDate->lt($dateDue) &&
+                        (int)abs($dateDue->diffInDays($currentDate)) <= $numDaysBeforeReviewSubmitReminderDue) {
+
+                        // ACTION:-> we need to sent a BEFORE REVIEW SUBMIT reminder
+                        $mailable = ReviewRemindAuto::class;
+                    }
+                } else {
+                    // There has been already sent a reminder after responding to REVIEW REQUEST
+                    // need to check should we sent a AFTER REVIEW SUBMIT reminder
+
+                    $dateReminded = Carbon::parse($reviewAssignment->getDateReminded());
+
+                    if ($numDaysAfterReviewSubmitReminderDue > 0 &&
+                        $currentDate->gt($dateDue) &&
+                        $dateReminded->lt($dateDue) &&
+                        (int)abs($currentDate->diffInDays($dateDue)) >= $numDaysAfterReviewSubmitReminderDue) {
+                    
+                        // ACTION:-> we need to send AFTER REVIEW SUBMIT reminder
+                        $mailable = ReviewRemindAuto::class;
+                    }
                 }
             }
 
             if ($mailable) {
-                $this->sendReminder($reviewAssignment, $submission, $context, $mailable);
+                ReviewReminderJob::dispatch($context->getId(), $reviewAssignment->getId(), $mailable);
             }
         }
 

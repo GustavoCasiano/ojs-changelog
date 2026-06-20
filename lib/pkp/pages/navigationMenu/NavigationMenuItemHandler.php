@@ -17,7 +17,6 @@
 namespace PKP\pages\navigationMenu;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\handler\Handler;
 use APP\template\TemplateManager;
 use PKP\core\PKPRequest;
@@ -28,12 +27,8 @@ use PKP\security\Role;
 
 class NavigationMenuItemHandler extends Handler
 {
-    /** @var NavigationMenuItem The nmi to view */
-    public $nmi;
-
-    public function __construct($nmi)
+    public function __construct(public ?NavigationMenuItem $nmi = null)
     {
-        $this->nmi = $nmi;
     }
 
     //
@@ -58,12 +53,11 @@ class NavigationMenuItemHandler extends Handler
      */
     public function preview($args, $request)
     {
-        $path = array_shift($args);
         $context = $request->getContext();
         // Ensure that if we're previewing, the current user is a manager or admin.
         $roles = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_USER_ROLES);
         if (count(array_intersect([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SITE_ADMIN], $roles)) == 0) {
-            fatalError('The current user is not permitted to preview.');
+            throw new \Exception('The current user is not permitted to preview.');
         }
 
         // Assign the template vars needed and display
@@ -76,9 +70,7 @@ class NavigationMenuItemHandler extends Handler
         $navigationMenuItem->setContent((array) $request->getUserVar('content'), null);
         $navigationMenuItem->setTitle((array) $request->getUserVar('title'), null);
 
-        Services::get('navigationMenu')->transformNavMenuItemTitle($templateMgr, $navigationMenuItem);
-
-        $templateMgr->assign('title', $navigationMenuItem->getLocalizedTitle());
+        app()->get('navigationMenu')->transformNavMenuItemTitle($templateMgr, $navigationMenuItem);
 
         $vars = [];
         if ($context) {
@@ -91,7 +83,10 @@ class NavigationMenuItemHandler extends Handler
             ];
         }
 
-        $templateMgr->assign('content', strtr($navigationMenuItem->getLocalizedContent(), $vars));
+        $templateMgr->assign([
+            'title' => $navigationMenuItem->getLocalizedTitle(),
+            'content' => strtr($navigationMenuItem->getLocalizedContent(), $vars)
+        ]);
 
         $templateMgr->display('frontend/pages/navigationMenuItemViewContent.tpl');
     }
@@ -104,40 +99,31 @@ class NavigationMenuItemHandler extends Handler
      */
     public function view($args, $request)
     {
-        $path = array_shift($args);
-        $context = $request->getContext();
-        $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE;
-        if ($context) {
-            $contextId = $context->getId();
+        if (!isset($this->nmi)) {
+            return false;
         }
 
         // Assign the template vars needed and display
         $templateMgr = TemplateManager::getManager($request);
         $this->setupTemplate($request);
 
-        $navigationMenuItemDao = DAORegistry::getDAO('NavigationMenuItemDAO'); /** @var NavigationMenuItemDAO $navigationMenuItemDao */
-
-        $navigationMenuItem = $navigationMenuItemDao->getByPath($contextId, $path);
-
-        if (isset($this->nmi)) {
-            $templateMgr->assign('title', $this->nmi->getLocalizedTitle());
-
-            $vars = [];
-            if ($context) {
-                $vars = [
-                    '{$contactName}' => $context->getData('contactName'),
-                    '{$contactEmail}' => $context->getData('contactEmail'),
-                    '{$supportName}' => $context->getData('supportName'),
-                    '{$supportPhone}' => $context->getData('supportPhone'),
-                    '{$supportEmail}' => $context->getData('supportEmail'),
-                ];
-            }
-            $templateMgr->assign('content', strtr($this->nmi->getLocalizedContent(), $vars));
-
-            $templateMgr->display('frontend/pages/navigationMenuItemViewContent.tpl');
-        } else {
-            return false;
+        $vars = [];
+        $context = $request->getContext();
+        if ($context) {
+            $vars = [
+                '{$contactName}' => $context->getData('contactName'),
+                '{$contactEmail}' => $context->getData('contactEmail'),
+                '{$supportName}' => $context->getData('supportName'),
+                '{$supportPhone}' => $context->getData('supportPhone'),
+                '{$supportEmail}' => $context->getData('supportEmail'),
+            ];
         }
+        $templateMgr->assign([
+            'title' => $this->nmi->getLocalizedTitle(),
+            'content' => strtr($this->nmi->getLocalizedContent(), $vars)
+        ]);
+
+        $templateMgr->display('frontend/pages/navigationMenuItemViewContent.tpl');
     }
 
     /**
@@ -148,6 +134,6 @@ class NavigationMenuItemHandler extends Handler
      */
     public function index($args, $request)
     {
-        $request->redirect(null, null, 'view', $request->getRequestedOp());
+        $request->redirect(null, null, 'view', $args);
     }
 }

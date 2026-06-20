@@ -1,5 +1,5 @@
 {**
- * templates/submission/review-details-step.tpl
+ * templates/submission/review-details.tpl
  *
  * Copyright (c) 2014-2022 Simon Fraser University
  * Copyright (c) 2003-2022 John Willinsky
@@ -33,7 +33,7 @@
         >
             {include file="/submission/review-publication-field.tpl" prop="title" inLocale=$localeKey name="{translate key="common.title"}" type="html"}
             {if in_array($currentContext->getData('keywords'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
-                {include file="/submission/review-publication-field.tpl" prop="keywords" inLocale=$localeKey name="{translate key="common.keywords"}" type="array"}
+                {include file="/submission/review-publication-field.tpl" prop="keywords" inLocale=$localeKey name="{translate key="common.keywords"}" type="array" dataField="name"}
             {/if}
             {include file="/submission/review-publication-field.tpl" prop="abstract" inLocale=$localeKey name="{translate key="common.abstract"}" type="html"}
             {if in_array($currentContext->getData('citations'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
@@ -45,7 +45,7 @@
                                 :key="i"
                                 type="warning"
                             >
-                                <icon icon="exclamation-triangle"></icon>
+                                <icon icon="Error" class="h-5 w-5"></icon>
                                 {{ error }}
                             </notification>
                         </template>

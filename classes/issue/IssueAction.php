@@ -19,6 +19,7 @@
 namespace APP\issue;
 
 use APP\facades\Repo;
+use APP\journal\Journal;
 use APP\subscription\IndividualSubscriptionDAO;
 use APP\subscription\InstitutionalSubscriptionDAO;
 use APP\subscription\Subscription;
@@ -37,20 +38,17 @@ class IssueAction
     /**
      * Checks if subscription is required for viewing the issue
      *
-     * @param Issue $issue
-     * @param \APP\journal\Journal $journal
-     *
-     * @return bool
+     * @hook IssueAction::subscriptionRequired [[&$journal, &$issue, &$result]]
      */
-    public function subscriptionRequired($issue, $journal)
+    public function subscriptionRequired(Issue $issue, Journal $journal): bool
     {
-        assert($issue instanceof \APP\issue\Issue);
-        assert($journal instanceof \APP\journal\Journal);
-        assert($journal->getId() == $issue->getJournalId());
+        if ($journal->getId() != $issue->getJournalId()) {
+            throw new Exception('Issue does not match journal!');
+        }
 
         // Check subscription state.
-        $result = $journal->getData('publishingMode') == \APP\journal\Journal::PUBLISHING_MODE_SUBSCRIPTION &&
-            $issue->getAccessStatus() != \APP\issue\Issue::ISSUE_ACCESS_OPEN && (
+        $result = $journal->getData('publishingMode') == Journal::PUBLISHING_MODE_SUBSCRIPTION &&
+            $issue->getAccessStatus() != Issue::ISSUE_ACCESS_OPEN && (
                 is_null($issue->getOpenAccessDate()) ||
                 strtotime($issue->getOpenAccessDate()) > time()
             );
@@ -62,13 +60,13 @@ class IssueAction
      * Checks if this user is granted access to pre-publication issue galleys
      * based on their roles in the journal (i.e. Manager, Editor, etc).
      *
-     * @param \APP\journal\Journal $journal
+     * @param Journal $journal
      *
      * @return bool
      */
     public function allowedIssuePrePublicationAccess($journal, $user)
     {
-        /** @var RoleDAO */
+        /** @var RoleDAO $roleDao */
         $roleDao = DAORegistry::getDAO('RoleDAO');
         if ($user && $journal) {
             $journalId = $journal->getId();
@@ -94,11 +92,13 @@ class IssueAction
      * Checks if user has subscription
      *
      * @param \PKP\user\User $user
-     * @param \APP\journal\Journal $journal
+     * @param Journal $journal
      * @param int $issueId Issue ID (optional)
      * @param int $articleId Article ID (optional)
      *
      * @return bool
+     *
+     * @hook IssueAction::subscribedUser [[&$user, &$journal, &$issueId, &$articleId, &$result]]
      */
     public function subscribedUser($user, $journal, $issueId = null, $articleId = null)
     {
@@ -139,11 +139,13 @@ class IssueAction
      * Checks if remote client domain or ip is allowed
      *
      * @param \APP\core\Request $request
-     * @param \APP\journal\Journal $journal
+     * @param Journal $journal
      * @param int $issueId Issue ID (optional)
      * @param int $articleId Article ID (optional)
      *
      * @return bool
+     *
+     * @hook IssueAction::subscribedDomain [[&$request, &$journal, &$issueId, &$articleId, &$result]]
      */
     public function subscribedDomain($request, $journal, $issueId = null, $articleId = null)
     {
@@ -157,8 +159,9 @@ class IssueAction
             if (!$result && $journal->getData('subscriptionExpiryPartial')) {
                 if (isset($articleId)) {
                     $submission = Repo::submission()->get($articleId);
+                    $publication = $submission->getCurrentPublication();
                     if ($submission->getData('status') === PKPSubmission::STATUS_PUBLISHED) {
-                        $result = $subscriptionDao->isValidInstitutionalSubscription($request->getRemoteDomain(), $request->getRemoteAddr(), $journal->getId(), Subscription::SUBSCRIPTION_DATE_END, $submission->getDatePublished());
+                        $result = $subscriptionDao->isValidInstitutionalSubscription($request->getRemoteDomain(), $request->getRemoteAddr(), $journal->getId(), Subscription::SUBSCRIPTION_DATE_END, $publication->getData('datePublished'));
                     }
                 } elseif (isset($issueId)) {
                     $issue = Repo::issue()->get($issueId);

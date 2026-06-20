@@ -20,15 +20,14 @@ namespace PKP\observers\listeners;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Facades\Mail;
 use PKP\context\SubEditorsDAO;
 use PKP\db\DAORegistry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\SubmissionNeedsEditor;
+use PKP\notification\Notification;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
 use PKP\observers\events\SubmissionSubmitted;
 use PKP\security\Role;
@@ -66,13 +65,10 @@ class AssignEditors
         $notificationManager = new NotificationManager();
         /** @var NotificationSubscriptionSettingsDAO $notificationSubscriptionSettingsDao */
         $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO');
-        /** @var SubmissionEmailLogDAO $logDao */
-        $logDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
         foreach ($managers as $manager) {
 
             // Send notification
             $notification = $notificationManager->createNotification(
-                Application::get()->getRequest(),
                 $manager->getId(),
                 Notification::NOTIFICATION_TYPE_EDITOR_ASSIGNMENT_REQUIRED,
                 $event->context->getId(),
@@ -99,7 +95,7 @@ class AssignEditors
             $emailTemplate = Repo::emailTemplate()->getByKey($event->context->getId(), SubmissionNeedsEditor::getEmailTemplateKey());
             $mailable = new SubmissionNeedsEditor($event->context, $event->submission);
 
-            // The template may not exist, see pkp/pkp-lib#9217;
+            // The template may not exist, see pkp/pkp-lib#9217; FIXME remove after #9202 is resolved
             if (!$emailTemplate) {
                 $emailTemplate = Repo::emailTemplate()->getByKey($event->context->getId(), 'NOTIFICATION');
                 $request = Application::get()->getRequest();
@@ -118,8 +114,8 @@ class AssignEditors
             Mail::send($mailable);
 
             // Log email
-            $logDao->logMailable(
-                SubmissionEmailLogEntry::SUBMISSION_EMAIL_NEEDS_EDITOR,
+            Repo::emailLogEntry()->logMailable(
+                SubmissionEmailLogEventType::NEEDS_EDITOR,
                 $mailable,
                 $event->submission
             );

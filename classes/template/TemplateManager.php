@@ -21,10 +21,11 @@ namespace APP\template;
 use APP\core\Application;
 use APP\core\PageRouter;
 use APP\file\PublicFileManager;
+use APP\journal\Journal;
+use PKP\core\PKPSessionGuard;
 use PKP\facades\Locale;
 use PKP\i18n\LocaleMetadata;
 use PKP\security\Role;
-use PKP\session\SessionManager;
 use PKP\site\Site;
 use PKP\template\PKPTemplateManager;
 
@@ -44,7 +45,7 @@ class TemplateManager extends PKPTemplateManager
             'brandImage' => 'templates/images/ojs_brand.png',
         ]);
 
-        if (!SessionManager::isDisabled()) {
+        if (!PKPSessionGuard::isSessionDisable()) {
             /**
              * Kludge to make sure no code that tries to connect to
              * the database is executed (e.g., when loading
@@ -58,6 +59,8 @@ class TemplateManager extends PKPTemplateManager
             $siteFilesDir = $request->getBaseUrl() . '/' . $publicFileManager->getSiteFilesPath();
             $this->assign('sitePublicFilesDir', $siteFilesDir);
             $this->assign('publicFilesDir', $siteFilesDir); // May be overridden by journal
+
+            $this->registerClass(Journal::class, Journal::class);
 
             if ($site->getData('styleSheet')) {
                 $this->addStyleSheet(
@@ -114,9 +117,10 @@ class TemplateManager extends PKPTemplateManager
         parent::setupBackendPage();
 
         $request = Application::get()->getRequest();
-        if (SessionManager::isDisabled()
-                || !$request->getContext()
-                || !$request->getUser()) {
+        if (PKPSessionGuard::isSessionDisable() ||
+            !$request->getContext() ||
+            !$request->getUser()) {
+
             return;
         }
 
@@ -133,8 +137,19 @@ class TemplateManager extends PKPTemplateManager
                 'name' => __('editor.navigation.issues'),
                 'url' => $router->url($request, null, 'manageIssues'),
                 'isCurrent' => $request->getRequestedPage() === 'manageIssues',
+                'icon' => 'Issues'
             ];
-            $index = array_search('submissions', array_keys($menu));
+            $index = false;
+            $reviewAssignmentsIndex = array_search('reviewAssignments', array_keys($menu));
+            $mySubmissionsIndex = array_search('mySubmissions', array_keys($menu));
+            if ($mySubmissionsIndex !== false) {
+                $index = $mySubmissionsIndex;
+            } elseif ($reviewAssignmentsIndex !== false) {
+                $index = $reviewAssignmentsIndex;
+            } else {
+                $index = array_search('dashboards', array_keys($menu));
+            }
+
             if ($index === false || count($menu) <= $index + 1) {
                 $menu['issues'] = $issuesLink;
             } else {
@@ -147,7 +162,7 @@ class TemplateManager extends PKPTemplateManager
         if (count(array_intersect([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_SUB_EDITOR], $userRoles))) {
             $statsIssuesLink = [
                 'name' => __('editor.navigation.issues'),
-                'url' => $router->url($request, null, 'stats', 'issues', 'issues'),
+                'url' => $router->url($request, null, 'stats', 'issues', ['issues']),
                 'isCurrent' => $router->getRequestedPage($request) === 'stats' && $router->getRequestedOp($request) === 'issues',
             ];
             $statsPublicationsIndex = array_search('publications', array_keys($menu['statistics']));
@@ -162,6 +177,7 @@ class TemplateManager extends PKPTemplateManager
                 'name' => __('common.payments'),
                 'url' => $router->url($request, null, 'payments'),
                 'isCurrent' => $request->getRequestedPage() === 'payments',
+                'icon' => 'Payment'
             ];
 
             $index = array_search('settings', array_keys($menu));
@@ -176,8 +192,9 @@ class TemplateManager extends PKPTemplateManager
             // add institutions menu if needed
             $institutionsLink = [
                 'name' => __('institution.institutions'),
-                'url' => $router->url($request, null, 'management', 'settings', 'institutions'),
-                'isCurrent' => $request->getRequestedPage() === 'management' && in_array('institutions', (array) $request->getRequestedArgs()),
+                'url' => $router->url($request, null, 'management', 'settings', ['institutions']),
+                'isCurrent' => $request->getRequestedPage() === 'management' && in_array('institutions', $request->getRequestedArgs()),
+                'icon' => 'Institutes'
             ];
             $paymentsIndex = array_search('payments', array_keys($menu));
             $menu = array_slice($menu, 0, $paymentsIndex, true) +

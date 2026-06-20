@@ -33,6 +33,7 @@ class Collector implements CollectorInterface
     public ?int $count;
     public ?int $offset;
 
+
     public function __construct(DAO $dao)
     {
         $this->dao = $dao;
@@ -53,6 +54,7 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc DAO::getMany()
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(): LazyCollection
@@ -105,6 +107,8 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc CollectorInterface::getQueryBuilder()
+     *
+     * @hook Publication::Collector [[&$qb, $this]]
      */
     public function getQueryBuilder(): Builder
     {

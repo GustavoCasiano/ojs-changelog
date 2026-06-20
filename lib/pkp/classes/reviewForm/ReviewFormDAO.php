@@ -71,6 +71,8 @@ class ReviewFormDAO extends \PKP\db\DAO
      * @param array $row
      *
      * @return ReviewForm
+     *
+     * @hook ReviewFormDAO::_fromRow [[&$reviewForm, &$row]]
      */
     public function _fromRow($row)
     {
@@ -111,10 +113,8 @@ class ReviewFormDAO extends \PKP\db\DAO
 
     /**
      * Get the list of fields for which data can be localized.
-     *
-     * @return array
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         return ['title', 'description'];
     }

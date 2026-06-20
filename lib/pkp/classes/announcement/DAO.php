@@ -20,6 +20,7 @@ use PKP\core\EntityDAO;
 
 /**
  * @template T of Announcement
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO
@@ -104,11 +105,10 @@ class DAO extends EntityDAO
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
-
-        return LazyCollection::make(function () use ($rows) {
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
             foreach ($rows as $row) {
                 yield $row->announcement_id => $this->fromRow($row);
             }

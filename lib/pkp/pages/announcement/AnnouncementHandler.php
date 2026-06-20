@@ -18,13 +18,12 @@ namespace PKP\pages\announcement;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\template\TemplateManager;
-use PKP\announcement\Collector;
-use PKP\config\Config;
+use Carbon\Carbon;
+use PKP\announcement\Announcement;
+use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\security\authorization\ContextRequiredPolicy;
 
 class AnnouncementHandler extends Handler
 {
@@ -40,7 +39,7 @@ class AnnouncementHandler extends Handler
     public function index($args, $request)
     {
         if (!$this->isAnnouncementsEnabled($request)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $this->setupTemplate($request);
@@ -49,19 +48,13 @@ class AnnouncementHandler extends Handler
         $templateMgr->assign('announcementsIntroduction', $this->getAnnouncementsIntro($request));
 
         // TODO the announcements list should support pagination
-        $collector = Repo::announcement()
-            ->getCollector()
-            ->filterByActive();
+        $announcements = Announcement::withActiveByDate()->orderBy(Announcement::CREATED_AT, 'desc');
 
-        if ($request->getContext()) {
-            $collector->filterByContextIds([$request->getContext()->getId()]);
-        } else {
-            $collector->withSiteAnnouncements(Collector::SITE_ONLY);
-        }
+        $contextIds = [];
+        $request->getContext() ? $contextIds[] = $request->getContext()->getId() : $contextIds[] = PKPApplication::SITE_CONTEXT_ID;
+        $announcements->withContextIds($contextIds);
 
-        $announcements = $collector->getMany();
-
-        $templateMgr->assign('announcements', $announcements->toArray());
+        $templateMgr->assign('announcements', $announcements->get());
         $templateMgr->display('frontend/pages/announcements.tpl');
     }
 
@@ -74,24 +67,24 @@ class AnnouncementHandler extends Handler
     public function view($args, $request)
     {
         if (!$this->isAnnouncementsEnabled($request)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
         $this->validate();
         $this->setupTemplate($request);
 
         $announcementId = (int) array_shift($args);
-        $announcement = Repo::announcement()->get($announcementId);
+        $announcement = Announcement::find($announcementId);
         if (
             $announcement
-            && $announcement->getAssocType() == Application::getContextAssocType()
-            && $announcement->getAssocId() == $request->getContext()?->getId()
+            && $announcement->assocType == Application::getContextAssocType()
+            && $announcement->assocId == $request->getContext()?->getId()
             && (
-                $announcement->getDateExpire() == null || strtotime($announcement->getDateExpire()) > time()
+                $announcement->dateExpire == null || Carbon::now()->lte($announcement->dateExpire)
             )
         ) {
             $templateMgr = TemplateManager::getManager($request);
             $templateMgr->assign('announcement', $announcement);
-            $templateMgr->assign('announcementTitle', $announcement->getLocalizedTitleFull());
+            $templateMgr->assign('announcementTitle', $announcement->getLocalizedData('fullTitle'));
             return $templateMgr->display('frontend/pages/announcement.tpl');
         }
         $request->redirect(null, 'announcement');
@@ -99,12 +92,8 @@ class AnnouncementHandler extends Handler
 
     protected function isAnnouncementsEnabled(Request $request): bool
     {
-        if (!Config::getVar('features', 'site_announcements') && !$request->getContext()) {
-            return false;
-        }
-
         $contextOrSite = $request->getContext() ?? $request->getSite();
-        return $contextOrSite->getData('enableAnnouncements');
+        return (bool) $contextOrSite->getData('enableAnnouncements');
     }
 
     protected function getAnnouncementsIntro(Request $request): ?string

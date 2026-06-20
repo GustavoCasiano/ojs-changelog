@@ -3,8 +3,8 @@
 /**
  * @file controllers/grid/users/reviewer/form/AdvancedSearchReviewerForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class AdvancedSearchReviewerForm
@@ -17,7 +17,6 @@
 namespace PKP\controllers\grid\users\reviewer\form;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
@@ -27,30 +26,30 @@ use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
 use PKP\emailTemplate\EmailTemplate;
 use PKP\facades\Locale;
+use PKP\form\validation\FormValidator;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxAction;
 use PKP\mail\mailables\ReviewRequest;
 use PKP\mail\mailables\ReviewRequestSubsequent;
 use PKP\security\Role;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
+use PKP\submission\reviewer\suggestion\ReviewerSuggestion;
 
 class AdvancedSearchReviewerForm extends ReviewerForm
-{
+{   
     /**
-     * Constructor.
-     *
-     * @param Submission $submission
-     * @param ReviewRound $reviewRound
+     * @copydoc \PKP\controllers\grid\users\reviewer\form\ReviewerForm::__construct
      */
-    public function __construct($submission, $reviewRound)
+    public function __construct(Submission $submission, ReviewRound $reviewRound, ?ReviewerSuggestion $reviewerSuggestion = null)
     {
-        parent::__construct($submission, $reviewRound);
+        parent::__construct($submission, $reviewRound, $reviewerSuggestion);
+
         $this->setTemplate('controllers/grid/users/reviewer/form/advancedSearchReviewerForm.tpl');
 
-        $this->addCheck(new \PKP\form\validation\FormValidator($this, 'reviewerId', 'required', 'editor.review.mustSelect'));
+        $this->addCheck(new FormValidator($this, 'reviewerId', 'required', 'editor.review.mustSelect'));
     }
 
     /**
@@ -62,7 +61,13 @@ class AdvancedSearchReviewerForm extends ReviewerForm
     {
         parent::readInputData();
 
-        $this->readUserVars(['reviewerId']);
+        $inputData = ['reviewerId'];
+
+        if ($this->reviewerSuggestion) {
+            array_push($inputData, 'reviewerSuggestionId');
+        }
+
+        $this->readUserVars($inputData);
     }
 
     /**
@@ -77,7 +82,10 @@ class AdvancedSearchReviewerForm extends ReviewerForm
         $mailable = $this->getMailable();
 
         $templates = Repo::emailTemplate()->getCollector($context->getId())
-            ->filterByKeys([ReviewRequest::getEmailTemplateKey(), ReviewRequestSubsequent::getEmailTemplateKey()])
+            ->filterByKeys([
+                ReviewRequest::getEmailTemplateKey(),
+                ReviewRequestSubsequent::getEmailTemplateKey()
+            ])
             ->getMany()
             ->mapWithKeys(function (EmailTemplate $item, int $key) use ($mailable) {
                 return [$item->getData('key') => Mail::compileParams($item->getLocalizedData('body'), $mailable->viewData)];
@@ -85,6 +93,11 @@ class AdvancedSearchReviewerForm extends ReviewerForm
 
         $this->setData('personalMessage', '');
         $this->setData('reviewerMessages', $templates->toArray());
+
+        if ($this->reviewerSuggestion?->existingReviewerRole) {
+            $this->setData('reviewerSuggestionId', $this->reviewerSuggestion->id);
+            $this->setData('reviewerId', $this->reviewerSuggestion->existingUser->getId());
+        }
     }
 
     /**
@@ -95,7 +108,7 @@ class AdvancedSearchReviewerForm extends ReviewerForm
     public function fetch($request, $template = null, $display = false)
     {
         // Get submission context
-        $submissionContext = Services::get('context')->get($this->getSubmission()->getContextId());
+        $submissionContext = app()->get('context')->get($this->getSubmission()->getData('contextId'));
 
         // Pass along the request vars
         $actionArgs = $request->getUserVars();
@@ -112,12 +125,14 @@ class AdvancedSearchReviewerForm extends ReviewerForm
 
         $this->setReviewerFormAction($advancedSearchAction);
 
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-
         // get reviewer IDs already assign to this submission and this round
-        $reviewAssignments = $reviewAssignmentDao->getBySubmissionId($this->getSubmissionId(), $this->getReviewRound()->getId());
+        $reviewAssignments = Repo::reviewAssignment()->getCollector()
+            ->filterBySubmissionIds([$this->getSubmissionId()])
+            ->filterByReviewRoundIds([$this->getReviewRound()->getId()])
+            ->getMany();
+
         $currentlyAssigned = [];
-        if (!empty($reviewAssignments)) {
+        if ($reviewAssignments->isNotEmpty()) {
             foreach ($reviewAssignments as $reviewAssignment) {
                 $currentlyAssigned[] = (int) $reviewAssignment->getReviewerId();
             }
@@ -126,32 +141,31 @@ class AdvancedSearchReviewerForm extends ReviewerForm
         // Get user IDs already assigned to this submission, and admins and
         // managers who may have access to author identities and can not guarantee
         // anonymous reviews
-        $warnOnAssignment = [];
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentResults = $stageAssignmentDao->getBySubmissionAndStageId($this->getSubmissionId());
-        while ($stageAssignment = $stageAssignmentResults->next()) {
-            $warnOnAssignment[] = $stageAssignment->getUserId();
-        }
+        // Replaces StageAssignmentDAO::getBySubmissionAndStageId
+        $warnOnAssignment = StageAssignment::withSubmissionIds([$this->getSubmissionId()])
+            ->get()
+            ->pluck('user_id')
+            ->all();
 
         // Get a list of users in the managerial and admin user groups
         // Managers are assigned only to contexts; site admins are assigned only to site.
         // Therefore filtering by both context IDs and role IDs will not cause problems.
         $userIds = Repo::user()->getCollector()
             ->filterByRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SITE_ADMIN])
-            ->filterByContextIds([$submissionContext->getId(), PKPApplication::CONTEXT_SITE])
+            ->filterByContextIds([$submissionContext->getId(), PKPApplication::SITE_CONTEXT_ID])
             ->getIds()
             ->toArray();
         $warnOnAssignment = array_merge($warnOnAssignment, $userIds);
-        $warnOnAssignment = array_values(array_unique(array_map('intval', $warnOnAssignment)));
+        $warnOnAssignment = array_values(array_unique(array_map(intval(...), $warnOnAssignment)));
 
         $locale = Locale::getLocale();
         $submissionAuthors = $this->getSubmission()->getCurrentPublication()->getData('authors');
         $authorAffiliations = [];
         $authors = [];
         foreach ($submissionAuthors as $submissionAuthor) {
-            $affiliation = $submissionAuthor->getLocalizedData('affiliation');
-            $authorAffiliations[] = $affiliation;
-            $authors[$submissionAuthor->getFullName(true, false, $locale)] = $affiliation;
+            $affiliations = $submissionAuthor->getLocalizedAffiliationNamesAsString(null, ', ');
+            $authorAffiliations[] = $affiliations;
+            $authors[$submissionAuthor->getFullName(true, false, $locale)] = $affiliations;
         }
 
         // Get reviewers list
@@ -165,10 +179,13 @@ class AdvancedSearchReviewerForm extends ReviewerForm
                     $submissionContext->getPath(),
                     'users/reviewers'
                 ),
+                'submission' => $this->getSubmission(),
                 'authorAffiliations' => $authorAffiliations,
                 'currentlyAssigned' => $currentlyAssigned,
                 'getParams' => [
                     'contextId' => $submissionContext->getId(),
+                    'submissionId' => $this->getSubmission()->getId(),
+                    'reviewRoundId' => $reviewRound->getId(),
                     'reviewStage' => $reviewRound->getStageId(),
                 ],
                 'selectorName' => 'reviewerId',
@@ -185,7 +202,7 @@ class AdvancedSearchReviewerForm extends ReviewerForm
             $lastReviewRound = $reviewRoundDao->getReviewRound($this->getSubmissionId(), $this->getReviewRound()->getStageId(), $previousRound);
 
             if ($lastReviewRound) {
-                $lastReviewAssignments = $reviewAssignmentDao->getByReviewRoundId($lastReviewRound->getId());
+                $lastReviewAssignments = Repo::reviewAssignment()->getCollector()->filterByReviewRoundIds([$lastReviewRound->getId()])->getMany();
                 foreach ($lastReviewAssignments as $reviewAssignment) {
                     if (in_array($reviewAssignment->getStatus(), [ReviewAssignment::REVIEW_ASSIGNMENT_STATUS_THANKED, ReviewAssignment::REVIEW_ASSIGNMENT_STATUS_COMPLETE])) {
                         $lastRoundReviewerIds[] = (int) $reviewAssignment->getReviewerId();
@@ -210,6 +227,10 @@ class AdvancedSearchReviewerForm extends ReviewerForm
         $templateMgr = TemplateManager::getManager($request);
         // Used to determine the right email template
         $templateMgr->assign('lastRoundReviewerIds', $lastRoundReviewerIds);
+
+        if ($this->reviewerSuggestion?->existingReviewerRole) {
+            $templateMgr->assign('reviewerName', $this->reviewerSuggestion->existingUser->getFullName());
+        }
 
         $selectReviewerListPanel->set([
             'items' => $selectReviewerListPanel->getItems($request),

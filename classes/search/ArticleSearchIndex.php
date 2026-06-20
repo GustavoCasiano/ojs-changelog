@@ -16,12 +16,13 @@
 
 namespace APP\search;
 
+use APP\core\Application;
 use APP\facades\Repo;
 use APP\journal\Journal;
 use APP\journal\JournalDAO;
+use APP\orcid\actions\SendSubmissionToOrcid;
 use APP\submission\Submission;
 use Exception;
-use PKP\config\Config;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
 use PKP\jobs\submissions\UpdateSubmissionSearchJob;
@@ -29,6 +30,7 @@ use PKP\plugins\Hook;
 use PKP\search\SearchFileParser;
 use PKP\search\SubmissionSearch;
 use PKP\search\SubmissionSearchIndex;
+use PKP\submission\PKPSubmission;
 use PKP\submissionFile\SubmissionFile;
 use Throwable;
 
@@ -38,6 +40,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
 
     /**
      * @copydoc SubmissionSearchIndex::submissionMetadataChanged()
+     *
+     * @hook ArticleSearchIndex::articleMetadataChanged [[$submission]]
      */
     public function submissionMetadataChanged($submission)
     {
@@ -56,8 +60,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
                 array_values((array) $author->getData('givenName')),
                 array_values((array) $author->getData('familyName')),
                 array_values((array) $author->getData('preferredPublicName')),
-                array_values(array_map('strip_tags', (array) $author->getData('affiliation'))),
-                array_values(array_map('strip_tags', (array) $author->getData('biography')))
+                array_values(array_map(strip_tags(...), (array) $author->getData('affiliation'))),
+                array_values(array_map(strip_tags(...), (array) $author->getData('biography')))
             );
         }
 
@@ -73,17 +77,10 @@ class ArticleSearchIndex extends SubmissionSearchIndex
         $this->_updateTextIndex($submissionId, SubmissionSearch::SUBMISSION_SEARCH_TYPE, (array) $publication->getData('type'));
         $this->_updateTextIndex($submissionId, SubmissionSearch::SUBMISSION_SEARCH_COVERAGE, (array) $publication->getData('coverage'));
         // FIXME Index sponsors too?
-    }
 
-    /**
-     * @copydoc SubmissionSearchIndex::submissionMetadataChanged()
-     */
-    public function articleMetadataChanged($article)
-    {
-        if (Config::getVar('debug', 'deprecation_warnings')) {
-            trigger_error('Deprecated call to articleMetadataChanged. Use submissionMetadataChanged instead.');
+        if ($publication->getData('status') == PKPSubmission::STATUS_PUBLISHED) {
+            (new SendSubmissionToOrcid($publication, Application::getContextDAO()->getById($submission->getData('contextId'))))->execute();
         }
-        $this->submissionMetadataChanged($article);
     }
 
     /**
@@ -108,6 +105,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
      * @param int $articleId
      * @param int $type
      * @param SubmissionFile $submissionFile
+     *
+     * @hook ArticleSearchIndex::submissionFileChanged [[$articleId, $type, $submissionFile->getId()]]
      */
     public function submissionFileChanged($articleId, $type, $submissionFile)
     {
@@ -160,6 +159,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
      * comments.
      *
      * @param Submission $article
+     *
+     * @hook ArticleSearchIndex::submissionFilesChanged [[$article]]
      */
     public function submissionFilesChanged($article)
     {
@@ -214,6 +215,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
      * @param int $articleId
      * @param int $type optional
      * @param int $assocId optional
+     *
+     * @hook ArticleSearchIndex::submissionFileDeleted [[$articleId, $type, $assocId]]
      */
     public function submissionFileDeleted($articleId, $type = null, $assocId = null)
     {
@@ -234,6 +237,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
      * comments.
      *
      * @param int $articleId
+     *
+     * @hook ArticleSearchIndex::articleDeleted [[$articleId]]
      */
     public function articleDeleted($articleId)
     {
@@ -250,6 +255,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
 
     /**
      * @copydoc SubmissionSearchIndex::submissionChangesFinished()
+     *
+     * @hook ArticleSearchIndex::articleChangesFinished []
      */
     public function submissionChangesFinished()
     {
@@ -264,17 +271,6 @@ class ArticleSearchIndex extends SubmissionSearchIndex
     }
 
     /**
-     * @copydoc SubmissionSearchIndex::submissionChangesFinished()
-     */
-    public function articleChangesFinished()
-    {
-        if (Config::getVar('debug', 'deprecation_warnings')) {
-            trigger_error('Deprecated call to articleChangesFinished. Use submissionChangesFinished instead.');
-        }
-        $this->submissionChangesFinished();
-    }
-
-    /**
      * Rebuild the search index for one or all journals.
      *
      * @param bool $log Whether to display status information
@@ -285,6 +281,8 @@ class ArticleSearchIndex extends SubmissionSearchIndex
      *  implementation does not support journal-specific re-indexing
      *  as index data is not partitioned by journal.
      * @param array $switches Optional index administration switches.
+     *
+     * @hook ArticleSearchIndex::rebuildIndex [[$log, $journal, $switches]]
      */
     public function rebuildIndex($log = false, $journal = null, $switches = [])
     {
@@ -371,16 +369,16 @@ class ArticleSearchIndex extends SubmissionSearchIndex
     protected function _flattenLocalizedArray($arrayWithLocales)
     {
         $flattenedArray = [];
+
         foreach ($arrayWithLocales as $localeArray) {
-            $flattenedArray = array_merge(
-                $flattenedArray,
+            $names = array_map(
+                static fn ($item) => $item['name'],
                 $localeArray
             );
+
+            $flattenedArray = array_merge($flattenedArray, $names);
         }
+
         return $flattenedArray;
     }
-}
-
-if (!PKP_STRICT_MODE) {
-    class_alias('\APP\search\ArticleSearchIndex', '\ArticleSearchIndex');
 }

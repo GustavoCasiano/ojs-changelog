@@ -19,6 +19,7 @@
 namespace PKP\submissionFile;
 
 use APP\core\Application;
+use APP\facades\Repo;
 use Exception;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
@@ -28,13 +29,13 @@ use PKP\core\EntityDAO;
 use PKP\db\DAORegistry;
 use PKP\plugins\PKPPubIdPluginDAO;
 use PKP\services\PKPSchemaService;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\ReviewFilesDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 
 /**
  * @template T of SubmissionFile
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO implements PKPPubIdPluginDAO
@@ -140,15 +141,16 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
 
     /**
      * Get a collection of announcements matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
 
-        return LazyCollection::make(function () use ($rows) {
             foreach ($rows as $row) {
                 yield $row->submission_file_id => $this->fromRow($row);
             }
@@ -161,7 +163,7 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
     public function fromRow(object $primaryRow): SubmissionFile
     {
         $submissionFile = parent::fromRow($primaryRow);
-        $submissionFile->setData('locale', $primaryRow->locale);
+        $submissionFile->setData('submissionLocale', $primaryRow->submission_locale);
         $submissionFile->setData('path', $primaryRow->path);
         $submissionFile->setData('mimetype', $primaryRow->mimetype);
 
@@ -220,7 +222,7 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
     /**
      * @copydoc EntityDao::deleteById()
      */
-    public function deleteById(int $submissionFileId)
+    public function deleteById(int $submissionFileId): int
     {
         DB::table('submission_file_revisions')
             ->where('submission_file_id', '=', $submissionFileId)
@@ -233,7 +235,7 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
         $reviewFilesDao = DAORegistry::getDAO('ReviewFilesDAO'); /** @var ReviewFilesDAO $reviewFilesDao */
         $reviewFilesDao->revokeBySubmissionFileId($submissionFileId);
 
-        parent::deleteById($submissionFileId);
+        return parent::deleteById($submissionFileId);
     }
 
     /**
@@ -243,8 +245,8 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
      * 'other::something' if not part of the official NLM list
      * (see <http://dtd.nlm.nih.gov/publishing/tag-library/n-4zh0.html>).
      *
-     * @param null|mixed $submissionId
-     * @param null|mixed $contextId
+     * @param ?int $submissionId
+     * @param ?int $contextId
      */
     public function getByPubId(
         $pubIdType,
@@ -346,21 +348,20 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
      * (see <http://dtd.nlm.nih.gov/publishing/tag-library/n-4zh0.html>).
      */
     public function pubIdExists(
-        $pubIdType,
-        $pubId,
-        $excludePubObjectId,
-        $contextId
+        string $pubIdType,
+        string $pubId,
+        int $excludePubObjectId,
+        int $contextId
     ): bool {
-        $result = DB::table($this->settingsTable . ' as sfs')
+        return DB::table($this->settingsTable . ' as sfs')
             ->join('submission_files AS sf', 'sfs.submission_file_id', '=', 'sf.submission_file_id')
             ->join('submissions AS s', 'sf.submission_id', '=', 's.submission_id')
             ->where([
-                'sfs.setting_name' => 'pub-id::' . (string) $pubIdType,
-                'sfs.setting_value' => (string) $pubId,
-                'sfs.submission_file_id' => (int) $excludePubObjectId,
-                's.context_id' => (int) $contextId
-            ])->getCountForPagination();
-        return (bool) $result > 0;
+                ['sfs.setting_name', '=', "pub-id::{$pubIdType}"],
+                ['sfs.setting_value', '=', (string) $pubId],
+                ['sfs.submission_file_id', '<>', (int) $excludePubObjectId],
+                ['s.context_id', '=', (int) $contextId]
+            ])->count() > 0;
     }
 
     /**
@@ -372,19 +373,19 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
             ->updateOrInsert(
                 [
                     'submission_file_id' => (int) $pubObjectId,
+                    'locale' => '',
                     'setting_name' => 'pub-id::' . (string) $pubIdType,
-                    'setting_value' => (string) $pubId
                 ],
-                ['locale' => '']
+                ['setting_value' => (string) $pubId]
             );
     }
 
     /**
      * @copydoc PKPPubIdPluginDAO::deletePubId()
      */
-    public function deletePubId($pubObjectId, $pubIdType)
+    public function deletePubId(int $pubObjectId, string $pubIdType): int
     {
-        DB::table($this->settingsTable)
+        return DB::table($this->settingsTable)
             ->where([
                 'submission_file_id' => (int) $pubObjectId,
                 'setting_name' => 'pub-id::' . (string) $pubIdType
@@ -394,7 +395,7 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
     /**
      * @copydoc PKPPubIdPluginDAO::deleteAllPubIds()
      */
-    public function deleteAllPubIds($contextId, $pubIdType)
+    public function deleteAllPubIds(int $contextId, string $pubIdType): int
     {
         return DB::table('publication_settings as ps')
             ->leftJoin('publications as p', 'p.publication_id', '=', 'ps.publication_id')
@@ -448,8 +449,7 @@ class DAO extends EntityDAO implements PKPPubIdPluginDAO
         }
 
         if ($submissionFile->getData('assocType') === Application::ASSOC_TYPE_REVIEW_ASSIGNMENT) {
-            $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-            $reviewAssignment = $reviewAssignmentDao->getById($submissionFile->getData('assocId'));
+            $reviewAssignment = Repo::reviewAssignment()->get($submissionFile->getData('assocId'));
             $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
             return $reviewRoundDao->getById($reviewAssignment->getReviewRoundId());
         }

@@ -15,18 +15,16 @@
 
 namespace PKP\components\forms\site;
 
-use APP\core\Services;
 use PKP\components\forms\FieldOptions;
 use PKP\components\forms\FieldSelect;
 use PKP\components\forms\FieldText;
 use PKP\components\forms\FormComponent;
 
-define('FORM_SITE_CONFIG', 'siteConfig');
-
 class PKPSiteConfigForm extends FormComponent
 {
+    public const FORM_SITE_CONFIG = 'siteConfig';
     /** @copydoc FormComponent::$id */
-    public $id = FORM_SITE_CONFIG;
+    public $id = self::FORM_SITE_CONFIG;
 
     /** @copydoc FormComponent::$method */
     public $method = 'PUT';
@@ -43,7 +41,7 @@ class PKPSiteConfigForm extends FormComponent
         $this->action = $action;
         $this->locales = $locales;
 
-        $contextsIterator = Services::get('context')->getMany(['isEnabled' => true]);
+        $contextsIterator = app()->get('context')->getMany(['isEnabled' => true]);
 
         $this->addField(new FieldText('title', [
             'label' => __('admin.settings.siteTitle'),
@@ -60,11 +58,11 @@ class PKPSiteConfigForm extends FormComponent
             ];
         }
         if (count($options) > 1) {
-            $this->addField(new FieldSelect('redirect', [
+            $this->addField(new FieldSelect('redirectContextId', [
                 'label' => __('admin.settings.redirect'),
                 'description' => __('admin.settings.redirectInstructions'),
                 'options' => $options,
-                'value' => $site->getData('redirect'),
+                'value' => $site->getRedirect(),
             ]));
         }
 

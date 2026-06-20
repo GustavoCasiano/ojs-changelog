@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/publication/maps/Schema.php
  *
@@ -18,7 +19,6 @@ use APP\facades\Repo;
 use APP\publication\Publication;
 use APP\submission\Submission;
 use Illuminate\Support\Enumerable;
-use Illuminate\Support\LazyCollection;
 use PKP\citation\CitationDAO;
 use PKP\context\Context;
 use PKP\db\DAORegistry;
@@ -39,13 +39,13 @@ class Schema extends \PKP\core\maps\Schema
     /** @var bool */
     public $anonymize;
 
-    /** @var LazyCollection UserGroup The user groups for this context. */
+    /** @var Enumerable UserGroup The user groups for this context. */
     public $userGroups;
 
     /** @var Genre[] The file genres for this context. */
     public array $genres;
 
-    public function __construct(Submission $submission, LazyCollection $userGroups, array $genres, Request $request, Context $context, PKPSchemaService $schemaService)
+    public function __construct(Submission $submission, Enumerable $userGroups, array $genres, Request $request, Context $context, PKPSchemaService $schemaService)
     {
         parent::__construct($request, $context, $schemaService);
         $this->submission = $submission;
@@ -108,6 +108,8 @@ class Schema extends \PKP\core\maps\Schema
 
         $output = [];
 
+        $citationDao = DAORegistry::getDAO('CitationDAO'); /** @var CitationDAO $citationDao */
+        $rawCitationList = $citationDao->getRawCitationsByPublicationId($publication->getId());
         foreach ($props as $prop) {
             switch ($prop) {
                 case '_href':
@@ -120,7 +122,8 @@ class Schema extends \PKP\core\maps\Schema
                     if ($this->anonymize) {
                         $output[$prop] = [];
                     } else {
-                        $output[$prop] = Repo::author()->getSchemaMap()->summarizeMany($publication->getData('authors'))->values();
+                        $output[$prop] = Repo::author()->getSchemaMap($this->submission)
+                            ->summarizeMany($publication->getData('authors'))->values();
                     }
                     break;
                 case 'authorsString':
@@ -136,13 +139,10 @@ class Schema extends \PKP\core\maps\Schema
                     $output[$prop] = $publication->getData('categoryIds');
                     break;
                 case 'citations':
-                    $citationDao = DAORegistry::getDAO('CitationDAO'); /** @var CitationDAO $citationDao */
-                    $output[$prop] = array_map(
-                        function ($citation) {
-                            return $citation->getCitationWithLinks();
-                        },
-                        $citationDao->getByPublicationId($publication->getId())->toArray()
-                    );
+                    $output[$prop] = $rawCitationList->toArray();
+                    break;
+                case 'citationsRaw':
+                    $output[$prop] = $rawCitationList->implode(PHP_EOL);
                     break;
                 case 'doiObject':
                     if ($publication->getData('doiObject')) {

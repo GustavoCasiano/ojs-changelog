@@ -17,7 +17,6 @@
 
 namespace APP\sushi;
 
-use APP\core\Services;
 use Illuminate\Support\Collection;
 use PKP\components\forms\FieldOptions;
 use PKP\components\forms\FieldText;
@@ -180,7 +179,7 @@ class TR extends CounterR5Report
         $params['yearsOfPublication'] = $this->yearsOfPublication;
         // do not consider metric_type filter now, but for display
 
-        $statsService = Services::get('sushiStats');
+        $statsService = app()->get('sushiStats');
         $metricsQB = $statsService->getQueryBuilder($params);
         // consider attributes to group the metrics by
         $groupBy = $orderBy = [];

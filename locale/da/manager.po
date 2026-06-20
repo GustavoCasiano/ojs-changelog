@@ -1,12 +1,12 @@
 # Niels Erik Frederiksen <nef@kb.dk>, 2021.
-# Alexandra Fogtmann-Schulz <alfo@kb.dk>, 2022, 2023, 2024.
+# Alexandra Fogtmann-Schulz <alfo@kb.dk>, 2022, 2023, 2024, 2025.
 # Jesper B. Thestrup <jbt@kb.dk>, 2022.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-19T10:49:19+00:00\n"
-"PO-Revision-Date: 2024-01-26 12:13+0000\n"
+"PO-Revision-Date: 2025-10-15 07:18+0000\n"
 "Last-Translator: Alexandra Fogtmann-Schulz <alfo@kb.dk>\n"
 "Language-Team: Danish <http://translate.pkp.sfu.ca/projects/ojs/manager/da/>"
 "\n"
@@ -183,7 +183,7 @@ msgstr ""
 "varighed og abonnenter administreres af abonnementschefen."
 
 msgid "subscriptionManager.subscription.confirmRemove"
-msgstr "Er du sikker på, at fu vil slette dette abonnement?"
+msgstr "Er du sikker på, at du vil slette dette abonnement?"
 
 msgid "manager.payment.options.enablePayments"
 msgstr ""
@@ -291,7 +291,7 @@ msgstr ""
 msgid "manager.people.mergeUsers.into.description"
 msgstr ""
 "Vælg en bruger, som skal tilskrives den tidligere brugers forfatterskab, "
-"redigeringsopgaver osv."
+"redaktionsopgaver osv."
 
 msgid "manager.people.roleEnrollment"
 msgstr "{$role} Tilmelding"
@@ -411,12 +411,6 @@ msgstr "Begræns ordantal for resumé i denne sektion (0 for ingen grænse)"
 
 msgid "manager.setup"
 msgstr "Tidsskriftskonfiguration"
-
-msgid "manager.setup.masthead"
-msgstr "Kolofon"
-
-msgid "manager.setup.editorialTeam"
-msgstr "Redaktionsgruppe"
 
 msgid "manager.setup.homepageContent"
 msgstr "Indhold på tidsskriftshjemmeside"
@@ -792,14 +786,6 @@ msgstr ""
 msgid "manager.setup.contextTitle"
 msgstr "Titel på tidsskrift"
 
-msgid "manager.setup.keyInfo"
-msgstr "Nøgleinformation"
-
-msgid "manager.setup.keyInfo.description"
-msgstr ""
-"Giv en kort beskrivelse af dit tidsskrift og identificer redaktører, "
-"tidsskriftschefer og andre medlemmer af din redaktion."
-
 msgid "manager.setup.labelName"
 msgstr "Etiketnavn"
 
@@ -839,12 +825,6 @@ msgstr ""
 "biblioteker via LOCKSS-siden <a href=\"{$lockssUrl}\" target=\"_blank"
 "\">Publisher Manifest</a>."
 
-msgid "manager.setup.lockssLicenseDescription"
-msgstr ""
-"En LOCKSS licens vil fremtræde i afsnittet 'Om tidsskriftet' under "
-"arkivering: <a href=\"http://www.lockss.org/community/publishers-titles-gln/"
-"\" target=\"_blank\">LOCKSS License</a>"
-
 msgid "manager.setup.lockssLicenseLabel"
 msgstr "LOCKSS licensbeskrivelse"
 
@@ -864,11 +844,6 @@ msgstr ""
 "Aktivér CLOCKSS for at gemme og distribuere tidsskriftsindhold hos "
 "deltagende biblioteker via CLOCKSS-siden <a href=\"{$clockssUrl}\" target="
 "\"_blank\">Publisher Manifest</a> page."
-
-msgid "manager.setup.clockssLicenseDescription"
-msgstr ""
-"En CLOCKSS licens vil fremgå i afsnittet 'Om tidsskriftet' under arkivering: "
-"<a href=\"https://clockss.org\" target=\"_blank\">CLOCKSS Licens</a>"
 
 msgid "manager.setup.clockssLicenseLabel"
 msgstr "CLOCKSS licensbeskrivelse"
@@ -992,7 +967,7 @@ msgid "manager.setup.publicIdentifier"
 msgstr "Identifikation af tidsskriftsindhold"
 
 msgid "manager.setup.publisher"
-msgstr "Forlægger"
+msgstr "Udgiver"
 
 msgid "manager.setup.referenceLinking"
 msgstr "Angivelse af links til referencer"
@@ -1701,7 +1676,7 @@ msgstr "Vælg bruger"
 
 msgid "manager.subscriptions.selectSubscriber.desc"
 msgstr ""
-"Der gives automatisk adgangsrettigheder til abonnementer til tidsskriftets "
+"Der gives automatisk abonnent-adgangsrettigheder til tidsskriftets "
 "tidsskriftschefter, redaktører, sektionsredaktører, layoutredaktører, "
 "manuskriptredaktører og korrekturlæsere."
 
@@ -1905,11 +1880,11 @@ msgstr ""
 "adgangsrettigheder, og som er tilknyttet tidsskriftets workflow. Der er fem "
 "forskellige adgangsniveauer: Tidsskriftschefer har adgang til alt i "
 "tidsskriftet (alt indhold og alle indstillinger). Sektionsredaktører har "
-"fuld adgang til alt indhold. Tidsskriftsassistenter har begrænset adgang til "
-"det indsendte materiale, der eksplicit er blevet tildelt dem af en redaktør. "
-"Bedømmere kan se og arbejde med de indsendelser, de er blevet sat til at "
-"bedømme, og forfattere kan se og interagere i forhold til en begrænset del "
-"af de informationer, der løbende knyttes til deres egne indsendelser. "
+"fuld adgang til alt indhold, de er blevet tildelt. Tidsskriftsassistenter "
+"har begrænset adgang til det indsendte materiale, der eksplicit er blevet "
+"tildelt dem af en redaktør. Bedømmere kan se og arbejde med de indsendelser, "
+"de er blevet sat til at bedømme. Forfattere kan se og interagere med en "
+"begrænset del af de informationer, der vedrører deres egne indsendelser. "
 "Derudover er der fem forskellige trin i workflowet, som roller kan tildeles "
 "adgang til: Indsendelse, intern bedømmelse, bedømmelse, redigering og "
 "produktion."
@@ -2690,3 +2665,13 @@ msgid "plugins.importexport.common.error.issueCoverImageMissing"
 msgstr ""
 "Forsidebilledet på nummeret {$id} blev ikke eksporteret, da filen ikke blev "
 "fundet på stien \"{$path}\"."
+
+msgid "manager.setup.contextSummary.description"
+msgstr ""
+"Giv en kort beskrivelse af dit tidsskrift for at give indsigt i indhold og "
+"formål."
+
+msgid "emailTemplate.variable.issue.issueTableOfContents"
+msgstr ""
+"Nummerets indholdsfortegnelse som fx en liste af alle tilhørende "
+"indsendelser."

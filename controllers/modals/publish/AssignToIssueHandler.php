@@ -20,7 +20,6 @@ namespace APP\controllers\modals\publish;
 use APP\components\forms\publication\AssignToIssueForm;
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\handler\Handler;
 use APP\publication\Publication;
 use APP\submission\Submission;
@@ -57,10 +56,12 @@ class AssignToIssueHandler extends Handler
     //
     /**
      * @copydoc PKPHandler::initialize()
+     *
+     * @param null|mixed $args
      */
-    public function initialize($request)
+    public function initialize($request, $args = null)
     {
-        parent::initialize($request);
+        parent::initialize($request, $args);
         $this->submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
         $this->publication = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_PUBLICATION);
         $this->setupTemplate($request);
@@ -94,7 +95,7 @@ class AssignToIssueHandler extends Handler
 
         $submissionContext = $request->getContext();
         if (!$submissionContext || $submissionContext->getId() !== $this->submission->getData('contextId')) {
-            $submissionContext = Services::get('context')->get($this->submission->getData('contextId'));
+            $submissionContext = app()->get('context')->get($this->submission->getData('contextId'));
         }
 
         $publicationApiUrl = $request->getDispatcher()->url($request, PKPApplication::ROUTE_API, $submissionContext->getPath(), 'submissions/' . $this->submission->getId() . '/publications/' . $this->publication->getId());

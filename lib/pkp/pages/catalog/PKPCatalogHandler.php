@@ -26,6 +26,7 @@ use PKP\core\PKPRequest;
 use PKP\file\ContextFileManager;
 use PKP\security\authorization\ContextRequiredPolicy;
 use PKP\security\Role;
+use PKP\userGroup\UserGroup;
 
 class PKPCatalogHandler extends Handler
 {
@@ -46,8 +47,8 @@ class PKPCatalogHandler extends Handler
      *
      * @param array $args [
      *
-     *		@option string Category path
-     *		@option int Page number if available
+     *        @option string Category path
+     *        @option int Page number if available
      * ]
      *
      * @param PKPRequest $request
@@ -66,7 +67,7 @@ class PKPCatalogHandler extends Handler
             ->first();
 
         if (!$category) {
-            $this->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $this->setupTemplate($request);
@@ -104,9 +105,9 @@ class PKPCatalogHandler extends Handler
             'parentCategory' => $parentCategory,
             'subcategories' => iterator_to_array($subcategories),
             'publishedSubmissions' => $submissions->toArray(),
-            'authorUserGroups' => Repo::userGroup()->getCollector()
-                ->filterByRoleIds([Role::ROLE_ID_AUTHOR])
-                ->filterByContextIds([$context->getId()])->getMany()->remember(),
+            'authorUserGroups' => UserGroup::withRoleIds([Role::ROLE_ID_AUTHOR])
+                ->withContextIds([$context->getId()])
+                ->get(),
         ]);
 
         return $templateMgr->display('frontend/pages/catalogCategory.tpl');
@@ -125,14 +126,14 @@ class PKPCatalogHandler extends Handler
                 $context = $request->getContext();
                 $category = Repo::category()->get((int) $request->getUserVar('id'));
                 if (!$category || $category->getContextId() != $context->getId()) {
-                    $this->getDispatcher()->handle404();
+                    throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
                 }
                 $imageInfo = $category->getImage();
                 $contextFileManager = new ContextFileManager($context->getId());
                 $contextFileManager->downloadByPath($contextFileManager->getBasePath() . '/categories/' . $imageInfo['name'], null, true);
                 break;
             default:
-                fatalError('invalid type specified');
+                throw new \Exception('invalid type specified');
         }
     }
 
@@ -149,14 +150,14 @@ class PKPCatalogHandler extends Handler
                 $context = $request->getContext();
                 $category = Repo::category()->get((int) $request->getUserVar('id'));
                 if (!$category || $category->getContextId() != $context->getId()) {
-                    $this->getDispatcher()->handle404();
+                    throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
                 }
                 $imageInfo = $category->getImage();
                 $contextFileManager = new ContextFileManager($context->getId());
                 $contextFileManager->downloadByPath($contextFileManager->getBasePath() . '/categories/' . $imageInfo['thumbnailName'], null, true);
                 break;
             default:
-                fatalError('invalid type specified');
+                throw new \Exception('invalid type specified');
         }
     }
 

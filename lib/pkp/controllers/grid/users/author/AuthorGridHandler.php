@@ -31,7 +31,7 @@ use PKP\core\JSONMessage;
 use PKP\core\PKPRequest;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\authorization\PublicationAccessPolicy;
 use PKP\security\Role;
 use PKP\submission\PKPSubmission;
@@ -139,7 +139,6 @@ class AuthorGridHandler extends GridHandler
                     new AjaxModal(
                         $router->url($request, null, null, 'addAuthor', null, $actionArgs),
                         __('grid.action.addContributor'),
-                        'modal_add_user'
                     ),
                     __('grid.action.addContributor'),
                     'add_user'
@@ -276,16 +275,13 @@ class AuthorGridHandler extends GridHandler
         $submission = $this->getSubmission();
         $userRoles = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_USER_ROLES);
 
-        if ($publication->getData('status') === PKPSubmission::STATUS_PUBLISHED) {
-            return false;
-        }
 
         if (in_array(Role::ROLE_ID_SITE_ADMIN, $userRoles)) {
             return true;
         }
 
         // Incomplete submissions can be edited. (Presumably author.)
-        if ($submission->getDateSubmitted() == null) {
+        if ($submission->getData('dateSubmitted') == null) {
             return true;
         }
 
@@ -394,7 +390,7 @@ class AuthorGridHandler extends GridHandler
             // Create trivial notification.
             $currentUser = $request->getUser();
             $notificationMgr = new NotificationManager();
-            $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $notificationContent]);
+            $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $notificationContent]);
 
             // Prepare the grid row data
             $row = $this->getRowInstance();

@@ -91,7 +91,10 @@ class Repository
      * Perform validation checks on data used to add or edit a highlight.
      *
      * @param array $props A key/value array with the new data to validate
+     *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Highlight::validate [&$errors, $object, $props, $context]
      */
     public function validate(?Highlight $object, array $props, ?Context $context): array
     {
@@ -146,6 +149,8 @@ class Repository
 
     /**
      * Add a highlight
+     *
+     * @hook Highlight::add [$highlight]
      */
     public function add(Highlight $highlight): int
     {
@@ -170,6 +175,8 @@ class Repository
 
     /**
      * Edit a highlight
+     *
+     * @hook Highlight::edit [$newHighlight, $highlight, $params]
      */
     public function edit(Highlight $highlight, array $params): void
     {

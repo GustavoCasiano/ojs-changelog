@@ -32,7 +32,7 @@ class NewLibraryFileForm extends LibraryFileForm
      *
      * @param int $contextId
      */
-    public function __construct($contextId)
+    public function __construct(int $contextId)
     {
         parent::__construct('controllers/grid/settings/library/form/newFileForm.tpl', $contextId);
         $this->addCheck(new \PKP\form\validation\FormValidator($this, 'temporaryFileId', 'required', 'settings.libraryFiles.fileRequired'));
@@ -43,16 +43,16 @@ class NewLibraryFileForm extends LibraryFileForm
      *
      * @see Form::readInputData()
      */
-    public function readInputData()
+    public function readInputData(): void
     {
         $this->readUserVars(['temporaryFileId']);
-        return parent::readInputData();
+        parent::readInputData();
     }
 
     /**
      * @copydoc Form::execute()
      *
-     * @return $fileId int The new library file id.
+     * @return int The new library file id.
      */
     public function execute(...$functionArgs)
     {

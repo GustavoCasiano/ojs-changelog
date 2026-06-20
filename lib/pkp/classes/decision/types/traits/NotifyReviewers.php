@@ -20,17 +20,14 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Validator;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
-use PKP\db\DAORegistry;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
-use PKP\log\SubmissionLog;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\EmailData;
 use PKP\mail\mailables\DecisionNotifyReviewer;
 use PKP\mail\mailables\ReviewerUnassign;
 use PKP\security\Validation;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\user\User;
+use PKP\submission\reviewAssignment\ReviewAssignment;
 
 trait NotifyReviewers
 {
@@ -54,22 +51,36 @@ trait NotifyReviewers
 
             // Update the ReviewAssignment to indicate the reviewer has been acknowledged
             if (is_a($mailable, DecisionNotifyReviewer::class)) {
-                /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-                $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO');
-                $reviewAssignment = $reviewAssignmentDao->getReviewAssignment($mailable->getDecision()->getData('reviewRoundId'), $recipient->getId());
+                $reviewAssignment = Repo::reviewAssignment()->getCollector()
+                    ->filterByReviewRoundIds([$mailable->getDecision()->getData('reviewRoundId')])
+                    ->filterByReviewerIds([$recipient->getId()])
+                    ->getMany()
+                    ->first();
                 if ($reviewAssignment) {
-                    $reviewAssignment->setDateAcknowledged(Core::getCurrentDate());
-                    $reviewAssignment->stampModified();
-                    $reviewAssignmentDao->updateObject($reviewAssignment);
+                    $updateData = [];
+                    if(!$reviewAssignment->getDateAcknowledged()) {
+                        $updateData['dateAcknowledged'] = Core::getCurrentDate();
+                    }
+                    if (!in_array($reviewAssignment->getConsidered(), [ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED, ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED])) {
+                        $updateData['considered'] = ($reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW ||
+                                                $reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_VIEWED)
+                            ? ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED
+                            : ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED;
+                    }
+
+                    if(!$reviewAssignment->getDateConsidered()) {
+                        // set the date when the editor confirms the review
+                        $updateData['dateConsidered'] = Core::getCurrentDate();
+                    }
+
+                    if(!empty($updateData)) {
+                        Repo::reviewAssignment()->edit($reviewAssignment, $updateData);
+                    }
+
                 }
             }
 
-            /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-            $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-            $submissionEmailLogDao->logMailable(
-                is_a($mailable, DecisionNotifyReviewer::class) ? SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_NOTIFY_REVIEWER : SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_EDIT_NOTIFY_REVIEWER,
-                $mailable, $submission, $editor);
-
+            Repo::emailLogEntry()->logMailable(is_a($mailable, DecisionNotifyReviewer::class) ? SubmissionEmailLogEventType::REVIEW_NOTIFY_REVIEWER : SubmissionEmailLogEventType::REVIEW_EDIT_NOTIFY_REVIEWER, $mailable, $submission, $editor);
         }
 
         $eventLog = Repo::eventLog()->newDataObject([

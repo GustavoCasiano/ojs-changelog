@@ -45,6 +45,9 @@ msgstr "Principal Contact"
 msgid "about.contact.supportContact"
 msgstr "Support Contact"
 
+msgid "about.editorialMasthead.linkToEditorialHistory"
+msgstr "View <a href=\"{$url}\">Editorial History</a>"
+
 msgid "about.other"
 msgstr "Other"
 
@@ -118,6 +121,9 @@ msgstr "Acknowledged"
 msgid "common.action"
 msgstr "Action"
 
+msgid "common.moreActions"
+msgstr "More Actions"
+
 msgid "common.activate"
 msgstr "Activate"
 
@@ -147,6 +153,30 @@ msgstr "Attach Files"
 
 msgid "common.attachSelected"
 msgstr "Attach Selected"
+
+msgid "common.editorialMasthead"
+msgstr "Editorial Masthead"
+
+msgid "common.editorialMasthead.peerReviewers"
+msgstr "Peer Reviewers in Previous Year"
+
+msgid "common.editorialHistory.peerReviewers"
+msgstr "Peer Reviewers in Past Years"
+
+msgid "common.editorialMasthead.peerReviewers.description"
+msgstr "The editors express their appreciation of the reviewers for {$year} listed below."
+
+msgid "common.editorialHistory"
+msgstr "Editorial History"
+
+msgid "common.editorialHistory.page"
+msgstr "Editorial History Page"
+
+msgid "common.editorialHistory.page.description"
+msgstr "This section lists past contributors."
+
+msgid "common.editorialHistory.page.orcidLink"
+msgstr "View {$name} ORCID profile"
 
 msgid "common.name"
 msgstr "Name"
@@ -253,6 +283,9 @@ msgstr ""
 msgid "common.changesSaved"
 msgstr "Your changes have been saved."
 
+msgid "common.changeLanguage"
+msgstr "Change Language"
+
 msgid "common.chooseOne"
 msgstr "Choose One"
 
@@ -288,6 +321,9 @@ msgstr "Contents"
 
 msgid "common.continue"
 msgstr "Continue"
+
+msgid "common.yesContinue"
+msgstr "Yes, Continue"
 
 msgid "common.copy"
 msgstr "Copy"
@@ -470,6 +506,9 @@ msgstr "Add filter: {$filterTitle}"
 
 msgid "common.filterRemove"
 msgstr "Clear filter: {$filterTitle}"
+
+msgid "common.filtersClear"
+msgstr "Clear Filters"
 
 msgid "common.findTemplate"
 msgstr "Find Template"
@@ -689,10 +728,10 @@ msgid "common.pagination.goToPage"
 msgstr "Go to {$page}"
 
 msgid "common.pagination.next"
-msgstr "Next page"
+msgstr "Next"
 
 msgid "common.pagination.previous"
-msgstr "Previous page"
+msgstr "Previous"
 
 msgid "common.pageNumber"
 msgstr "Page {$pageNumber}"
@@ -779,7 +818,7 @@ msgid "common.replaceFile"
 msgstr "Replace file"
 
 msgid "common.requiredField"
-msgstr "Required fields are marked with an asterisk: <abbr class="required" title="required">*</abbr>"
+msgstr "Required fields are marked with an asterisk: <abbr class=\"required\" title=\"required\">*</abbr>"
 
 msgid "common.required"
 msgstr "Required"
@@ -846,6 +885,9 @@ msgstr "Show all steps"
 
 msgid "common.showingSteps"
 msgstr "{$current}/{$total} steps"
+
+msgid "common.showingXofX"
+msgstr "Showing <strong>{$start} to {$finish}</strong> of {$total}"
 
 msgid "common.size"
 msgstr "Size"
@@ -987,6 +1029,9 @@ msgstr "weeks"
 msgid "common.width"
 msgstr "Width"
 
+msgid "common.inParenthesis"
+msgstr "({$text})"
+
 msgid "common.withParenthesis"
 msgstr "{$item} ({$inParenthesis})"
 
@@ -998,6 +1043,9 @@ msgstr "Yes"
 
 msgid "common.loading"
 msgstr "Loading"
+
+msgid "common.loaded"
+msgstr "Loaded"
 
 msgid "common.plugins"
 msgstr "Plugins"
@@ -1227,6 +1275,12 @@ msgstr "Please correct one error."
 
 msgid "form.errorMany"
 msgstr "Please correct {$count} errors."
+
+msgid "form.errorSummaryOne"
+msgstr "1 error detected! Please correct the error below before proceeding."
+
+msgid "form.errorSummaryMany"
+msgstr "{$count} errors detected! Please correct the errors below before proceeding."
 
 msgid "form.errors"
 msgstr ""
@@ -1549,6 +1603,16 @@ msgstr "Step {$step}"
 msgid "navigation.submissions"
 msgstr "Submissions"
 
+msgid "navigation.dashboards"
+msgstr "Editor Dashboard"
+
+
+msgid "navigation.reviewAssignments"
+msgstr "My Assignments as Reviewer"
+
+msgid "navigation.mySubmissions"
+msgstr "My Submissions as Author"
+
 msgid "navigation.system"
 msgstr "System"
 
@@ -1811,7 +1875,7 @@ msgstr ""
 "<li>Click Protect Document</li>\n"
 "<li>Select Remove personal information for this file on save</li>\n"
 "<li>Click OK and save the file</li></ul></li>\n"
-"<li>PDF:\n"
+"<li>Adobe Acrobat (PDF):\n"
 "<ul><li>Go to File</li>\n"
 "<li>Select Properties</li>\n"
 "<li>Remove any name in the author field</li>\n"
@@ -1829,6 +1893,12 @@ msgstr "Response Due Date"
 
 msgid "reviewer.submission.reviewDueDate"
 msgstr "Review Due Date"
+
+msgid "reviewer.submission.acceptedOn"
+msgstr "Review Accepted On"
+
+msgid "reviewer.submission.submittedOn"
+msgstr "Review Submitted On"
 
 msgid "submission.task.responseDueDate"
 msgstr "Response Due Date"
@@ -1961,32 +2031,32 @@ msgstr "Statistics report summary."
 
 msgid "notification.type.editorialReport.contents"
 msgstr ""
-"This is a kind reminder for you to check your journal's health through the "
+"This is a kind reminder for you to check your publication's health through the "
 "editorial report."
 
 msgid "notification.type.editorialReminder"
 msgstr "Weekly email of outstanding tasks"
 
 msgid "semicolon"
-msgstr "{$label}:"
+msgstr "{$label}: "
 
 msgid "notification.editedNavigationMenuItem"
-msgstr "Navigation menu item was succesfully updated"
+msgstr "Navigation menu item was successfully updated"
 
 msgid "notification.removedNavigationMenuItem"
-msgstr "Navigation menu item was succesfully removed"
+msgstr "Navigation menu item was successfully removed"
 
 msgid "notification.addedNavigationMenuItem"
-msgstr "Navigation menu item was succesfully added"
+msgstr "Navigation menu item was successfully added"
 
 msgid "notification.addedNavigationMenu"
-msgstr "Navigation menu was succesfully added"
+msgstr "Navigation menu was successfully added"
 
 msgid "notification.editedNavigationMenu"
-msgstr "Navigation menu was succesfully updated"
+msgstr "Navigation menu was successfully updated"
 
 msgid "notification.removedNavigationMenu"
-msgstr "Navigation menu was succesfully removed"
+msgstr "Navigation menu was successfully removed"
 
 msgid "notification.unsubscribeNotifications.success"
 msgstr "You have been unsubscribed"
@@ -2019,6 +2089,12 @@ msgstr ""
 
 msgid "notification.unsubscribeNotifications"
 msgstr "Unsubscribe"
+
+msgid "showAll"
+msgstr "Show All"
+
+msgid "showLess"
+msgstr "Show Less"
 
 msgid "list.viewMore"
 msgstr "Show more details about {$name}"
@@ -2101,6 +2177,9 @@ msgstr "This is not a valid currency."
 
 msgid "validator.date"
 msgstr "This is not a valid date."
+
+msgid "validator.date.comparison"
+msgstr "Invalid dates provided for comparison."
 
 msgid "validator.date_format"
 msgstr "This does not match the format {$format}."
@@ -2250,6 +2329,9 @@ msgstr "No new line allowed."
 msgid "validator.allowable_title_html_tags"
 msgstr "Only [{$tags}] html tags are allowed."
 
+msgid "validator.multilingual"
+msgstr "Multilingual requirement does not fulfilled for this field."
+
 msgid "filter.input.error.notSupported"
 msgstr ""
 "Filter ({$displayName}) supports input {$inputTypeName} - {$typeofInput} "
@@ -2280,3 +2362,18 @@ msgstr "Author edited."
 
 msgid "common.sandbox"
 msgstr "Application running in sandbox mode."
+
+msgid "common.fromUntil"
+msgstr "{$from} &ndash; {$until}"
+
+msgid "common.numero"
+msgstr "No"
+
+msgid "common.refreshingData"
+msgstr "Refreshing data"
+
+msgid "common.viewMoreDetails"
+msgstr "View more details"
+
+msgid "common.openLinkNewTab"
+msgstr "Open link in a new tab."

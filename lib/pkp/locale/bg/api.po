@@ -1,7 +1,7 @@
-# Cyril Kamburov <cc@intermedia.bg>, 2021, 2022, 2023, 2024.
+# Cyril Kamburov <cc@intermedia.bg>, 2021, 2022, 2023, 2024, 2025.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2024-08-23 14:45+0000\n"
+"PO-Revision-Date: 2025-12-20 16:35+0000\n"
 "Last-Translator: Cyril Kamburov <cc@intermedia.bg>\n"
 "Language-Team: Bulgarian <http://translate.pkp.sfu.ca/projects/pkp-lib/api/"
 "bg/>\n"
@@ -66,8 +66,8 @@ msgstr "Типът публикация не беше разпознат."
 
 msgid "api.dois.404.contextNotFound"
 msgstr ""
-"Тази крайна точка не е налична от пространството от имена за целия сайт и "
-"трябва да бъде поискана за даден контекст."
+"Тази крайна точка не е достъпна от пространството на имената на целия сайт и "
+"трябва да бъде заявена за даден контекст."
 
 msgid "api.dois.404.doiNotFound"
 msgstr "DOI, който поискахте, не беше намерен."
@@ -377,3 +377,80 @@ msgstr "Маркираният обект, който поискахте, не �
 
 msgid "api.dois.403.editItemDoiCantBeAssigned"
 msgstr "DOI не може да бъде присвоен на този елемент."
+
+msgid "api.422.routeRequestUnableToProcess"
+msgstr "Не може да се обработи заявка за API."
+
+msgid "api.417.routeResponseIsNull"
+msgstr "Не може да се получи очакван отговор."
+
+msgid "api.emailLogs.400.unrecognisedAuthorEmailEventType"
+msgstr "Предоставихте невалиден „eventType“,{$eventType}, за имейли към автора."
+
+msgid "api.orcid.403.orcidNotEnabled"
+msgstr ""
+"Не можете да извършите тази операция с деактивирана ORCID функционалност."
+
+msgid "api.orcid.404.authorNotFound"
+msgstr "Заявеният автор не беше намерен"
+
+msgid "api.orcid.403.editWithoutPermission"
+msgstr ""
+"Не можете да правите промени в авторите на изпратени материали, към които не "
+"сте асоциирани."
+
+msgid "api.orcid.404.contextRequired"
+msgstr ""
+"Тази крайна точка не е достъпна от пространството на имената на целия сайт и "
+"трябва да бъде заявена за даден контекст."
+
+msgid "api.submission.403.cantChangeSubmissionLanguage"
+msgstr ""
+"Не можете да промените езика на тези подадени материали, защото вече има "
+"повече от една версия на публикация или публикуван материал."
+
+msgid "api.reviews.assignments.invalidSubmission"
+msgstr ""
+"Изпратените материали за това задание за рецензия не можа да бъде намерено."
+
+msgid "api.reviews.assignments.invalidReviewer"
+msgstr "Рецензентът на заданието не можа да бъде намерен"
+
+msgid "api.submission.400.missingQueryParam"
+msgstr ""
+"В заявката липсва задължителният параметър на заявката „ids“. Моля, "
+"предоставете „ids - идентификационните номера“ на изпращанията, които искате "
+"да изтриете."
+
+msgid "api.409.resourceActionConflict"
+msgstr "Не може да се изпълни предвиденото действие върху ресурса."
+
+msgid "api.400.invalidAuthorFriendlyParameter"
+msgstr "Невалиден параметър author-friendly."
+
+msgid "api.400.routeNotDefined"
+msgstr "Не беше предоставен API маршрут."
+
+msgid "api.review.assignments.invalidInvitationResponse"
+msgstr "Само 'accept' и 'decline' са валидни стойности"
+
+msgid "api.submission.400.sectionDoesNotExist"
+msgstr "Предоставеният раздел не съществува."
+
+msgid "api.submission.400.invalidId"
+msgstr "Невалиден идентификатор: предоставен е „{$id}“."
+
+msgid "api.publications.403.noEnabledIdentifiers"
+msgstr ""
+"Формулярът за идентификатори на публикации не е наличен, тъй като няма "
+"активирани идентификатори."
+
+msgid "api.rors.404.rorNotFound"
+msgstr "Ror, който поискахте, не беше намерен."
+
+msgid "api.orcid.403.cannotUpdateAuthorOrcid"
+msgstr ""
+"Присвояването на ORCiD ID на автор чрез крайните точки „Редактиране/Добавяне "
+"на автор“ не е разрешено. За да поискате от автор да актуализира своя ORCID "
+"ID, моля, използвайте крайната точка „orcid/requestAuthorVerification/"
+"{authorId}“."

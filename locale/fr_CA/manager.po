@@ -2,16 +2,16 @@
 # Marie-Hélène Vézina [UdeMontréal] <marie-helene.vezina@umontreal.ca>, 2022, 2023.
 # Pierre Lasou <pierre.lasou@bibl.ulaval.ca>, 2023.
 # Stefan Schneider <mail@stefan-schneider.at>, 2023.
-# Nicolas Dickner <dickner.nicolas@uqam.ca>, 2023.
+# Nicolas Dickner <dickner.nicolas@uqam.ca>, 2023, 2025.
 # "Marie-Hélène Vézina [UdeMontréal]" <marie-helene.vezina@umontreal.ca>, 2024.
+# Emma U <emmaupkp@gmail.com>, 2025.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-10-15T14:05:03-07:00\n"
-"PO-Revision-Date: 2024-04-27 05:12+0000\n"
-"Last-Translator: \"Marie-Hélène Vézina [UdeMontréal]\" <marie-helene."
-"vezina@umontreal.ca>\n"
+"PO-Revision-Date: 2025-11-11 17:23+0000\n"
+"Last-Translator: Nicolas Dickner <dickner.nicolas@uqam.ca>\n"
 "Language-Team: French (Canada) <http://translate.pkp.sfu.ca/projects/ojs/"
 "manager/fr_CA/>\n"
 "Language: fr_CA\n"
@@ -98,7 +98,7 @@ msgstr "Formulaires"
 msgid "manager.language.confirmDefaultSettingsOverwrite"
 msgstr ""
 "Ceci remplacera n'importe quel paramètre de langue spécifique à une revue "
-"que vous aviez pour cette langue."
+"que vous aviez pour cette langue"
 
 msgid "manager.languages.languageInstructions"
 msgstr ""
@@ -216,7 +216,7 @@ msgid "manager.payment.options.onlypdf"
 msgstr "Limiter l'accès uniquement aux articles et numéros en format PDF"
 
 msgid "manager.payment.options.publicationFee"
-msgstr "Frais de publication d'article"
+msgstr "Frais de publication d'article (APC)"
 
 msgid "manager.payment.options.purchaseArticleFee"
 msgstr "Acheter un article"
@@ -428,13 +428,7 @@ msgstr ""
 "limite)"
 
 msgid "manager.setup"
-msgstr "Configuration de la revue"
-
-msgid "manager.setup.masthead"
-msgstr "Bloc générique"
-
-msgid "manager.setup.editorialTeam"
-msgstr "Comité éditorial"
+msgstr "Paramètres de la revue"
 
 msgid "manager.setup.homepageContent"
 msgstr "Contenu de la page d'accueil de la revue"
@@ -827,15 +821,6 @@ msgstr ""
 msgid "manager.setup.contextTitle"
 msgstr "Titre de la revue"
 
-msgid "manager.setup.keyInfo"
-msgstr "Renseignements de base"
-
-msgid "manager.setup.keyInfo.description"
-msgstr ""
-"Fournir une brève description de votre revue et présenter les rédacteurs-"
-"trices, les directeurs-trices ainsi que les autres membres de votre équipe "
-"éditoriale."
-
 msgid "manager.setup.labelName"
 msgstr "Nom du libellé"
 
@@ -876,12 +861,6 @@ msgstr ""
 "bibliothèques participantes via une page <a href=\"{$lockssUrl}\" target="
 "\"_blank\">Publisher Manifest</a> LOCKSS."
 
-msgid "manager.setup.lockssLicenseDescription"
-msgstr ""
-"Une licence LOCKSS apparaîtra dans la section « À propos » de cette revue "
-"sous « Archiver » : <a href=\"http://www.lockss.org/community/publishers-"
-"titles-gln/\" target=\"_blank\">Licence LOCKSS</a>"
-
 msgid "manager.setup.lockssLicenseLabel"
 msgstr "Description de la licence LOCKSS"
 
@@ -901,12 +880,6 @@ msgstr ""
 "Activer CLOCKSS pour stocker et distribuer les contenus de la revue dans les "
 "bibliothèques participantes via une page CLOCKSS <a href=\"{$clockssUrl}\" "
 "target=\"_blank\">Publisher Manifest</a>."
-
-msgid "manager.setup.clockssLicenseDescription"
-msgstr ""
-"Une licence CLOCKSS apparaîtra dans la section « À propos » de cette revue "
-"sous « Archiver » : <a href=\"http://clockss.org/\" target=\"_blank"
-"\">Licence CLOCKSS</a>"
 
 msgid "manager.setup.clockssLicenseLabel"
 msgstr "Description de la licence CLOCKSS"
@@ -1083,7 +1056,7 @@ msgid "manager.setup.reviewOptions.reviewerAccess"
 msgstr "Accès pour l'évaluateur-trice"
 
 msgid "manager.setup.reviewOptions.reviewerAccessKeysEnabled"
-msgstr "Activer l'accès en un clic pour l'évaluateur-trice."
+msgstr "Activer l'accès en un clic pour l'évaluateur-trice"
 
 msgid "manager.setup.reviewOptions.reviewerAccessKeysEnabled.description"
 msgstr ""
@@ -1370,7 +1343,7 @@ msgid "manager.subscriptionPolicies.xWeeks"
 msgstr "{$x} semaines"
 
 msgid "manager.subscriptionPolicies.expiryReminderAfterMonths"
-msgstr "Signaler par courriel l'expiration de leur abonnement aux abonnés-es."
+msgstr "Signaler par courriel l'expiration de leur abonnement aux abonnés-es"
 
 msgid "manager.subscriptionPolicies.expiryReminderAfterWeeks"
 msgstr "Signaler par courriel l'expiration de leur abonnement aux abonnés-es."
@@ -2016,7 +1989,7 @@ msgstr "Réinitialiser les autorisations de l'article"
 msgid "manager.setup.resetPermissions.confirm"
 msgstr ""
 "Êtes-vous certain-e de vouloir réinitialiser les autorisations déjà "
-"rattachées à l'article ?"
+"rattachées à l'article ? Cette action ne pourra être annulée."
 
 msgid "manager.setup.resetPermissions.description"
 msgstr ""
@@ -2351,7 +2324,6 @@ msgstr "URL des directives de soumission"
 msgid "emailTemplate.variable.statisticsReportNotify.publicationStatsLink"
 msgstr "Lien vers la page des statistiques d'utilisation des articles publiés"
 
-#, fuzzy
 msgid "emailTemplate.variable.issueId"
 msgstr "Identifiant du numéro"
 
@@ -2603,11 +2575,9 @@ msgstr "Seuls les DOIs peuvent être édités une fois la publication publiée"
 msgid "api.issue.404.issuesNotFound"
 msgstr "Les numéros demandés n'ont pu être trouvés"
 
-#, fuzzy
 msgid "doi.manager.submissionDois"
-msgstr "DOIs d'article"
+msgstr "DOIs de l'article"
 
-#, fuzzy
 msgid "doi.manager.issueDois"
 msgstr "DOIs du numéro"
 
@@ -2620,7 +2590,6 @@ msgstr ""
 msgid "manager.institutions.noContext"
 msgstr "L'établissement de la revue n'a pu être trouvé."
 
-#, fuzzy
 msgid "mailable.subscriptionNotify.name"
 msgstr "Notification d'abonnement"
 
@@ -2646,7 +2615,6 @@ msgstr ""
 "Ce courriel avise un-e abonné-e que son abonnement est expiré. Il fournit "
 "l'adresse URL de la revue, ainsi que les instructions pour y accéder."
 
-#, fuzzy
 msgid "mailable.subscriptionExpiredLast.name"
 msgstr "Abonnement échu en dernier"
 
@@ -2691,7 +2659,6 @@ msgstr ""
 "institutionnel a été renouvelé en ligne. Il fournit des renseignements "
 "sommaires sur l'abonnement et le lien pour accéder à l'abonnement renouvelé."
 
-#, fuzzy
 msgid "mailable.openAccessNotify.name"
 msgstr "Notification de diffusion en libre accès"
 
@@ -2777,3 +2744,12 @@ msgid "plugins.importexport.common.error.issueCoverImageMissing"
 msgstr ""
 "L'image de couverture du numéro {$id} n'a pas été exportée du fait que les "
 "fichiers n'ont pu être trouvés dans \"{$path}\"."
+
+msgid "manager.setup.contextSummary.description"
+msgstr ""
+"Veuillez fournir une brève description de votre revue afin de présenter sa "
+"propositon et son contenu."
+
+msgid "emailTemplate.variable.issue.issueTableOfContents"
+msgstr ""
+"Table des matières du numéro, tel que la liste des soumissions associées."

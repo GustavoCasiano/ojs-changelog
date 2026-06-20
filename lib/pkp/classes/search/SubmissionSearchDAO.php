@@ -21,7 +21,7 @@ namespace PKP\search;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use PKP\core\PKPString;
+use Illuminate\Support\Str;
 
 class SubmissionSearchDAO extends \PKP\db\DAO
 {
@@ -83,7 +83,7 @@ class SubmissionSearchDAO extends \PKP\db\DAO
 
         // Discard long keywords
         $keywords = collect($keywords)
-            ->filter(fn (string $keyword) => PKPString::strlen($keyword) <= SubmissionSearchIndex::SEARCH_KEYWORD_MAX_LENGTH);
+            ->filter(fn (string $keyword) => Str::length($keyword) <= SubmissionSearchIndex::SEARCH_KEYWORD_MAX_LENGTH);
 
         // Quit if there's no keywords
         if (!$keywords->count()) {
@@ -163,6 +163,7 @@ class SubmissionSearchDAO extends \PKP\db\DAO
      * Retrieves a keyword => ID map for the given keywords
      *
      * @param Collection<int,string>
+     *
      * @return Collection<string,int>
      */
     private function getKeywordIdMap(Collection $keywords): Collection
@@ -179,8 +180,4 @@ class SubmissionSearchDAO extends \PKP\db\DAO
             ->leftJoin('submission_search_keyword_list AS sskl', 'sskl.keyword_text', '=', 'tmp.keyword')
             ->pluck('sskl.keyword_id', 'tmp.keyword');
     }
-}
-
-if (!PKP_STRICT_MODE) {
-    class_alias('\PKP\search\SubmissionSearchDAO', '\SubmissionSearchDAO');
 }

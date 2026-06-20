@@ -22,18 +22,17 @@ use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
 use Illuminate\Support\Facades\Mail;
+use PKP\plugins\Hook;
 use PKP\controllers\confirmationModal\linkAction\ViewReviewGuidelinesLinkAction;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\ReviewCompleteNotifyEditors;
-use PKP\notification\NotificationDAO;
+use PKP\notification\Notification;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
-use PKP\notification\PKPNotification;
-use PKP\plugins\Hook;
 use PKP\reviewForm\ReviewFormDAO;
 use PKP\reviewForm\ReviewFormElement;
 use PKP\reviewForm\ReviewFormElementDAO;
@@ -41,12 +40,10 @@ use PKP\reviewForm\ReviewFormResponse;
 use PKP\reviewForm\ReviewFormResponseDAO;
 use PKP\security\Role;
 use PKP\security\Validation;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\SubmissionComment;
 use PKP\submission\SubmissionCommentDAO;
-use PKP\log\SubmissionEmailLogEntry;
 
 class PKPReviewerReviewStep3Form extends ReviewerReviewForm
 {
@@ -167,46 +164,46 @@ class PKPReviewerReviewStep3Form extends ReviewerReviewForm
         // Set review to next step.
         $this->updateReviewStepAndSaveSubmission($this->getReviewAssignment());
 
-        // Mark the review assignment as completed.
-        $reviewAssignment->setDateCompleted(Core::getCurrentDate());
-        $reviewAssignment->stampModified();
-
-        // assign the recommendation to the review assignment, if there was one.
-        $reviewAssignment->setRecommendation((int) $this->getData('recommendation'));
-
         // Persist the updated review assignment.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, [
+            'dateCompleted' => Core::getCurrentDate(), // Mark the review assignment as completed.
+            'recommendation' => (int) $this->getData('recommendation'), // assign the recommendation to the review assignment, if there was one.
+        ]);
 
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getBySubmissionAndStageId($submission->getId(), $submission->getStageId());
+        // Need to refetch the updated review assignment after an edit
+        $reviewAssignment = Repo::reviewAssignment()->get($reviewAssignment->getId());
 
-        $receivedList = []; // Avoid sending twice to the same user.
+        // Retrieve stage assignments for managers and sub-editors
+        $stageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withStageIds([$submission->getData('stageId')])
+            ->whereHas('userGroup', function ($query) {
+                $query->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR]);
+            })
+            ->get();
 
-        /** @var NotificationSubscriptionSettingsDAO $notificationSubscriptionSettingsDao */
-        $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO');
-        while ($stageAssignment = $stageAssignments->next()) {
-            $userId = $stageAssignment->getUserId();
-            $userGroup = Repo::userGroup()->get($stageAssignment->getUserGroupId());
+        $receivedList = [];
+        // get the NotificationSubscriptionSettingsDAO
+        $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO'); /** @var NotificationSubscriptionSettingsDAO $notificationSubscriptionSettingsDao */
 
+        foreach ($stageAssignments as $stageAssignment) {
+            $userId = $stageAssignment->userId;
+            $userGroup = Repo::userGroup()->get($stageAssignment->userGroupId);
             // Never send reviewer comment notification to users other than managers and editors.
-            if (!in_array($userGroup->getRoleId(), [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR]) || in_array($userId, $receivedList)) {
+            if (!in_array($userGroup->roleId, [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR]) || in_array($userId, $receivedList)) {
                 continue;
             }
-
             // Notify editors
             $notification = $notificationMgr->createNotification(
-                Application::get()->getRequest(),
                 $userId,
-                PKPNotification::NOTIFICATION_TYPE_REVIEWER_COMMENT,
-                $submission->getContextId(),
+                Notification::NOTIFICATION_TYPE_REVIEWER_COMMENT,
+                $submission->getData('contextId'),
                 PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT,
                 $reviewAssignment->getId()
             );
 
             // Check if user is subscribed to this type of notification emails
             if (!$notification || in_array(
-                PKPNotification::NOTIFICATION_TYPE_REVIEWER_COMMENT,
+                Notification::NOTIFICATION_TYPE_REVIEWER_COMMENT,
                 $notificationSubscriptionSettingsDao->getNotificationSubscriptionSettings(
                     NotificationSubscriptionSettingsDAO::BLOCKED_EMAIL_NOTIFICATION_KEY,
                     $userId,
@@ -220,7 +217,6 @@ class PKPReviewerReviewStep3Form extends ReviewerReviewForm
             $mailable = new ReviewCompleteNotifyEditors($context, $submission, $reviewAssignment);
             $template = Repo::emailTemplate()->getByKey($context->getId(), ReviewCompleteNotifyEditors::getEmailTemplateKey());
 
-            // The template may not exist, see pkp/pkp-lib#9109
             if (!$template) {
                 $template = Repo::emailTemplate()->getByKey($context->getId(), 'NOTIFICATION');
                 $request = Application::get()->getRequest();
@@ -236,23 +232,19 @@ class PKPReviewerReviewStep3Form extends ReviewerReviewForm
                 ->recipients([$user])
                 ->subject($template->getLocalizedData('subject'))
                 ->body($template->getLocalizedData('body'))
-                ->allowUnsubscribe($notification);
+                ->allowUnsubscribe($notification); // include unsubscribe link
 
             Mail::send($mailable);
-            /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-            $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-            $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_COMPLETE, $mailable, $submission, $user);
+            Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_COMPLETE, $mailable, $submission, $user);
+
             $receivedList[] = $userId;
         }
 
         // Remove the task
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationDao->deleteByAssoc(
-            PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT,
-            $reviewAssignment->getId(),
-            $reviewAssignment->getReviewerId(),
-            PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT
-        );
+        Notification::withAssoc(PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT, $reviewAssignment->getId())
+            ->withUserId($reviewAssignment->getReviewerId())
+            ->withType(Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT)
+            ->delete();
 
         // Add log
         $reviewer = Repo::user()->get($reviewAssignment->getReviewerId(), true);
@@ -280,22 +272,16 @@ class PKPReviewerReviewStep3Form extends ReviewerReviewForm
     public function saveForLater()
     {
         $reviewAssignment = $this->getReviewAssignment();
-        $notificationMgr = new NotificationManager();
 
         // Save the answers to the review form
         $this->saveReviewForm($reviewAssignment);
 
-        // Mark the review assignment as modified.
-        $reviewAssignment->stampModified();
-
-        // save the recommendation to the review assignment
-        $reviewAssignment->setRecommendation((int) $this->getData('recommendation'));
-
         // Persist the updated review assignment.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, [
+            'recommendation' => (int) $this->getData('recommendation'), // save the recommendation to the review assignment
+        ]);
 
-        Hook::call(strtolower_codesafe(get_class($this)) . '::saveForLater', array($this));
+        Hook::call(strtolower(get_class($this)) . '::saveForLater', [$this]);
         return true;
     }
 

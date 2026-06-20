@@ -21,6 +21,7 @@ use PKP\core\traits\EntityWithParent;
 
 /**
  * @template T of Category
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO
@@ -87,15 +88,15 @@ class DAO extends EntityDAO
 
     /**
      * Get a collection of categories matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
-
-        return LazyCollection::make(function () use ($rows) {
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
             foreach ($rows as $row) {
                 yield $row->category_id => $this->fromRow($row);
             }
@@ -153,22 +154,4 @@ class DAO extends EntityDAO
         }
     }
 
-    /**
-     * Assign a publication to a category
-     */
-    public function insertPublicationAssignment(int $categoryId, int $publicationId)
-    {
-        DB::table('publication_categories')->insert([
-            'category_id' => $categoryId,
-            'publication_id' => $publicationId,
-        ]);
-    }
-
-    /**
-     * Delete the assignment of a category to a publication
-     */
-    public function deletePublicationAssignments(int $publicationId)
-    {
-        DB::table('publication_categories')->where('publication_id', '=', $publicationId)->delete();
-    }
 }

@@ -23,6 +23,7 @@ use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
+use Illuminate\Support\Str;
 use PKP\context\Context;
 use PKP\core\Dispatcher;
 use PKP\db\DAORegistry;
@@ -33,12 +34,11 @@ use PKP\security\authorization\DecisionWritePolicy;
 use PKP\security\authorization\internal\SubmissionRequiredPolicy;
 use PKP\security\authorization\UserRequiredPolicy;
 use PKP\security\Role;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\Genre;
 use PKP\submission\GenreDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
-use Stringy\Stringy;
 
 class DecisionHandler extends Handler
 {
@@ -95,33 +95,39 @@ class DecisionHandler extends Handler
 
         // Don't allow a decision unless the submission is at the correct stage
         if ($this->submission->getData('stageId') !== $this->decisionType->getStageId()) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         // Don't allow a decision in a review stage unless there is a valid review round
         if (in_array($this->decisionType->getStageId(), [WORKFLOW_STAGE_ID_INTERNAL_REVIEW, WORKFLOW_STAGE_ID_EXTERNAL_REVIEW])) {
             if (!$reviewRoundId) {
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
             $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
             $this->reviewRound = $reviewRoundDao->getById($reviewRoundId);
             if (!$this->reviewRound || $this->reviewRound->getSubmissionId() !== $this->submission->getId()) {
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
         }
 
         // For a retractable decision, don't allow if it can not be retracted
         if ($this->decisionType instanceof DecisionRetractable && !$this->decisionType->canRetract($this->submission, $reviewRoundId)) {
-            $request->getDispatcher()->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         // Don't allow a recommendation unless at least one deciding editor exists
         if (Repo::decision()->isRecommendation($this->decisionType->getDecision())) {
-            /** @var StageAssignmentDAO $stageAssignmentDao  */
-            $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-            $assignedEditorIds = $stageAssignmentDao->getDecidingEditorIds($this->submission->getId(), $this->decisionType->getStageId());
+            // Replaces StageAssignmentDAO::getDecidingEditorIds
+            $assignedEditorIds = StageAssignment::withSubmissionIds([$this->submission->getId()])
+                ->withStageIds([$this->decisionType->getStageId()])
+                ->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+                ->withRecommendOnly(false)
+                ->get()
+                ->pluck('user_id')
+                ->all();
+
             if (!$assignedEditorIds) {
-                $request->getDispatcher()->handle404();
+                throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
             }
         }
 
@@ -149,16 +155,17 @@ class DecisionHandler extends Handler
             'fileGenres' => $this->getFileGenres($context),
             'keepWorkingLabel' => __('common.keepWorking'),
             'reviewRoundId' => $this->reviewRound ? $this->reviewRound->getId() : null,
-            'stageId' => $this->submission->getStageId(),
+            'stageId' => $this->submission->getData('stageId'),
             'stepErrorMessage' => __('editor.decision.stepError'),
             'steps' => $steps->getState(),
             'submissionUrl' => $dispatcher->url(
                 $request,
                 Application::ROUTE_PAGE,
                 $context->getData('urlPath'),
-                'workflow',
-                'access',
-                [$this->submission->getId()]
+                'dashboard',
+                'editorial',
+                null,
+                ['workflowSubmissionId' => $this->submission->getId()]
             ),
             'submissionApiUrl' => $dispatcher->url(
                 $request,
@@ -170,10 +177,11 @@ class DecisionHandler extends Handler
                 $request,
                 Application::ROUTE_PAGE,
                 $context->getData('urlPath'),
-                'submissions',
+                'dashboard',
             ),
             'viewAllSubmissionsLabel' => __('submission.list.viewAllSubmissions'),
             'viewSubmissionLabel' => __('submission.list.viewSubmission'),
+            'viewSubmissionSummaryLabel' => __('submission.list.viewSubmissionSummary')
         ]);
 
         $templateMgr->assign([
@@ -200,7 +208,7 @@ class DecisionHandler extends Handler
     protected function getBreadcrumb(Submission $submission, Context $context, Request $request, Dispatcher $dispatcher)
     {
         $currentPublication = $submission->getCurrentPublication();
-        $submissionTitle = Stringy::create(
+        $submissionTitle = Str::of(
             join(
                 __('common.commaListSeparator'),
                 [
@@ -209,33 +217,31 @@ class DecisionHandler extends Handler
                 ]
             )
         );
-        if ($submissionTitle->length() > 50) {
-            $submissionTitle = $submissionTitle->safeTruncate(50)
-                ->append('...');
-        }
+        $submissionTitle = $submissionTitle->limit(50, '...');
 
         return [
             [
-                'id' => 'submissions',
-                'name' => __('navigation.submissions'),
+                'id' => 'dashboard',
+                'name' => __('navigation.dashboard'),
                 'url' => $dispatcher->url(
                     $request,
                     Application::ROUTE_PAGE,
                     $context->getData('urlPath'),
-                    'submissions'
+                    'dashboard'
                 ),
             ],
             [
                 'id' => 'submission',
-                'name' => $submissionTitle,
+                'name' => (string) $submissionTitle,
                 'format' => 'html',
                 'url' => $dispatcher->url(
                     $request,
                     Application::ROUTE_PAGE,
                     $context->getData('urlPath'),
-                    'workflow',
-                    'access',
-                    [$submission->getId()]
+                    'dashboard',
+                    'editorial',
+                    null,
+                    ['workflowSubmissionId' => $submission->getId()]
                 ),
             ],
             [

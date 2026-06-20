@@ -16,19 +16,18 @@
 namespace PKP\notification\managerDelegate;
 
 use APP\core\Application;
-use APP\notification\Notification;
 use PKP\announcement\Announcement;
 use PKP\core\PKPApplication;
-use PKP\emailTemplate\EmailTemplate;
+use PKP\core\PKPRequest;
 use PKP\facades\Repo;
+use PKP\notification\Notification;
 use PKP\notification\NotificationManagerDelegate;
-use PKP\notification\PKPNotification;
 use PKP\user\User;
 
 class AnnouncementNotificationManager extends NotificationManagerDelegate
 {
-    /** @var Announcement The announcement to send a notification about */
-    public $_announcement;
+    /** The announcement to send a notification about */
+    public Announcement $_announcement;
 
     /**
      * Initializes the class.
@@ -43,7 +42,7 @@ class AnnouncementNotificationManager extends NotificationManagerDelegate
     /**
      * @copydoc PKPNotificationOperationManager::getNotificationMessage()
      */
-    public function getNotificationMessage($request, $notification): string
+    public function getNotificationMessage(PKPRequest $request, Notification $notification): string|array|null
     {
         return __('emails.announcement.subject');
     }
@@ -51,15 +50,15 @@ class AnnouncementNotificationManager extends NotificationManagerDelegate
     /**
      * @copydoc PKPNotificationOperationManager::getNotificationMessage()
      */
-    public function getNotificationContents($request, $notification): EmailTemplate
+    public function getNotificationContents(PKPRequest $request, Notification $notification): mixed
     {
-        return Repo::emailTemplate()->getByKey($notification->getContextId(), 'ANNOUNCEMENT');
+        return Repo::emailTemplate()->getByKey($notification->contextId, 'ANNOUNCEMENT');
     }
 
     /**
      * @copydoc PKPNotificationOperationManager::getNotificationUrl()
      */
-    public function getNotificationUrl($request, $notification)
+    public function getNotificationUrl(PKPRequest $request, Notification $notification): ?string
     {
         return $request->getDispatcher()->url(
             $request,
@@ -67,7 +66,7 @@ class AnnouncementNotificationManager extends NotificationManagerDelegate
             $request->getContext()->getData('urlPath'),
             'announcement',
             'view',
-            $this->_announcement->getId()
+            $this->_announcement->getAttribute('announcementId')
         );
     }
 
@@ -92,19 +91,18 @@ class AnnouncementNotificationManager extends NotificationManagerDelegate
      *
      * @param User $user The user who will be notified
      *
-     * @return PKPNotification|null The notification instance or null if no notification created
+     * @return Notification|null The notification instance or null if no notification created
      */
-    public function notify(User $user): ?PKPNotification
+    public function notify(User $user): ?Notification
     {
         return parent::createNotification(
-            Application::get()->getRequest(),
             $user->getId(),
-            PKPNotification::NOTIFICATION_TYPE_NEW_ANNOUNCEMENT,
-            $this->_announcement->getAssocId(),
+            Notification::NOTIFICATION_TYPE_NEW_ANNOUNCEMENT,
+            $this->_announcement->getAttribute('assocId'),
             null,
             null,
             Notification::NOTIFICATION_LEVEL_NORMAL,
-            ['contents' => $this->_announcement->getLocalizedTitle()]
+            ['contents' => $this->_announcement->getLocalizedData('title')]
         );
     }
 }

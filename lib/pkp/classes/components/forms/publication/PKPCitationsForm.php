@@ -19,11 +19,10 @@ use APP\publication\Publication;
 use PKP\components\forms\FieldTextarea;
 use PKP\components\forms\FormComponent;
 
-define('FORM_CITATIONS', 'citations');
-
 class PKPCitationsForm extends FormComponent
 {
-    public $id = FORM_CITATIONS;
+    public const FORM_CITATIONS = 'citations';
+    public $id = self::FORM_CITATIONS;
     public $method = 'PUT';
     public bool $isRequired;
 
@@ -40,7 +39,7 @@ class PKPCitationsForm extends FormComponent
         $this->addField(new FieldTextarea('citationsRaw', [
             'label' => __('submission.citations'),
             'description' => __('submission.citations.description'),
-            'value' => $publication->getData('citationsRaw'),
+            'value' => (string) $publication->getData('citationsRaw'),
             'isRequired' => $isRequired
         ]));
     }

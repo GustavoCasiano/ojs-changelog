@@ -70,10 +70,12 @@ class RestrictedSiteAccessPolicy extends AuthorizationPolicy
     /**
      * Return the pages that can be accessed
      * even while in restricted site mode.
+     *
+     * @hook RestrictedSiteAccessPolicy::_getLoginExemptions [[[&$exemptions]]]
      */
     private function _getLoginExemptions(): array
     {
-        $exemptions = ['user', 'login', 'help', 'header', 'sidebar', 'payment'];
+        $exemptions = ['user', 'login', 'help', 'header', 'sidebar', 'payment', 'invitation'];
         Hook::call('RestrictedSiteAccessPolicy::_getLoginExemptions', [[&$exemptions]]);
         return $exemptions;
     }

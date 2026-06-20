@@ -22,15 +22,13 @@ use APP\submission\Submission;
 use PKP\context\Context;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
-use PKP\db\DAORegistry;
 use PKP\log\event\PKPSubmissionEventLogEntry;
 use PKP\mail\Mailable;
 use PKP\mail\mailables\ReviewerReinstate;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\Hook;
 use PKP\security\Validation;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\reviewRound\ReviewRound;
 
 class ReinstateReviewerForm extends ReviewerNotifyActionForm
@@ -59,6 +57,8 @@ class ReinstateReviewerForm extends ReviewerNotifyActionForm
      * @copydoc Form::execute()
      *
      * @return bool whether or not the review assignment was deleted successfully
+     *
+     * @hook EditorAction::reinstateReview [[&$submission, $reviewAssignment]]
      */
     public function execute(...$functionArgs)
     {
@@ -69,15 +69,16 @@ class ReinstateReviewerForm extends ReviewerNotifyActionForm
         $reviewAssignment = $this->getReviewAssignment();
 
         // Reinstate the review assignment.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
         if (isset($reviewAssignment) && $reviewAssignment->getSubmissionId() == $submission->getId() && !Hook::call('EditorAction::reinstateReview', [&$submission, $reviewAssignment])) {
             $reviewer = Repo::user()->get($reviewAssignment->getReviewerId());
             if (!isset($reviewer)) {
                 return false;
             }
 
-            $reviewAssignment->setCancelled(false);
-            $reviewAssignmentDao->updateObject($reviewAssignment);
+            Repo::reviewAssignment()->edit($reviewAssignment, [
+                'cancelled' => false,
+                'dateCancelled' => null,
+            ]);
 
             // Stamp the modification date
             $submission->stampModified();
@@ -86,7 +87,7 @@ class ReinstateReviewerForm extends ReviewerNotifyActionForm
             // Insert a trivial notification to indicate the reviewer was reinstated successfully.
             $currentUser = $request->getUser();
             $notificationMgr = new NotificationManager();
-            $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.reinstatedReviewer')]);
+            $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.reinstatedReviewer')]);
 
             // Add log
             $eventLog = Repo::eventLog()->newDataObject([

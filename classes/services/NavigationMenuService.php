@@ -34,8 +34,8 @@ class NavigationMenuService extends \PKP\services\PKPNavigationMenuService
      */
     public function __construct()
     {
-        Hook::add('NavigationMenus::itemTypes', [$this, 'getMenuItemTypesCallback']);
-        Hook::add('NavigationMenus::displaySettings', [$this, 'getDisplayStatusCallback']);
+        Hook::add('NavigationMenus::itemTypes', $this->getMenuItemTypesCallback(...));
+        Hook::add('NavigationMenus::displaySettings', $this->getDisplayStatusCallback(...));
     }
 
     /**
@@ -102,13 +102,13 @@ class NavigationMenuService extends \PKP\services\PKPNavigationMenuService
                 break;
             case self::NMI_TYPE_SUBSCRIPTIONS:
                 if ($context) {
-                    $paymentManager = Application::getPaymentManager($context);
+                    $paymentManager = Application::get()->getPaymentManager($context);
                     $navigationMenuItem->setIsDisplayed($context->getData('paymentsEnabled') && $paymentManager->isConfigured());
                 }
                 break;
             case self::NMI_TYPE_MY_SUBSCRIPTIONS:
                 if ($context) {
-                    $paymentManager = Application::getPaymentManager($context);
+                    $paymentManager = Application::get()->getPaymentManager($context);
                     $navigationMenuItem->setIsDisplayed(Validation::isLoggedIn() && $context->getData('paymentsEnabled') && $paymentManager->isConfigured() && $context->getData('publishingMode') == \APP\journal\Journal::PUBLISHING_MODE_SUBSCRIPTION);
                 }
                 break;

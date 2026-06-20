@@ -15,12 +15,10 @@
 namespace PKP\doi;
 
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use Exception;
 use Illuminate\Support\Facades\App;
 use PKP\context\Context;
-use PKP\core\PKPString;
 use PKP\doi\exceptions\DoiException;
 use PKP\jobs\doi\DepositSubmission;
 use PKP\plugins\Hook;
@@ -130,6 +128,9 @@ abstract class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Doi::suffixValidation [[&$validRegexPattern]]
+     * @hook Doi::validate [[&$errors, $object, $props]]
      */
     public function validate(?Doi $object, array $props): array
     {
@@ -153,7 +154,7 @@ abstract class Repository
         // The contextId must match an existing context
         $validator->after(function ($validator) use ($object, $props) {
             if (isset($props['contextId']) && !$validator->errors()->get('contextId')) {
-                if (!Services::get('context')->exists($props['contextId'])) {
+                if (!app()->get('context')->exists($props['contextId'])) {
                     $validator->errors()->add('contextId', __('api.contexts.404.contextNotFound'));
                 }
             }
@@ -173,7 +174,7 @@ abstract class Repository
 
                 Hook::call('Doi::suffixValidation', [&$validRegexPattern]);
 
-                $hasInvalidCharacters = PKPString::regexp_match($validRegexPattern, $doi);
+                $hasInvalidCharacters = preg_match($validRegexPattern, $doi);
                 if ($hasInvalidCharacters) {
                     $validator->errors()->add('doi', __('doi.editor.doiSuffixInvalidCharacters'));
                 }
@@ -250,6 +251,8 @@ abstract class Repository
      * Manually sets DOI status to Doi::STATUS_REGISTERED. This is used in cases where the
      * DOI registration process has been complete elsewhere and needs to be recorded as
      * registered locally.
+     *
+     * @hook Doi::markRegistered [[&$editParams]]
      */
     public function markRegistered(int $doiId)
     {

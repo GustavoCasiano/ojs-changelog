@@ -130,11 +130,8 @@ abstract class SubscriptionDAO extends \PKP\db\DAO
 
     /**
      * Delete subscription by subscription ID.
-     *
-     * @param int $subscriptionId Subscription ID
-     * @param int $journalId Journal ID
      */
-    abstract public function deleteById($subscriptionId, $journalId);
+    abstract public function deleteById(int $subscriptionId, ?int $journalId): int;
 
     /**
      * Delete subscriptions by journal ID.
@@ -265,6 +262,8 @@ abstract class SubscriptionDAO extends \PKP\db\DAO
      * Generator function to create object.
      *
      * @return Subscription
+     *
+     * @hook SubscriptionDAO::_fromRow [[&$subscription, &$row]]
      */
     abstract public function newDataObject();
 
@@ -274,6 +273,8 @@ abstract class SubscriptionDAO extends \PKP\db\DAO
      * @param array $row
      *
      * @return Subscription
+     *
+     * @hook SubscriptionDAO::_fromRow [[&$subscription, &$row]]
      */
     public function _fromRow($row)
     {

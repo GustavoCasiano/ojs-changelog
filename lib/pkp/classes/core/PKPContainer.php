@@ -3,19 +3,18 @@
 /**
  * @file classes/core/PKPContainer.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class PKPContainer
- *
- * @ingroup core
  *
  * @brief Bootstraps Laravel services, application-level parts and creates bindings
  */
 
 namespace PKP\core;
 
+use APP\core\Application;
 use APP\core\AppServiceProvider;
 use Exception;
 use Illuminate\Config\Repository;
@@ -24,9 +23,11 @@ use Illuminate\Contracts\Console\Kernel as KernelContract;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Events\EventServiceProvider as LaravelEventServiceProvider;
 use Illuminate\Foundation\Console\Kernel;
+use Illuminate\Http\Response;
 use Illuminate\Log\LogServiceProvider;
 use Illuminate\Queue\Failed\DatabaseFailedJobProvider;
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Str;
 use PKP\config\Config;
 use PKP\i18n\LocaleServiceProvider;
 use PKP\proxy\ProxyParser;
@@ -40,14 +41,12 @@ class PKPContainer extends Container
     private bool $isRunningUnitTest = false;
 
     /**
-     * @var string
-     *
-     * @brief the base path of the application, needed for base_path helper
+     * The base path of the application, needed for base_path helper
      */
-    protected $basePath;
+    protected string $basePath;
 
     /**
-     * @brief Create own container instance, initialize bindings
+     * Create own container instance, initialize bindings
      */
     public function __construct()
     {
@@ -58,10 +57,27 @@ class PKPContainer extends Container
     }
 
     /**
-     * @brief Bind the current container and set it globally
+     * Get the proper database driver
+     */
+    public static function getDatabaseDriverName(?string $driver = null): string
+    {
+        $driver ??= Config::getVar('database', 'driver');
+
+        if (substr(strtolower($driver), 0, 8) === 'postgres') {
+            return 'pgsql';
+        }
+
+        return match ($driver) {
+            'mysql', 'mysqli' => 'mysql',
+            'mariadb' => 'mariadb'
+        };
+    }
+
+    /**
+     * Bind the current container and set it globally
      * let helpers, facades and services know to which container refer to
      */
-    protected function registerBaseBindings()
+    protected function registerBaseBindings(): void
     {
         static::setInstance($this);
         $this->instance('app', $this);
@@ -69,57 +85,95 @@ class PKPContainer extends Container
         $this->instance('path', $this->basePath);
         $this->singleton(ExceptionHandler::class, function () {
             return new class () implements ExceptionHandler {
-                public function shouldReport(Throwable $e)
+                public function shouldReport(Throwable $exception)
                 {
                     return true;
                 }
 
-                public function report(Throwable $e)
+                public function report(Throwable $exception)
                 {
-                    error_log((string) $e->getTraceAsString());
+                    error_log($exception->__toString());
                 }
 
-                public function render($request, Throwable $e)
+                public function render($request, Throwable $exception)
                 {
+                    $pkpRouter = Application::get()->getRequest()->getRouter();
+
+                    if ($pkpRouter instanceof APIRouter && app('router')->getRoutes()->count()) {
+                        if ($exception instanceof \Illuminate\Validation\ValidationException) {
+                            return response()
+                                ->json($exception->errors(), $exception->status);
+                        }
+
+                        return response()->json(
+                            [
+                                'error' => $exception->getMessage()
+                            ],
+                            in_array($exception->getCode(), array_keys(Response::$statusTexts))
+                                ? $exception->getCode()
+                                : Response::HTTP_INTERNAL_SERVER_ERROR
+                        );
+                    }
+
                     return null;
                 }
 
-                public function renderForConsole($output, Throwable $e)
+                public function renderForConsole($output, Throwable $exception)
                 {
-                    echo (string) $e;
+                    echo (string) $exception;
                 }
             };
         });
+
         $this->singleton(
             KernelContract::class,
             Kernel::class
         );
 
-        $this->singleton('pkpJobQueue', function ($app) {
-            return new PKPQueueProvider($app);
-        });
+        $this->singleton('pkpJobQueue', fn ($app) => new PKPQueueProvider($app));
 
         $this->singleton(
             'queue.failer',
-            function ($app) {
-                return new DatabaseFailedJobProvider(
-                    $app['db'],
-                    config('queue.failed.database'),
-                    config('queue.failed.table')
-                );
-            }
+            fn ($app) => new DatabaseFailedJobProvider(
+                $app['db'],
+                config('queue.failed.database'),
+                config('queue.failed.table')
+            )
+        );
+
+        $this->app->singleton('request', fn ($app) => \Illuminate\Http\Request::createFromGlobals());
+
+        $this->app->singleton(\Illuminate\Http\Request::class, fn ($app) => $app->get('request'));
+
+        $this->app->singleton(
+            'response',
+            fn ($app) => new \Illuminate\Http\Response(headers: $app->get('request')->headers->all())
+        );
+
+        $this->app->singleton(\Illuminate\Http\Response::class, fn ($app) => $app->get('response'));
+
+        $this->singleton(
+            'jobRunner',
+            fn ($app) => \PKP\queue\JobRunner::getInstance($app['pkpJobQueue'])
         );
 
         Facade::setFacadeApplication($this);
     }
 
     /**
-     * @brief Register used service providers within the container
+     * Register used service providers within the container
      */
-    public function registerConfiguredProviders()
+    public function registerConfiguredProviders(): void
     {
         // Load main settings, this should be done before registering services, e.g., it's used by Database Service
         $this->loadConfiguration();
+
+        $this->register(new AppServiceProvider($this));
+        $this->register(new \PKP\core\PKPEncryptionServiceProvider($this));
+        $this->register(new \PKP\core\PKPAuthServiceProvider($this));
+        $this->register(new \Illuminate\Cookie\CookieServiceProvider($this));
+        $this->register(new \PKP\core\PKPSessionServiceProvider($this));
+        $this->register(new \Illuminate\Pipeline\PipelineServiceProvider($this));
         $this->register(new \Illuminate\Cache\CacheServiceProvider($this));
         $this->register(new \Illuminate\Filesystem\FilesystemServiceProvider($this));
         $this->register(new \ElcoBvg\Opcache\ServiceProvider($this));
@@ -130,19 +184,24 @@ class PKPContainer extends Container
         $this->register(new \Illuminate\Bus\BusServiceProvider($this));
         $this->register(new PKPQueueProvider($this));
         $this->register(new MailServiceProvider($this));
-        $this->register(new AppServiceProvider($this));
         $this->register(new LocaleServiceProvider($this));
+        $this->register(new PKPRoutingProvider($this));
+        $this->register(new InvitationServiceProvider($this));
+        $this->register(new ScheduleServiceProvider($this));
+        $this->register(new ConsoleCommandServiceProvider($this));
+        $this->register(new \PKP\core\ValidationServiceProvider($this));
+        $this->register(new \Illuminate\Foundation\Providers\FormRequestServiceProvider($this));
     }
 
     /**
-     * @param \Illuminate\Support\ServiceProvider $provider
-     *
-     * @brief Simplified service registration
+     * Simplified service registration
      */
-    public function register($provider)
+    public function register(\Illuminate\Support\ServiceProvider $provider): void
     {
         $provider->register();
+
         $provider->callBootingCallbacks();
+
         if (method_exists($provider, 'boot')) {
             $this->call([$provider, 'boot']);
         }
@@ -166,33 +225,118 @@ class PKPContainer extends Container
         }
 
         $provider->callBootedCallbacks();
-
-        $this->app->bind('request', fn () => PKPApplication::get()->getRequest());
     }
 
     /**
-     * @brief Bind aliases with contracts
+     * Bind aliases with contracts
      */
-    public function registerCoreContainerAliases()
+    public function registerCoreContainerAliases(): void
     {
         foreach ([
-            'app' => [self::class, \Illuminate\Contracts\Container\Container::class, \Psr\Container\ContainerInterface::class],
-            'config' => [\Illuminate\Config\Repository::class, \Illuminate\Contracts\Config\Repository::class],
-            'cache' => [\Illuminate\Cache\CacheManager::class, \Illuminate\Contracts\Cache\Factory::class],
-            'cache.store' => [\Illuminate\Cache\Repository::class, \Illuminate\Contracts\Cache\Repository::class, \Psr\SimpleCache\CacheInterface::class],
-            'cache.psr6' => [\Psr\Cache\CacheItemPoolInterface::class],
-            'db' => [\Illuminate\Database\DatabaseManager::class, \Illuminate\Database\ConnectionResolverInterface::class],
-            'db.connection' => [\Illuminate\Database\Connection::class, \Illuminate\Database\ConnectionInterface::class],
-            'files' => [\Illuminate\Filesystem\Filesystem::class],
-            'filesystem' => [\Illuminate\Filesystem\FilesystemManager::class, \Illuminate\Contracts\Filesystem\Factory::class],
-            'filesystem.disk' => [\Illuminate\Contracts\Filesystem\Filesystem::class],
-            'filesystem.cloud' => [\Illuminate\Contracts\Filesystem\Cloud::class],
-            'maps' => [MapContainer::class, MapContainer::class],
-            'events' => [\Illuminate\Events\Dispatcher::class, \Illuminate\Contracts\Events\Dispatcher::class],
-            'queue' => [\Illuminate\Queue\QueueManager::class, \Illuminate\Contracts\Queue\Factory::class, \Illuminate\Contracts\Queue\Monitor::class],
-            'queue.connection' => [\Illuminate\Contracts\Queue\Queue::class],
-            'queue.failer' => [\Illuminate\Queue\Failed\FailedJobProviderInterface::class],
-            'log' => [\Illuminate\Log\LogManager::class, \Psr\Log\LoggerInterface::class],
+            'auth' => [
+                \Illuminate\Auth\AuthManager::class,
+                \Illuminate\Contracts\Auth\Factory::class
+            ],
+            'auth.driver' => [
+                \Illuminate\Contracts\Auth\Guard::class
+            ],
+            'cookie' => [
+                \Illuminate\Cookie\CookieJar::class,
+                \Illuminate\Contracts\Cookie\Factory::class,
+                \Illuminate\Contracts\Cookie\QueueingFactory::class
+            ],
+            'app' => [
+                self::class,
+                \Illuminate\Contracts\Container\Container::class,
+                \Psr\Container\ContainerInterface::class
+            ],
+            'config' => [
+                \Illuminate\Config\Repository::class,
+                \Illuminate\Contracts\Config\Repository::class
+            ],
+            'cache' => [
+                \Illuminate\Cache\CacheManager::class,
+                \Illuminate\Contracts\Cache\Factory::class
+            ],
+            'cache.store' => [
+                \Illuminate\Cache\Repository::class,
+                \Illuminate\Contracts\Cache\Repository::class,
+                \Psr\SimpleCache\CacheInterface::class
+            ],
+            'db' => [
+                \Illuminate\Database\DatabaseManager::class,
+                \Illuminate\Database\ConnectionResolverInterface::class
+            ],
+            'db.connection' => [
+                \Illuminate\Database\Connection::class,
+                \Illuminate\Database\ConnectionInterface::class
+            ],
+            'db.factory' => [
+                \Illuminate\Database\Connectors\ConnectionFactory::class,
+            ],
+            'files' => [
+                \Illuminate\Filesystem\Filesystem::class
+            ],
+            'filesystem' => [
+                \Illuminate\Filesystem\FilesystemManager::class,
+                \Illuminate\Contracts\Filesystem\Factory::class
+            ],
+            'filesystem.disk' => [
+                \Illuminate\Contracts\Filesystem\Filesystem::class
+            ],
+            'filesystem.cloud' => [
+                \Illuminate\Contracts\Filesystem\Cloud::class
+            ],
+            'maps' => [
+                MapContainer::class,
+                MapContainer::class
+            ],
+            'events' => [
+                \Illuminate\Events\Dispatcher::class,
+                \Illuminate\Contracts\Events\Dispatcher::class
+            ],
+            'queue' => [
+                \Illuminate\Queue\QueueManager::class,
+                \Illuminate\Contracts\Queue\Factory::class,
+                \Illuminate\Contracts\Queue\Monitor::class
+            ],
+            'queue.connection' => [
+                \Illuminate\Contracts\Queue\Queue::class
+            ],
+            'queue.failer' => [
+                \Illuminate\Queue\Failed\FailedJobProviderInterface::class
+            ],
+            'log' => [
+                \Illuminate\Log\LogManager::class,
+                \Psr\Log\LoggerInterface::class
+            ],
+            'router' => [
+                \Illuminate\Routing\Router::class,
+                \Illuminate\Contracts\Routing\Registrar::class,
+                \Illuminate\Contracts\Routing\BindingRegistrar::class
+            ],
+            'url' => [
+                \Illuminate\Routing\UrlGenerator::class,
+                \Illuminate\Contracts\Routing\UrlGenerator::class
+            ],
+            'validator' => [
+                \Illuminate\Validation\Factory::class,
+                \Illuminate\Contracts\Validation\Factory::class
+            ],
+            'Request' => [
+                \Illuminate\Support\Facades\Request::class
+            ],
+            'Response' => [
+                \Illuminate\Support\Facades\Response::class
+            ],
+            'Route' => [
+                \Illuminate\Support\Facades\Route::class
+            ],
+            'encrypter' => [
+                \Illuminate\Encryption\Encrypter::class,
+                \Illuminate\Contracts\Encryption\Encrypter::class,
+                \Illuminate\Contracts\Encryption\StringEncrypter::class,
+            ],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);
@@ -201,20 +345,24 @@ class PKPContainer extends Container
     }
 
     /**
-     * @brief Bind and load container configurations
+     * Bind and load container configurations
      * usage from Facade, see Illuminate\Support\Facades\Config
      */
-    protected function loadConfiguration()
+    protected function loadConfiguration(): void
     {
         $items = [];
+        $_request = Application::get()->getRequest();
+
+        // App
+        $items['app'] = [
+            'key' => PKPAppKey::getKey(),
+            'cipher' => PKPAppKey::getCipher(),
+            'timezone' => Config::getVar('general', 'timezone', 'UTC'),
+            'env' => Config::getVar('general', 'app_env', 'production'),
+        ];
 
         // Database connection
-        $driver = 'mysql';
-
-        if (substr(strtolower(Config::getVar('database', 'driver')), 0, 8) === 'postgres') {
-            $driver = 'pgsql';
-        }
-
+        $driver = static::getDatabaseDriverName();
         $items['database']['default'] = $driver;
         $items['database']['connections'][$driver] = [
             'driver' => $driver,
@@ -227,6 +375,42 @@ class PKPContainer extends Container
             'charset' => Config::getVar('i18n', 'connection_charset', 'utf8'),
             'collation' => Config::getVar('database', 'collation', 'utf8_general_ci'),
         ];
+
+        // Auth
+        $items['auth'] = [
+            'defaults' => [
+                'guard' => 'web',
+            ],
+            'guards' => [
+                'web' => [
+                    'driver' => 'session',
+                    'provider' => 'users',
+                ],
+            ],
+            'providers' => [
+                'users' => [
+                    'driver' => PKPUserProvider::AUTH_PROVIDER,
+                ],
+            ],
+        ];
+
+        // Session manager
+        $items['session'] = [
+            'driver' => 'database',
+            'table' => 'sessions',
+            'cookie' => Config::getVar('general', 'session_cookie_name'),
+            'path' => Config::getVar('general', 'session_cookie_path', $_request->getBasePath() . '/'),
+            'domain' => $_request->getServerHost(false, false) ?: 'localhost', // FIXME: Do not store default early in bootstrap
+            'secure' => Config::getVar('security', 'force_ssl', false),
+            'lifetime' => Config::getVar('general', 'session_lifetime', 30) * 24 * 60, // lifetime need to set in minutes
+            'lottery' => [2, 100],
+            'expire_on_close' => false,
+            'same_site' => Config::getVar('general', 'session_samesite', 'lax'),
+            'partitioned' => false,
+            'encrypt' => false,
+            'cookie_encryption' => Config::getVar('security', 'cookie_encryption'),
+        ];
+
 
         // Queue connection
         $items['queue']['default'] = 'database';
@@ -276,11 +460,15 @@ class PKPContainer extends Container
 
         // Cache configuration
         $items['cache'] = [
-            'default' => 'opcache',
+            'default' => Config::getVar('cache', 'default', 'file'),
             'stores' => [
                 'opcache' => [
                     'driver' => 'opcache',
-                    'path' => Core::getBaseDir() . '/cache/opcache'
+                    'path' => Config::getVar('cache', 'path', Core::getBaseDir() . '/cache/opcache')
+                ],
+                'file' => [
+                    'driver' => 'file',
+                    'path' => Config::getVar('cache', 'path', Core::getBaseDir() . '/cache/opcache')
                 ]
             ]
         ];
@@ -290,21 +478,17 @@ class PKPContainer extends Container
     }
 
     /**
-     * @param string $path appended to the base path
-     *
-     * @brief see Illuminate\Foundation\Application::basePath
+     * @see Illuminate\Foundation\Application::basePath
      */
-    public function basePath($path = '')
+    public function basePath(string $path = ''): string
     {
         return $this->basePath . ($path ? "/{$path}" : $path);
     }
 
     /**
-     * @param string $path appended to the path
-     *
-     * @brief alias of basePath(), Laravel app path differs from installation path
+     * Alias of basePath(), Laravel app path differs from installation path
      */
-    public function path($path = '')
+    public function path(string $path = ''): string
     {
         return $this->basePath($path);
     }
@@ -321,7 +505,7 @@ class PKPContainer extends Container
             : Config::getVar('email', 'default');
 
         if (!$default) {
-            throw new Exception('Mailer driver isn\'t specified in the application\'s config');
+            throw new Exception('The mailer driver isn\'t specified in the config.inc.php configuration file. See the "default" setting in the [email] configuration. Configuration details are available in the config.TEMPLATE.inc.php template.');
         }
 
         return $default;
@@ -371,9 +555,52 @@ class PKPContainer extends Container
     }
 
     /**
+     * Determine if the application is currently down for maintenance.
+     */
+    public function isDownForMaintenance(): bool
+    {
+        return Application::isUnderMaintenance();
+    }
+
+    /**
+     * Determine if the application is running in the console.
+     */
+    public function runningInConsole(?string $scriptPath = null): bool
+    {
+        if (strtolower(php_sapi_name() ?: '') === 'cli') {
+            return true;
+        }
+
+        if (!$scriptPath) {
+            return false;
+        }
+
+        if (mb_stripos($_SERVER['SCRIPT_NAME'] ?? '', $scriptPath) !== false) {
+            return true;
+        }
+
+        if (mb_stripos($_SERVER['SCRIPT_FILENAME'] ?? '', $scriptPath) !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Get or check the current application environment.
+     */
+    public function environment(string ...$environments): string|bool
+    {
+        if (count($environments) > 0) {
+            return Str::is($environments, $this->get('config')['app']['env']);
+        }
+
+        return $this->get('config')['app']['env'];
+    }
+
+    /**
      * Override Laravel method; always false.
      * Prevents the undefined method error when the Log Manager tries to determine the driver
-     *
      */
     public function runningUnitTests(): bool
     {
@@ -397,13 +624,53 @@ class PKPContainer extends Container
     }
 
     /**
-     * Determine if the application is currently down for maintenance.
+     * Flush the output buffer to ensure all output is sent to the client before any background
+     * task processing (e.g. job processing, schedule task running) to avoid any potential output
+     * buffering issues which may cause client page load time and performance degradation.
      *
-     * @return bool
+     * This should be called before the background tasks starts to process and only when there are
+     * background tasks available to process.
      */
-    public function isDownForMaintenance()
+    public function flushOutputBuffer(): void
     {
-        return PKPApplication::isUnderMaintenance();
+        // Disable flushing output buffer for unit tests as PHPUnit is quite sensitive to output buffer
+        // manipulation during tests. The root cause is The PHPUnit configuration has
+        // `beStrictAboutOutputDuringTests="true"` which makes PHPUnit very sensitive to any output
+        // buffer manipulation during tests and mark it as risky.
+        if ($this->runningUnitTests()) {
+            return;
+        }
+
+        // Force flush and close connection for non-blocking behavior
+        // and set headers to close connection and specify content length (if buffer exists)
+        if (!headers_sent()) {
+            header('Connection: close');
+            header('Content-Encoding: none');
+            if (ob_get_length() > 0) {
+                header('Content-Length: ' . ob_get_length());
+            }
+        }
+
+        // Flush output buffer and send response and allow script to continue if client disconnects.
+        // Flush and end ALL output buffer levels (if started) and also the system buffer.
+        ignore_user_abort(true);
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        flush();
+
+        // For PHP-FPM (Nginx/Apache with FPM): Explicitly finish FastCGI request
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
+    }
+
+    /**
+     * Determine if the application is in the production environment.
+     */
+    public function isProduction(): bool
+    {
+        return Config::getVar('general', 'app_env', 'production') === 'production';
     }
 }
 

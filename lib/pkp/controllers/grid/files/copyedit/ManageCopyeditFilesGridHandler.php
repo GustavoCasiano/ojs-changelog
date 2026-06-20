@@ -24,7 +24,7 @@ use PKP\controllers\grid\files\SelectableSubmissionFileListCategoryGridHandler;
 use PKP\controllers\grid\files\SubmissionFilesCategoryGridDataProvider;
 use PKP\core\JSONMessage;
 use PKP\core\PKPRequest;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\Role;
 use PKP\submissionFile\SubmissionFile;
 
@@ -85,14 +85,14 @@ class ManageCopyeditFilesGridHandler extends SelectableSubmissionFileListCategor
                 $this->getGridCategoryDataElements($request, $this->getStageId())
             );
 
-            if ($submission->getStageId() == WORKFLOW_STAGE_ID_EDITING ||
-                $submission->getStageId() == WORKFLOW_STAGE_ID_PRODUCTION) {
+            if ($submission->getData('stageId') == WORKFLOW_STAGE_ID_EDITING ||
+                $submission->getData('stageId') == WORKFLOW_STAGE_ID_PRODUCTION) {
                 $notificationMgr = new NotificationManager();
                 $notificationMgr->updateNotification(
                     $request,
                     [
-                        PKPNotification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
-                        PKPNotification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
+                        Notification::NOTIFICATION_TYPE_ASSIGN_COPYEDITOR,
+                        Notification::NOTIFICATION_TYPE_AWAITING_COPYEDITS,
                     ],
                     null,
                     Application::ASSOC_TYPE_SUBMISSION,

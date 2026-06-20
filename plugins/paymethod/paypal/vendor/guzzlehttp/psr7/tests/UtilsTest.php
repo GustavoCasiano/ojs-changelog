@@ -77,7 +77,7 @@ class UtilsTest extends TestCase
     public function testCopyToStreamReadsInChunksInsteadOfAllInMemory(): void
     {
         $sizes = [];
-        $s1 = new Psr7\FnStream([
+        $s1 = new FnStream([
             'eof' => function () {
                 return false;
             },
@@ -152,6 +152,15 @@ class UtilsTest extends TestCase
             ->method('eof')
             ->willReturn(false);
         self::assertSame('h', Psr7\Utils::readLine($s));
+    }
+
+    public function testRedactUserInfo(): void
+    {
+        $uri = new Psr7\Uri('http://my_user:secretPass@localhost/');
+
+        $redactedUri = Psr7\Utils::redactUserInfo($uri);
+
+        self::assertSame('http://my_user:***@localhost/', (string) $redactedUri);
     }
 
     public function testCalculatesHash(): void

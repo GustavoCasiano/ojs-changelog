@@ -1,5 +1,5 @@
 {**
- * templates/submission/review-files-step.tpl
+ * templates/submission/review-files.tpl
  *
  * Copyright (c) 2014-2022 Simon Fraser University
  * Copyright (c) 2003-2022 John Willinsky
@@ -32,7 +32,7 @@
             type="warning"
             class="submissionWizard__reviewEmptyWarning"
         >
-            <icon icon="exclamation-triangle" :inline="true"></icon>
+            <icon icon="Error" class="h-5 w-5" :inline="true"></icon>
             {{ error }}
         </notification>
         <ul class="submissionWizard__reviewPanel__list">
@@ -41,7 +41,7 @@
                 :key="file.id"
                 class="submissionWizard__reviewPanel__item__value"
             >
-                <a :href="file.url" class="submissionWizard__reviewPanel__fileLink">
+                <a :href="file.url" class="submissionWizard__reviewPanel__fileLink min-w-0">
                     <file
                         :document-type="file.documentType"
                         :name="localize(file.name)"

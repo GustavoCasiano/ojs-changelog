@@ -16,24 +16,21 @@
 
 namespace PKP\jobs\email;
 
-use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
+use PKP\security\Role;
 use PKP\context\Context;
 use PKP\db\DAORegistry;
 use PKP\facades\Locale;
 use PKP\jobs\BaseJob;
 use PKP\mail\mailables\EditorialReminder as MailablesEditorialReminder;
+use PKP\notification\Notification;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
-use PKP\notification\PKPNotification;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
-use PKP\security\Role;
 use PKP\user\User;
 use PKP\workflow\WorkflowStageDAO;
 
@@ -56,7 +53,7 @@ class EditorialReminder extends BaseJob
     public function handle(): void
     {
         /** @var Context $context */
-        $context = Services::get('context')->get($this->contextId);
+        $context = app()->get('context')->get($this->contextId);
         $editor = Repo::user()->get($this->editorId);
 
         // Context or user was removed since job was created, or the user was disabled
@@ -100,7 +97,8 @@ class EditorialReminder extends BaseJob
             }
 
             if (in_array($submission->getData('stageId'), [WORKFLOW_STAGE_ID_INTERNAL_REVIEW, WORKFLOW_STAGE_ID_EXTERNAL_REVIEW])) {
-                $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
+                /** @var ReviewRoundDAO $reviewRoundDao */
+                $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO');
                 $reviewRound = $reviewRoundDao->getLastReviewRoundBySubmissionId($submission->getId(), $submission->getData('stageId'));
                 $status = $reviewRound->determineStatus();
 
@@ -162,9 +160,8 @@ class EditorialReminder extends BaseJob
 
         $notificationManager = new NotificationManager();
         $notification = $notificationManager->createNotification(
-            Application::get()->getRequest(),
             $this->editorId,
-            PKPNotification::NOTIFICATION_TYPE_EDITORIAL_REMINDER,
+            Notification::NOTIFICATION_TYPE_EDITORIAL_REMINDER,
             $this->contextId
         );
 
@@ -186,12 +183,25 @@ class EditorialReminder extends BaseJob
     }
 
     /**
-     * Is this editor subscribed to this email notification type?
+     * Is this editor subscribed to this notification type?
      */
     protected function isSubscribed(): bool
     {
         /** @var NotificationSubscriptionSettingsDAO $notificationSubscriptionSettingsDao  */
         $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO');
+
+        // Check if the editor/user has blocked this notification type itself
+        // If so, email notification should not be sent anyway
+        $blockedNotifications = $notificationSubscriptionSettingsDao->getNotificationSubscriptionSettings(
+            NotificationSubscriptionSettingsDAO::BLOCKED_NOTIFICATION_KEY,
+            $this->editorId,
+            $this->contextId
+        );
+        if (in_array(Notification::NOTIFICATION_TYPE_EDITORIAL_REMINDER, $blockedNotifications)) {
+            return false;
+        }
+
+        // Check if the editor/user has blocked ONLY the email notification for this notification type
         $blockedEmails = $notificationSubscriptionSettingsDao->getNotificationSubscriptionSettings(
             NotificationSubscriptionSettingsDAO::BLOCKED_EMAIL_NOTIFICATION_KEY,
             $this->editorId,

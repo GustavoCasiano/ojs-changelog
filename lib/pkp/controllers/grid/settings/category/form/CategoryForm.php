@@ -3,8 +3,8 @@
 /**
  * @file lib/pkp/controllers/grid/settings/category/form/CategoryForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class CategoryForm
@@ -26,6 +26,8 @@ use PKP\file\ContextFileManager;
 use PKP\file\TemporaryFileDAO;
 use PKP\file\TemporaryFileManager;
 use PKP\form\Form;
+use PKP\linkAction\LinkAction;
+use PKP\linkAction\request\RemoteActionConfirmationModal;
 use PKP\security\Role;
 use PKP\userGroup\UserGroup;
 
@@ -56,7 +58,7 @@ class CategoryForm extends Form
      * @param int $contextId Context id.
      * @param int $categoryId Category id.
      */
-    public function __construct($contextId, $categoryId = null)
+    public function __construct(int $contextId, $categoryId = null)
     {
         parent::__construct('controllers/grid/settings/category/form/categoryForm.tpl');
         $this->_contextId = $contextId;
@@ -128,7 +130,7 @@ class CategoryForm extends Form
     /**
      * Get all locale field names
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         return ['name', 'description'];
     }
@@ -230,6 +232,10 @@ class CategoryForm extends Form
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign('categoryId', $this->getCategoryId());
 
+        $applicationName = Application::get()->getName();
+        $catalogPage = ($applicationName === 'ops') ? "preprints" : "catalog";
+        $templateMgr->assign('catalogPage', $catalogPage);
+
         // Provide a list of root categories to the template
         $rootCategoriesCollection = Repo::category()->getCollector()
             ->filterByParentIds([null])
@@ -260,18 +266,17 @@ class CategoryForm extends Form
         // Sort options.
         $templateMgr->assign('sortOptions', Repo::submission()->getSortSelectOptions());
 
-        $assignableUserGroups = Repo::userGroup()
-            ->getCollector()
-            ->filterByContextIds([$request->getContext()->getId()])
-            ->filterByRoleIds($this->assignableRoles)
-            ->filterByStageIds([WORKFLOW_STAGE_ID_SUBMISSION])
-            ->getMany()
+        $assignableUserGroups = UserGroup::query()
+            ->withContextIds([$request->getContext()->getId()])
+            ->withRoleIds($this->assignableRoles)
+            ->withStageIds([WORKFLOW_STAGE_ID_SUBMISSION])
+            ->get()
             ->map(function (UserGroup $userGroup) use ($request) {
                 return [
                     'userGroup' => $userGroup,
                     'users' => Repo::user()
                         ->getCollector()
-                        ->filterByUserGroupIds([$userGroup->getId()])
+                        ->filterByUserGroupIds([$userGroup->id])
                         ->filterByContextIds([$request->getContext()->getId()])
                         ->getMany()
                         ->mapWithKeys(fn ($user, $key) => [$user->getId() => $user->getFullName()])
@@ -283,6 +288,37 @@ class CategoryForm extends Form
         $templateMgr->assign([
             'assignableUserGroups' => $assignableUserGroups->toArray(),
         ]);
+
+        // Cover image delete link action
+        $category = Repo::category()->get($this->getCategoryId());
+        if ($category && $coverImage = $category->getImage()) {
+            $templateMgr->assign(
+                'deleteCoverImageLinkAction',
+                new LinkAction(
+                    'deleteCoverImage',
+                    new RemoteActionConfirmationModal(
+                        $request->getSession(),
+                        __('common.confirmDelete'),
+                        null,
+                        $request->getRouter()->url(
+                            $request,
+                            null,
+                            null,
+                            'deleteImage',
+                            null,
+                            [
+                                'name' => $coverImage['name'] ?? null,
+                                'thumbnailName' => $coverImage['thumbnailName'] ?? null,
+                                'categoryId' => $this->getCategoryId(),
+                            ]
+                        ),
+                        'negative'
+                    ),
+                    __('common.delete'),
+                    null
+                )
+            );
+        }
 
         return parent::fetch($request, $template, $display);
     }

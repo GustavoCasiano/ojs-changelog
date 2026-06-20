@@ -49,33 +49,37 @@ class LogMigration extends \PKP\migration\Migration
             $table->foreign('log_id', 'event_log_settings_log_id')->references('log_id')->on('event_log')->onDelete('cascade');
             $table->index(['log_id'], 'event_log_settings_log_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
             $table->unique(['log_id', 'setting_name', 'locale'], 'event_log_settings_unique');
         });
 
         // Add partial index (DBMS-specific)
-        switch (DB::getDriverName()) {
-            case 'mysql': DB::unprepared('CREATE INDEX event_log_settings_name_value ON event_log_settings (setting_name(50), setting_value(150))');
-                break;
-            case 'pgsql': DB::unprepared("CREATE INDEX event_log_settings_name_value ON event_log_settings (setting_name, setting_value) WHERE setting_name IN ('fileId', 'submissionId')");
-                break;
-        }
+        match (DB::getDriverName()) {
+            'mysql', 'mariadb' =>
+                DB::unprepared('CREATE INDEX event_log_settings_name_value ON event_log_settings (setting_name(50), setting_value(150))'),
+            'pgsql' =>
+                DB::unprepared("CREATE INDEX event_log_settings_name_value ON event_log_settings (setting_name, setting_value) WHERE setting_name IN ('fileId', 'submissionId')")
+        };
 
         Schema::create('email_log', function (Blueprint $table) {
             $table->comment('A record of email messages that are sent in relation to an associated entity, such as a submission.');
             $table->bigInteger('log_id')->autoIncrement();
             $table->bigInteger('assoc_type');
             $table->bigInteger('assoc_id');
-            $table->bigInteger('sender_id');
+
+            $table->bigInteger('sender_id')->nullable();
+            $table->foreign('sender_id')->references('user_id')->on('users')->onDelete('set null');
+            $table->index(['sender_id'], 'email_log_sender_id');
+
             $table->datetime('date_sent');
             $table->bigInteger('event_type')->nullable();
             $table->string('from_address', 255)->nullable();
             $table->text('recipients')->nullable();
             $table->text('cc_recipients')->nullable();
             $table->text('bcc_recipients')->nullable();
-            // The length of the `subject` column must be the same as EmailLogDAO::MAX_SUBJECT_LENGTH
+            // The length of the `subject` column must be the same as EmailLogEntry::MAX_SUBJECT_LENGTH
             $table->string('subject', 255)->nullable();
             $table->text('body')->nullable();
             $table->index(['assoc_type', 'assoc_id'], 'email_log_assoc');

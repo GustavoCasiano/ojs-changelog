@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/user/Repository.php
  *
@@ -17,23 +18,22 @@ use APP\core\Application;
 use APP\facades\Repo;
 use APP\submission\Submission;
 use Carbon\Carbon;
+use Illuminate\Support\LazyCollection;
 use PKP\context\Context;
 use PKP\context\SubEditorsDAO;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
 use PKP\file\TemporaryFileDAO;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEventLogDAO;
-use PKP\note\NoteDAO;
-use PKP\notification\NotificationDAO;
 use PKP\plugins\Hook;
-use PKP\security\AccessKeyDAO;
 use PKP\security\Role;
 use PKP\security\RoleDAO;
-use PKP\session\SessionDAO;
-use PKP\stageAssignment\StageAssignmentDAO;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\SubmissionCommentDAO;
+use PKP\userGroup\relationships\UserUserGroup;
+use PKP\user\interest\UserInterest;
+use Illuminate\Support\Facades\DB;
+use PKP\facades\Locale;
+use PKP\workflow\WorkflowStageDAO;
 
 class Repository
 {
@@ -138,11 +138,11 @@ class Repository
      *
      * @return bool
      */
-    public function canCurrentUserGossip($userId)
+    public function canCurrentUserGossip(int $userId)
     {
         $request = Application::get()->getRequest();
         $context = $request->getContext();
-        $contextId = $context ? $context->getId() : \PKP\core\PKPApplication::CONTEXT_ID_NONE;
+        $contextId = $context ? $context->getId() : \PKP\core\PKPApplication::SITE_CONTEXT_ID;
         $currentUser = $request->getUser();
 
         // Logged out users can never view gossip fields
@@ -187,8 +187,10 @@ class Repository
     {
         $workflowRoles = Application::get()->getWorkflowTypeRoles()[$workflowType];
 
-        if (array_key_exists($stageId, $userAccessibleStages)
-            && !empty(array_intersect($workflowRoles, $userAccessibleStages[$stageId]))) {
+        if (
+            array_key_exists($stageId, $userAccessibleStages)
+            && !empty(array_intersect($workflowRoles, $userAccessibleStages[$stageId]))
+        ) {
             return true;
         }
         if (empty($userAccessibleStages) && count(array_intersect([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SITE_ADMIN], $userRoles))) {
@@ -206,9 +208,6 @@ class Repository
      */
     public function getAccessibleWorkflowStages(int $userId, int $contextId, Submission $submission, ?array $userRoleIds = null): array
     {
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentsResult = $stageAssignmentDao->getBySubmissionAndUserIdAndStageId($submission->getId(), $userId);
-
         if (is_null($userRoleIds)) {
             $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
             $userRoles = $roleDao->getByUserIdGroupedByContext($userId);
@@ -217,33 +216,40 @@ class Repository
             if (array_key_exists($contextId, $userRoles)) {
                 $contextRoles = $userRoles[$contextId];
 
-                foreach ($contextRoles as $contextRole) { /** @var Role $userRole */
+                foreach ($contextRoles as $contextRole) {
                     $userRoleIds[] = $contextRole->getRoleId();
                 }
             }
 
             // Has admin role?
-            if ($contextId != PKPApplication::CONTEXT_ID_NONE &&
-                array_key_exists(PKPApplication::CONTEXT_ID_NONE, $userRoles) &&
-                in_array(Role::ROLE_ID_SITE_ADMIN, $userRoles[PKPApplication::CONTEXT_ID_NONE])
+            if (
+                $contextId != PKPApplication::SITE_CONTEXT_ID &&
+                array_key_exists(PKPApplication::SITE_CONTEXT_ID, $userRoles) &&
+                in_array(Role::ROLE_ID_SITE_ADMIN, $userRoles[PKPApplication::SITE_CONTEXT_ID])
             ) {
                 $userRoleIds[] = Role::ROLE_ID_SITE_ADMIN;
             }
         }
 
         $accessibleWorkflowStages = [];
+        // Replaces StageAssignmentDAO::getBySubmissionAndUserIdAndStageId
+        $stageAssignments = StageAssignment::with(['userGroup.userGroupStages'])
+            ->withSubmissionIds([$submission->getId()])
+            ->withUserId($userId)
+            ->get();
 
-        // Assigned users have access based on their assignment
-        while ($stageAssignment = $stageAssignmentsResult->next()) {
-            $userGroup = Repo::userGroup()->get($stageAssignment->getUserGroupId());
-            $roleId = $userGroup->getRoleId();
+        foreach ($stageAssignments as $stageAssignment) {
+            $userGroup = $stageAssignment->userGroup;
+            $roleId = $userGroup->roleId;
 
             // Check global user roles within the context, e.g., user can be assigned in the role, which was revoked
             if (!in_array($roleId, $userRoleIds)) {
                 continue;
             }
 
-            $accessibleWorkflowStages[$stageAssignment->getStageId()][] = $roleId;
+            $stageAssignment->userGroupStages->each(function ($userGroupStage) use (&$accessibleWorkflowStages, $roleId) {
+                $accessibleWorkflowStages[$userGroupStage->stageId][] = $roleId;
+            });
         }
 
         // Managers and admin have access if not assigned to the submission or are assigned in a revoked role
@@ -264,6 +270,8 @@ class Repository
      * @param array $args
      * - @option int[] contextIds Context IDs (required)
      * - @option int[] userGroupIds List of user groups (all groups by default)
+     *
+     * @hook User::getReport [[$report]]
      */
     public function getReport(array $args): Report
     {
@@ -307,6 +315,8 @@ class Repository
      *
      * @param int $oldUserId The user ID to remove
      * @param int $newUserId The user ID to receive all "assets" (i.e. submissions) from old user
+     *
+     * @hook UserAction::mergeUsers [[&$oldUserId, &$newUserId]]
      */
     public function mergeUsers(int $oldUserId, int $newUserId)
     {
@@ -327,69 +337,81 @@ class Repository
             Repo::submissionFile()->edit($submissionFile, ['uploaderUserId' => $newUserId]);
         }
 
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-        $notes = $noteDao->getByUserId($oldUserId);
-        while ($note = $notes->next()) {
-            $note->setUserId($newUserId);
-            $noteDao->updateObject($note);
-        }
+        Repo::note()->transfer($oldUserId, $newUserId);
 
         Repo::decision()->dao->reassignDecisions($oldUserId, $newUserId);
 
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        foreach ($reviewAssignmentDao->getByUserId($oldUserId) as $reviewAssignment) {
-            $reviewAssignment->setReviewerId($newUserId);
-            $reviewAssignmentDao->updateObject($reviewAssignment);
+        $reviewAssignments = Repo::reviewAssignment()->getCollector()->filterByReviewerIds([$oldUserId])->getMany();
+        foreach ($reviewAssignments as $reviewAssignment) {
+            Repo::reviewAssignment()->edit($reviewAssignment, ['reviewerId' => $newUserId]);
         }
 
-        $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-        $submissionEmailLogDao->changeUser($oldUserId, $newUserId);
+        Repo::emailLogEntry()->changeUser($oldUserId, $newUserId);
         Repo::eventLog()->dao->changeUser($oldUserId, $newUserId);
 
         $submissionCommentDao = DAORegistry::getDAO('SubmissionCommentDAO'); /** @var SubmissionCommentDAO $submissionCommentDao */
         $submissionComments = $submissionCommentDao->getByUserId($oldUserId);
 
-        while ($submissionComment = $submissionComments->next()) {
+        while ($submissionComment = $submissionComments->next()) { /** @var \PKP\submission\SubmissionComment $submissionComment */
             $submissionComment->setAuthorId($newUserId);
             $submissionCommentDao->updateObject($submissionComment);
         }
 
-        $accessKeyDao = DAORegistry::getDAO('AccessKeyDAO'); /** @var AccessKeyDAO $accessKeyDao */
-        $accessKeyDao->transferAccessKeys($oldUserId, $newUserId);
-
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationDao->transferNotifications($oldUserId, $newUserId);
+        Repo::notification()->transfer($oldUserId, $newUserId);
 
         // Delete the old user and associated info.
-        $sessionDao = DAORegistry::getDAO('SessionDAO'); /** @var SessionDAO $sessionDao */
-        $sessionDao->deleteByUserId($oldUserId);
+        Application::get()->getRequest()->getSessionGuard()->invalidateOtherSessions($oldUserId);
+
         $temporaryFileDao = DAORegistry::getDAO('TemporaryFileDAO'); /** @var TemporaryFileDAO $temporaryFileDao */
         $temporaryFileDao->deleteByUserId($oldUserId);
         $subEditorsDao = DAORegistry::getDAO('SubEditorsDAO'); /** @var SubEditorsDAO $subEditorsDao */
         $subEditorsDao->deleteByUserId($oldUserId);
 
         // Transfer old user's roles
-        $userGroups = Repo::userGroup()->userUserGroups($oldUserId);
-        foreach ($userGroups as $userGroup) {
-            if (!Repo::userGroup()->userInGroup($newUserId, $userGroup->getId())) {
-                Repo::userGroup()->assignUserToGroup($newUserId, $userGroup->getId());
+        $userUserGroups = UserUserGroup::query()
+            ->withUserId($oldUserId)
+            ->get();
+
+        // Transfer assignments to the new user
+        foreach ($userUserGroups as $userUserGroup) {
+            // Check if the new user is already assigned to this user group
+            $exists = UserUserGroup::query()
+                ->withUserId($newUserId)
+                ->withUserGroupIds([$userUserGroup->userGroupId])
+                ->exists();
+
+            if (!$exists) {
+                UserUserGroup::create([
+                    'userId' => $newUserId,
+                    'userGroupId' => $userUserGroup->userGroupId,
+                    'dateStart' => $userUserGroup->dateStart,
+                    'dateEnd' => $userUserGroup->dateEnd,
+                    'masthead' => $userUserGroup->masthead,
+                ]);
             }
         }
 
-        Repo::userGroup()->deleteAssignmentsByUserId($oldUserId);
+        // Delete all user group assignments for the old user
+        UserUserGroup::query()
+            ->withUserId($oldUserId)
+            ->delete();
 
         // Transfer stage assignments.
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getByUserId($oldUserId);
-        while ($stageAssignment = $stageAssignments->next()) {
-            $duplicateAssignments = $stageAssignmentDao->getBySubmissionAndStageId($stageAssignment->getSubmissionId(), null, $stageAssignment->getUserGroupId(), $newUserId);
-            if (!$duplicateAssignments->next()) {
+        $stageAssignments = StageAssignment::withUserId($oldUserId)->get();
+        foreach ($stageAssignments as $stageAssignment) {
+            // Replaces StageAssignmentDAO::getBySubmissionAndStageId
+            $duplicateAssignments = StageAssignment::withSubmissionIds([$stageAssignment->submissionId])
+                ->withUserGroupId($stageAssignment->userGroupId)
+                ->withUserId($newUserId)
+                ->get();
+
+            if ($duplicateAssignments->isEmpty()) {
                 // If no similar assignments already exist, transfer this one.
-                $stageAssignment->setUserId($newUserId);
-                $stageAssignmentDao->updateObject($stageAssignment);
+                $stageAssignment->userId = $newUserId;
+                $stageAssignment->save();
             } else {
                 // There's already a stage assignment for the new user; delete.
-                $stageAssignmentDao->deleteObject($stageAssignment);
+                $stageAssignment->delete();
             }
         }
 
@@ -421,5 +443,207 @@ class Repository
     public function deleteUnvalidatedExpiredUsers(Carbon $dateTillValid, array $excludableUsersId = [])
     {
         return $this->dao->deleteUnvalidatedExpiredUsers($dateTillValid, $excludableUsersId);
+    }
+
+    /** Get admin users */
+    public function getAdminUsers(): LazyCollection
+    {
+        return $this->dao->getAdminUsers();
+    }
+
+    /**
+     * build a permission map for a manager over a set of users
+     */
+    public function permissionMapForManager(int $managerUserId, array $userIds): array
+    {
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+        if (empty($userIds)) return [];
+
+        $unmanaged = DB::table('users as u')
+            ->whereIn('u.user_id', $userIds)
+            ->whereExists(function ($q) use ($managerUserId) {
+                $q->from('user_user_groups as uug_t')
+                  ->join('user_groups as ug_t', 'ug_t.user_group_id', '=', 'uug_t.user_group_id')
+                  ->whereColumn('uug_t.user_id', 'u.user_id')
+                  ->whereNotExists(function ($qq) use ($managerUserId) {
+                      $qq->from('user_groups as ug_m')
+                         ->join('user_user_groups as uug_m', 'ug_m.user_group_id', '=', 'uug_m.user_group_id')
+                         ->where('ug_m.role_id', Role::ROLE_ID_MANAGER)
+                         ->where('uug_m.user_id', $managerUserId)
+                         ->whereColumn('ug_m.context_id', 'ug_t.context_id');
+                  });
+            })
+            ->pluck('u.user_id')
+            ->all();
+
+        $map = array_fill_keys($userIds, true);
+        foreach ($unmanaged as $id) $map[(int)$id] = false;
+        return $map;
+    }
+
+    /**
+     * Check if a user can view gossip notes for a context.
+     * Site admins or users in Manager/Sub-editor groups for the given context
+     * (or site-wide groups) are allowed.
+     */
+    public function canSeeGossip(int $currentUserId, int $contextId): bool
+    {
+        return DB::table('user_groups as ug')
+            ->join('user_user_groups as uug', 'ug.user_group_id', '=', 'uug.user_group_id')
+            ->where('uug.user_id', $currentUserId)
+            ->whereIn('ug.role_id', [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+            ->where(function ($q) use ($contextId) {
+                $q->where('ug.context_id', $contextId)
+                  ->orWhereNull('ug.context_id');
+            })
+            ->exists();
+    }
+
+    /**
+     * Preload user groups for a set of users, scoped to a context.
+     * Returns: [userId => [ ...group payload... ], ...]
+     */
+    public function preloadGroups(array $userIds, int $contextId, ?string $locale = null): array
+    {
+        $locale = $locale ?: Locale::getLocale();
+
+        $assignments = UserUserGroup::query()
+            ->withContextId($contextId)
+            ->withUserIds($userIds)
+            ->with(['userGroup']) // eagerload UserGroup entity
+            ->orderBy('user_user_groups.user_user_group_id', 'asc')
+            ->get([
+                'user_user_groups.user_user_group_id',
+                'user_user_groups.user_id',
+                'user_user_groups.user_group_id',
+                'user_user_groups.date_start',
+                'user_user_groups.date_end',
+                'user_user_groups.masthead',
+            ]);
+
+        $map = [];
+        foreach ($assignments as $a) {
+            $ug = $a->userGroup;
+            if (!$ug) {
+                continue;
+            }
+            $map[(int) $a->userId][] = [
+                'id' => (int) $ug->id,
+                'name' => $ug->getLocalizedData('name'),
+                'abbrev' => $ug->getLocalizedData('abbrev'),
+                'roleId' => (int) $ug->roleId,
+                'userUserGroupId' => (int) $a->userUserGroupId,
+                'showTitle' => (bool) $ug->showTitle,
+                'recommendOnly' => (bool) $ug->recommendOnly,
+                'permitSelfRegistration' => (bool) $ug->permitSelfRegistration,
+                'permitMetadataEdit' => (bool) $ug->permitMetadataEdit,
+                'dateStart' => $a->dateStart,
+                'dateEnd' => $a->dateEnd,
+                'masthead' => (bool) $a->masthead,
+            ];
+        }
+        return $map;
+    }
+
+    /**
+     * Preload interests for a set of users (ids only).
+     */
+    public function preloadInterests(array $userIds, ?string $locale = null): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+
+        $locale = $locale ?: Locale::getLocale();
+
+        $rows = UserInterest::query()
+            ->whereIn('user_interests.user_id', $userIds)
+            ->leftJoin('controlled_vocab_entry_settings as cves', function ($join) {
+                $join->on('cves.controlled_vocab_entry_id', '=', 'user_interests.controlled_vocab_entry_id')
+                ->whereIn('cves.setting_name', ['interest', 'name']);
+            })
+            ->orderBy('user_interests.user_id')
+            ->orderBy('user_interests.controlled_vocab_entry_id')
+            ->orderByRaw(
+                "CASE
+                    WHEN cves.locale = ? THEN 0
+                    WHEN cves.locale IS NULL OR cves.locale = '' THEN 1
+                    ELSE 2
+                END",
+                [$locale]
+            )
+            ->get([
+                'user_interests.user_id',
+                'user_interests.controlled_vocab_entry_id',
+                'cves.setting_value as interest',
+            ]);
+
+        $map = [];
+        foreach ($rows as $r) {
+            $userId  = (int) $r->user_id;
+            $entryId = (int) $r->controlled_vocab_entry_id;
+            $map[$userId][$entryId] ??= [
+                'id' => $entryId,
+                'interest' => null,
+            ];
+
+            if ($map[$userId][$entryId]['interest'] === null && $r->interest !== null && $r->interest !== '') {
+                $map[$userId][$entryId]['interest'] = (string) $r->interest;
+            }
+        }
+        foreach ($userIds as $userId) {
+            $userId = (int) $userId;
+            $map[$userId] = isset($map[$userId]) ? array_values($map[$userId]) : [];
+        }
+        return $map;
+    }
+
+
+    /**
+     * Batch load stage assignments for many users for one submission + stage.
+     * @return array<int,array> [userId => [stageAssignmentPayload...]]
+     */
+    public function stageAssignmentsForUsers(array $userIds, int $submissionId, int $stageId, int $contextId): array
+    {
+        $rows = StageAssignment::query()
+            ->with(['userGroup'])
+            ->whereIn('user_id', $userIds)
+            ->withSubmissionIds([$submissionId])
+            ->withStageIds([$stageId])
+            ->withContextId($contextId)
+            ->get();
+
+        /** @var WorkflowStageDAO $workflowStageDao */
+        $workflowStageDao = DAORegistry::getDAO('WorkflowStageDAO');
+
+        $label = __($workflowStageDao->getTranslationKeyFromId($stageId));
+
+        $byUser = [];
+        foreach ($rows as $sa) {
+            $ug = $sa->userGroup;
+            if ($ug && (int)$ug->roleId !== Role::ROLE_ID_REVIEWER) {
+                $byUser[(int)$sa->userId][] = [
+                    'stageAssignmentId' => $sa->id,
+                    'stageAssignmentUserGroup' => [
+                        'id' => (int)$ug->id,
+                        'name' => $ug->getLocalizedData('name'),
+                        'abbrev' => $ug->getLocalizedData('abbrev'),
+                        'roleId' => (int)$ug->roleId,
+                        'showTitle' => (bool)$ug->showTitle,
+                        'permitSelfRegistration' => (bool)$ug->permitSelfRegistration,
+                        'permitMetadataEdit' => (bool)$ug->permitMetadataEdit,
+                        'recommendOnly' => (bool)$ug->recommendOnly,
+                    ],
+                    'stageAssignmentStageId' => $stageId,
+                    'recommendOnly' => (bool)$sa->recommendOnly,
+                    'canChangeMetadata' => (bool)$sa->canChangeMetadata,
+                    'stageAssignmentStage' => [
+                        'id' => $stageId,
+                        'label' => $label,
+                    ],
+                ];
+            }
+        }
+        return $byUser;
     }
 }

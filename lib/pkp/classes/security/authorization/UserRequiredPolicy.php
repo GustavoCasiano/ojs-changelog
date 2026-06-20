@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/security/authorization/UserRequiredPolicy.php
  *
@@ -14,6 +15,7 @@
  */
 
 namespace PKP\security\authorization;
+
 use PKP\core\PKPRequest;
 use PKP\core\PKPRouter;
 
@@ -40,7 +42,7 @@ class UserRequiredPolicy extends AuthorizationPolicy
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         if ($this->_request->getUser()) {
             return AuthorizationPolicy::AUTHORIZATION_PERMIT;

@@ -1,5 +1,4 @@
 <?php
-
 /**
  * @file classes/components/form/highlight/HighlightForm.php
  *
@@ -24,11 +23,10 @@ use PKP\components\forms\FieldUploadImage;
 use PKP\components\forms\FormComponent;
 use PKP\context\Context;
 
-define('FORM_HIGHLIGHT', 'highlight');
-
 class HighlightForm extends FormComponent
 {
-    public $id = FORM_HIGHLIGHT;
+    public const FORM_HIGHLIGHT = 'highlight';
+    public $id = self::FORM_HIGHLIGHT;
     public $method = 'POST';
     public ?Context $context;
 

@@ -15,7 +15,6 @@
  *  documentation.
  */
 
-use APP\core\Services;
 use PKP\decision\DecisionType;
 use PKP\file\FileManager;
 
@@ -80,7 +79,7 @@ class buildSwagger extends \PKP\cliTool\CommandLineTool
                 }
 
                 $editDefinition = $summaryDefinition = $readDefinition = ['type' => 'object', 'properties' => []];
-                $entitySchema = Services::get('schema')->get($definition, true);
+                $entitySchema = app()->get('schema')->get($definition, true);
                 foreach ($entitySchema->properties as $propName => $propSchema) {
                     $editPropSchema = clone $propSchema;
                     $readPropSchema = clone $propSchema;
@@ -135,7 +134,7 @@ class buildSwagger extends \PKP\cliTool\CommandLineTool
                             $summaryPropSchema->properties = $subPropsSchemaSummary;
                         }
 
-                    // All non-object props
+                        // All non-object props
                     } else {
                         if (!empty($propSchema->multilingual)) {
                             if ($propSchema->type === 'array') {
@@ -213,7 +212,7 @@ class buildSwagger extends \PKP\cliTool\CommandLineTool
                     if (substr($rule, 0, 3) === 'in:') {
                         $enum = explode(',', substr($rule, 3));
                         if ($schema->type === 'integer') {
-                            $enum = array_map('intval', $enum);
+                            $enum = array_map(intval(...), $enum);
                         }
                         $definition['properties'][$propName]->enum = $enum;
                     }

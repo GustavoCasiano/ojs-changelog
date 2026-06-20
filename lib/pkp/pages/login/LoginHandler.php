@@ -26,17 +26,15 @@ use PKP\config\Config;
 use PKP\context\Context;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\core\PKPString;
+use PKP\form\validation\FormValidatorAltcha;
 use PKP\form\validation\FormValidatorReCaptcha;
 use PKP\mail\mailables\PasswordResetRequested;
 use PKP\security\authorization\RoleBasedHandlerOperationPolicy;
 use PKP\security\Role;
 use PKP\security\Validation;
-use PKP\session\SessionManager;
 use PKP\site\Site;
 use PKP\user\form\LoginChangePasswordForm;
 use PKP\user\form\ResetPasswordForm;
-use PKP\user\User;
 
 class LoginHandler extends Handler
 {
@@ -69,13 +67,10 @@ class LoginHandler extends Handler
             $request->redirectSSL();
         }
 
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign([
             'loginMessage' => $request->getUserVar('loginMessage'),
-            'username' => $session->getSessionVar('email') ?? $session->getSessionVar('username'),
+            'username' => $request->getSession()->get('email') ?? $request->getSession()->get('username'),
             'remember' => $request->getUserVar('remember'),
             'source' => $request->getUserVar('source'),
             'showRemember' => Config::getVar('general', 'session_lifetime') > 0,
@@ -84,7 +79,7 @@ class LoginHandler extends Handler
         // For force_login_ssl with base_url[...]: make sure SSL used for login form
         $loginUrl = $request->url(null, 'login', 'signIn');
         if (Config::getVar('security', 'force_login_ssl')) {
-            $loginUrl = PKPString::regexp_replace('/^http:/', 'https:', $loginUrl);
+            $loginUrl = preg_replace('/^http:/', 'https:', $loginUrl);
         }
         $templateMgr->assign('loginUrl', $loginUrl);
 
@@ -93,6 +88,7 @@ class LoginHandler extends Handler
             $templateMgr->assign('recaptchaPublicKey', Config::getVar('captcha', 'recaptcha_public_key'));
         }
 
+        $this->_generateAltchaComponent('altcha_on_login', $templateMgr);
         $templateMgr->display('frontend/pages/userLogin.tpl');
     }
 
@@ -104,6 +100,7 @@ class LoginHandler extends Handler
     public function _redirectAfterLogin($request)
     {
         $context = $this->getTargetContext($request);
+
         // If there's a context, send them to the dashboard after login.
         if ($context && $request->getUserVar('source') == '' && array_intersect(
             [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_AUTHOR, Role::ROLE_ID_REVIEWER, Role::ROLE_ID_ASSISTANT],
@@ -112,13 +109,14 @@ class LoginHandler extends Handler
             return $request->redirect($context->getPath(), 'dashboard');
         }
 
-        $request->getRouter()->redirectHome($request);
+        $pkpPageRouter = $request->getRouter(); /** @var \PKP\core\PKPPageRouter $pkpPageRouter */
+        $pkpPageRouter->redirectHome($request);
     }
 
     /**
      * Validate a user's credentials and log the user in.
      */
-    public function signIn($args, $request)
+    public function signIn(array $args, PKPRequest $request): void
     {
         $this->setupTemplate($request);
         $templateMgr = TemplateManager::getManager($request);
@@ -142,6 +140,13 @@ class LoginHandler extends Handler
             }
         }
 
+        if ($error === null) {
+            $isAltchaEnabled = Config::getVar('captcha', 'altcha_on_login') && Config::getVar('captcha', 'altcha');
+            if ($isAltchaEnabled) {
+                $error = $this->_validateAltchasResponse($request, 'altcha_on_login');
+            }
+        }
+
         $username = $request->getUserVar('username');
         $reason = null;
         $user = $error || !strlen($username ?? '')
@@ -151,7 +156,7 @@ class LoginHandler extends Handler
             if ($user->getMustChangePassword()) {
                 // User must change their password in order to log in
                 Validation::logout();
-                $request->redirect(null, null, 'changePassword', $user->getUsername());
+                $request->redirect(null, null, 'changePassword', [$user->getUsername()]);
             }
             $source = str_replace('@', '', $request->getUserVar('source'));
             if (preg_match('#^/\w#', (string) $source) === 1) {
@@ -171,7 +176,6 @@ class LoginHandler extends Handler
         }
         $error ??= 'user.login.loginError';
 
-
         $templateMgr->assign([
             'username' => $username,
             'remember' => $request->getUserVar('remember'),
@@ -180,6 +184,8 @@ class LoginHandler extends Handler
             'error' => $error,
             'reason' => $reason,
         ]);
+
+        $this->_generateAltchaComponent('altcha_on_login', $templateMgr);
         $templateMgr->display('frontend/pages/userLogin.tpl');
     }
 
@@ -212,6 +218,8 @@ class LoginHandler extends Handler
 
         $this->setupTemplate($request);
         $templateMgr = TemplateManager::getManager($request);
+
+        $this->_generateAltchaComponent('altcha_on_lost_password', $templateMgr);
         $templateMgr->display('frontend/pages/userLostPassword.tpl');
     }
 
@@ -223,10 +231,27 @@ class LoginHandler extends Handler
         $this->setupTemplate($request);
         $templateMgr = TemplateManager::getManager($request);
 
+        $altchaHasError = $this->_validateAltchasResponse($request, 'altcha_on_lost_password');
+
+        if ($altchaHasError) {
+            $this->_generateAltchaComponent('altcha_on_lost_password', $templateMgr);
+
+            $templateMgr
+                ->assign([
+                    'error' => 'user.login.lostPassword.confirmationSentFailedWithReason',
+                    'reason' => __($altchaHasError)
+                ])
+                ->display('frontend/pages/userLostPassword.tpl');
+
+            return;
+        }
+
         $email = (string) $request->getUserVar('email');
         $user = $email ? Repo::user()->getByEmail($email, true) : null;
         if ($user !== null) {
             if ($user->getDisabled()) {
+                $this->_generateAltchaComponent('altcha_on_lost_password', $templateMgr);
+
                 $templateMgr
                     ->assign([
                         'error' => 'user.login.lostPassword.confirmationSentFailedWithReason',
@@ -243,7 +268,7 @@ class LoginHandler extends Handler
             $site = $request->getSite(); /** @var Site $site */
             $context = $request->getContext(); /** @var Context $context */
             $template = Repo::emailTemplate()->getByKey(
-                $context ? $context->getId() : PKPApplication::CONTEXT_SITE,
+                $context ? $context->getId() : PKPApplication::SITE_CONTEXT_ID,
                 PasswordResetRequested::getEmailTemplateKey()
             );
             $mailable = (new PasswordResetRequested($site))
@@ -390,9 +415,6 @@ class LoginHandler extends Handler
         if ($passwordForm->validate()) {
             if ($passwordForm->execute()) {
                 $user = Validation::login($passwordForm->getData('username'), $passwordForm->getData('password'), $reason);
-
-                $sessionManager = SessionManager::getManager();
-                $sessionManager->invalidateSessions($user->getId(), $sessionManager->getUserSession()->getId());
             }
             $this->sendHome($request);
         } else {
@@ -402,16 +424,13 @@ class LoginHandler extends Handler
 
     /**
      * Sign in as another user.
-     *
-     * @param array $args ($userId)
-     * @param PKPRequest $request
      */
     public function signInAsUser($args, $request)
     {
         if (isset($args[0]) && !empty($args[0])) {
             $userId = (int)$args[0];
-            $session = $request->getSession();
-            if (Validation::getAdministrationLevel($userId, $session->getUserId()) !== Validation::ADMINISTRATION_FULL) {
+            $sessionGuard = $request->getSessionGuard();
+            if (Validation::getAdministrationLevel($userId, $sessionGuard->getUserId()) !== Validation::ADMINISTRATION_FULL) {
                 $this->setupTemplate($request);
                 // We don't have administrative rights
                 // over this user. Display an error.
@@ -419,7 +438,7 @@ class LoginHandler extends Handler
                 $templateMgr->assign([
                     'pageTitle' => 'manager.people',
                     'errorMsg' => 'manager.people.noAdministrativeRights',
-                    'backLink' => $request->url(null, null, 'people', 'all'),
+                    'backLink' => $request->url(null, 'management', 'settings', ['access']),
                     'backLinkLabel' => 'manager.people.allUsers',
                 ]);
                 return $templateMgr->display('frontend/pages/error.tpl');
@@ -427,11 +446,8 @@ class LoginHandler extends Handler
 
             $newUser = Repo::user()->get($userId, true);
 
-            if (isset($newUser) && $session->getUserId() != $newUser->getId()) {
-                $session->setSessionVar('signedInAs', $session->getUserId());
-                $session->setSessionVar('userId', $userId);
-                $session->setUserId($userId);
-                $session->setSessionVar('username', $newUser->getUsername());
+            if (isset($newUser) && $sessionGuard->getUserId() != $newUser->getId()) {
+                $request->getSessionGuard()->signInAs($newUser);
                 $this->_redirectByURL($request);
             }
         }
@@ -439,39 +455,28 @@ class LoginHandler extends Handler
         $request->redirect(null, $request->getRequestedPage());
     }
 
-
     /**
      * Restore original user account after signing in as a user.
-     *
-     * @param array $args
-     * @param PKPRequest $request
      */
     public function signOutAsUser($args, $request)
     {
         $session = $request->getSession();
-        $signedInAs = $session->getSessionVar('signedInAs');
+        $signedInAs = $session->get('signedInAs');
 
         if (isset($signedInAs) && !empty($signedInAs)) {
             $signedInAs = (int)$signedInAs;
 
             $oldUser = Repo::user()->get($signedInAs, true);
 
-            $session->unsetSessionVar('signedInAs');
-
             if (isset($oldUser)) {
-                $session->setSessionVar('userId', $signedInAs);
-                $session->setUserId($signedInAs);
-                $session->setSessionVar('username', $oldUser->getUsername());
+                $request->getSessionGuard()->signOutAs($oldUser);
             }
         }
         $this->_redirectByURL($request);
     }
 
-
     /**
      * Redirect to redirectURL if exists else send to Home
-     *
-     * @param PKPRequest $request
      */
     public function _redirectByURL($request)
     {
@@ -486,15 +491,42 @@ class LoginHandler extends Handler
     /**
      * Send the user "home" (typically to the dashboard, but that may not
      * always be available).
-     *
-     * @param PKPRequest $request
      */
     protected function sendHome($request)
     {
-        if ($request->getContext()) {
-            $request->redirect(null, 'submissions');
-        } else {
-            $request->redirect(null, 'user');
+        $pkpPageRouter = $request->getRouter(); /** @var \PKP\core\PKPPageRouter $pkpPageRouter */
+        $pkpPageRouter->redirectHome($request);
+    }
+
+    /**
+     * Validate if ALTCHA user's response is valid
+     *
+     * @param string $altchaConfigKey the key to search on config.inc.php
+     */
+    private function _validateAltchasResponse($request, $altchaConfigKey): ?string
+    {
+        if (Config::getVar('captcha', 'altcha') && Config::getVar('captcha', $altchaConfigKey)) {
+            try {
+                FormValidatorAltcha::validateResponse($request->getUserVar('altcha'), $request->getRemoteAddr());
+                return null;
+            } catch (Exception $exception) {
+                return 'common.captcha.error.missing-input-response';
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Generate ALTCHA challenge to use it on form in case ALTCHA
+     * is enabled on the specific page
+     *
+     * @param string $altchaConfigKey the key to search on config.inc.php
+     */
+    private function _generateAltchaComponent($altchaConfigKey, &$templateMgr): void
+    {
+        if (Config::getVar('captcha', 'altcha') && Config::getVar('captcha', $altchaConfigKey)) {
+            FormValidatorAltcha::addAltchaJavascript($templateMgr);
+            FormValidatorAltcha::insertFormChallenge($templateMgr);
         }
     }
 }

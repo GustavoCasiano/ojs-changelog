@@ -16,9 +16,6 @@
 </script>
 
 <form class="pkp_form" id="apiProfileForm" method="post" action="{url op="saveAPIProfile"}" enctype="multipart/form-data">
-	{* Help Link *}
-	{help file="user-profile" class="pkp_help_tab"}
-
 	{csrf}
 
 	{include file="controllers/notification/inPlaceNotification.tpl" notificationId="apiProfileNotification"}
@@ -32,7 +29,7 @@
 				type="submit"
 				{if $apiKeyAction === \PKP\user\form\APIProfileForm::API_KEY_DELETE}
 					onClick="return confirm({translate|json_encode|escape key='user.apiKey.remove.confirmation.message'})"
-					class="pkpButton pkpButton--isWarnable"
+					class="pkpButton pkp_button_offset"
 				{else}
 					class="pkp_button pkp_button_primary"
 				{/if}
@@ -47,7 +44,7 @@
 
 	<p>
 		{capture assign="privacyUrl"}
-			{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}
+			{url router=PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}
 		{/capture}
 		{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 	</p>

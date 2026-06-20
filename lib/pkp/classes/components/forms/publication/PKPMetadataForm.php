@@ -15,23 +15,20 @@
 
 namespace PKP\components\forms\publication;
 
+use APP\core\Application;
+use APP\facades\Repo;
 use APP\publication\Publication;
+use PKP\controlledVocab\ControlledVocab;
 use PKP\components\forms\FieldControlledVocab;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldText;
 use PKP\components\forms\FormComponent;
 use PKP\context\Context;
-use PKP\submission\SubmissionAgencyDAO;
-use PKP\submission\SubmissionDisciplineDAO;
-use PKP\submission\SubmissionKeywordDAO;
-use PKP\submission\SubmissionLanguageDAO;
-use PKP\submission\SubmissionSubjectDAO;
-
-define('FORM_METADATA', 'metadata');
 
 class PKPMetadataForm extends FormComponent
 {
-    public $id = FORM_METADATA;
+    public const FORM_METADATA = 'metadata';
+    public $id = self::FORM_METADATA;
     public $method = 'PUT';
     public Context $context;
     public Publication $publication;
@@ -57,9 +54,9 @@ class PKPMetadataForm extends FormComponent
                 'label' => __('common.keywords'),
                 'tooltip' => __('manager.setup.metadata.keywords.description'),
                 'isMultilingual' => true,
-                'apiUrl' => str_replace('__vocab__', SubmissionKeywordDAO::CONTROLLED_VOCAB_SUBMISSION_KEYWORD, $suggestionUrlBase),
+                'apiUrl' => str_replace('__vocab__', ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_KEYWORD, $suggestionUrlBase),
                 'locales' => $this->locales,
-                'value' => (array) $publication->getData('keywords'),
+                'value' => $this->getVocabEntryData(ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_KEYWORD),
             ]));
         }
 
@@ -68,9 +65,9 @@ class PKPMetadataForm extends FormComponent
                 'label' => __('common.subjects'),
                 'tooltip' => __('manager.setup.metadata.subjects.description'),
                 'isMultilingual' => true,
-                'apiUrl' => str_replace('__vocab__', SubmissionSubjectDAO::CONTROLLED_VOCAB_SUBMISSION_SUBJECT, $suggestionUrlBase),
+                'apiUrl' => str_replace('__vocab__', ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_SUBJECT, $suggestionUrlBase),
                 'locales' => $this->locales,
-                'value' => (array) $publication->getData('subjects'),
+                'value' => $this->getVocabEntryData(ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_SUBJECT),
             ]));
         }
 
@@ -79,20 +76,9 @@ class PKPMetadataForm extends FormComponent
                 'label' => __('search.discipline'),
                 'tooltip' => __('manager.setup.metadata.disciplines.description'),
                 'isMultilingual' => true,
-                'apiUrl' => str_replace('__vocab__', SubmissionDisciplineDAO::CONTROLLED_VOCAB_SUBMISSION_DISCIPLINE, $suggestionUrlBase),
+                'apiUrl' => str_replace('__vocab__', ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_DISCIPLINE, $suggestionUrlBase),
                 'locales' => $this->locales,
-                'value' => (array) $publication->getData('disciplines'),
-            ]));
-        }
-
-        if ($this->enabled('languages')) {
-            $this->addField(new FieldControlledVocab('languages', [
-                'label' => __('common.languages'),
-                'tooltip' => __('manager.setup.metadata.languages.description'),
-                'isMultilingual' => true,
-                'apiUrl' => str_replace('__vocab__', SubmissionLanguageDAO::CONTROLLED_VOCAB_SUBMISSION_LANGUAGE, $suggestionUrlBase),
-                'locales' => $this->locales,
-                'value' => (array) $publication->getData('languages'),
+                'value' => $this->getVocabEntryData(ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_DISCIPLINE),
             ]));
         }
 
@@ -101,9 +87,9 @@ class PKPMetadataForm extends FormComponent
                 'label' => __('submission.supportingAgencies'),
                 'tooltip' => __('manager.setup.metadata.agencies.description'),
                 'isMultilingual' => true,
-                'apiUrl' => str_replace('__vocab__', SubmissionAgencyDAO::CONTROLLED_VOCAB_SUBMISSION_AGENCY, $suggestionUrlBase),
+                'apiUrl' => str_replace('__vocab__', ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_AGENCY, $suggestionUrlBase),
                 'locales' => $this->locales,
-                'value' => (array) $publication->getData('supportingAgencies'),
+                'value' => $this->getVocabEntryData(ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_AGENCY),
             ]));
         }
 
@@ -170,5 +156,17 @@ class PKPMetadataForm extends FormComponent
             return in_array('publication', (array) $this->context->getData('enablePublisherId'));
         }
         return (bool) $this->context->getData($setting);
+    }
+
+    /**
+     * Get vocab entry data
+     */
+    protected function getVocabEntryData(string $symbolic): array
+    {
+        return Repo::controlledVocab()->getBySymbolic(
+            $symbolic,
+            Application::ASSOC_TYPE_PUBLICATION,
+            $this->publication->getId()
+        );
     }
 }

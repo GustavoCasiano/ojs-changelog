@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/mailable/Repository.php
  *
@@ -16,16 +17,12 @@ namespace PKP\mail;
 use APP\core\Application;
 use APP\facades\Repo;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use PKP\context\Context;
-use PKP\core\PKPString;
 use PKP\mail\mailables\DecisionNotifyOtherAuthors;
-use PKP\mail\mailables\EditReviewNotify;
-use PKP\mail\mailables\ReviewCompleteNotifyEditors;
 use PKP\mail\mailables\StatisticsReportNotify;
 use PKP\mail\mailables\SubmissionAcknowledgement;
 use PKP\mail\mailables\SubmissionAcknowledgementNotAuthor;
-use PKP\mail\mailables\SubmissionNeedsEditor;
-use PKP\mail\mailables\SubmissionSavedForLater;
 use PKP\mail\traits\Configurable;
 use PKP\plugins\Hook;
 
@@ -38,14 +35,15 @@ class Repository
      * @param ?bool $includeDisabled Whether or not to include mailables not used in this context, based on the context settings
      *
      * @return Collection<int,string> The fully-qualified class name of each mailable
+     *
+     * @hook Mailer::Mailables [[$mailables, $context]]
      */
     public function getMany(
         Context $context,
         ?string $searchPhrase = null,
         ?bool $includeDisabled = false,
         ?bool $includeConfigurableOnly = false
-    ): Collection
-    {
+    ): Collection {
         $mailables = $this->map();
         Hook::call('Mailer::Mailables', [$mailables, $context]);
 
@@ -67,11 +65,11 @@ class Repository
      */
     protected function containsSearchPhrase(string $className, string $searchPhrase): bool
     {
-        $searchPhrase = PKPString::strtolower($searchPhrase);
+        $searchPhrase = Str::lower($searchPhrase);
 
         /** @var Mailable $className */
-        return str_contains(PKPString::strtolower($className::getName()), $searchPhrase) ||
-            str_contains(PKPString::strtolower($className::getDescription()), $searchPhrase);
+        return str_contains(Str::lower($className::getName()), $searchPhrase) ||
+            str_contains(Str::lower($className::getDescription()), $searchPhrase);
     }
 
     /**
@@ -184,23 +182,6 @@ class Repository
         if (!in_array(Configurable::class, class_uses_recursive($class))) {
             return false;
         }
-
-        /**
-         * Mailables may not have associated email templates due to pkp/pkp-lib#9109 and pkp/pkp-lib#9217,
-         * don't allow to configure them
-         */
-        if (in_array($class, [
-            EditReviewNotify::class,
-            ReviewCompleteNotifyEditors::class,
-            SubmissionSavedForLater::class,
-            SubmissionNeedsEditor::class,
-        ])) {
-            $template = Repo::emailTemplate()->getByKey($context->getId(), $class::getEmailTemplateKey());
-            if (!$template) {
-                return false;
-            }
-        }
-
         return true;
     }
 
@@ -234,6 +215,8 @@ class Repository
             mailables\EditorAssigned::class,
             mailables\EditReviewNotify::class,
             mailables\EditorialReminder::class,
+            mailables\OrcidRequestAuthorAuthorization::class,
+            mailables\OrcidCollectAuthorId::class,
             mailables\PasswordResetRequested::class,
             mailables\PublicationVersionNotify::class,
             mailables\RecommendationNotifyEditors::class,
@@ -255,8 +238,14 @@ class Repository
             mailables\SubmissionAcknowledgement::class,
             mailables\SubmissionAcknowledgementNotAuthor::class,
             mailables\UserCreated::class,
+            mailables\UserRoleAssignmentInvitationNotify::class,
+            mailables\UserRoleEndNotify::class,
+            mailables\UserRoleMastheadUpdateNotify::class,
             mailables\ValidateEmailContext::class,
             mailables\ValidateEmailSite::class,
+            mailables\RequestReviewRoundAuthorResponse::class,
+            mailables\SubmissionSavedForLater::class,
+            mailables\SubmissionNeedsEditor::class,
         ]);
     }
 }

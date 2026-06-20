@@ -59,8 +59,14 @@ class LanguageGridCellProvider extends GridCellProvider
             case 'formLocale':
                 return ['selected' => $element['supportedFormLocales'],
                     'disabled' => !$element['supported']];
+            case 'defaultSubmissionLocale':
+                return ['selected' => $element['supportedDefaultSubmissionLocale'],
+                    'disabled' => !$element['supported']];
             case 'submissionLocale':
                 return ['selected' => $element['supportedSubmissionLocales'],
+                    'disabled' => !$element['supported']];
+            case 'submissionMetadataLocale':
+                return ['selected' => $element['supportedSubmissionMetadataLocales'],
                     'disabled' => !$element['supported']];
             default:
                 assert(false);
@@ -90,7 +96,8 @@ class LanguageGridCellProvider extends GridCellProvider
                         $request->getSession(),
                         __('admin.languages.confirmDisable'),
                         __('common.disable'),
-                        $router->url($request, null, null, 'disableLocale', null, $actionArgs)
+                        $router->url($request, null, null, 'disableLocale', null, $actionArgs),
+                        'negative'
                     );
                 } else {
                     $action = 'enable-' . $row->getId();
@@ -105,7 +112,8 @@ class LanguageGridCellProvider extends GridCellProvider
                         $request->getSession(),
                         __('admin.languages.confirmSitePrimaryLocaleChange'),
                         __('locale.primary'),
-                        $router->url($request, null, null, 'setPrimaryLocale', null, $actionArgs)
+                        $router->url($request, null, null, 'setPrimaryLocale', null, $actionArgs),
+                        'primary'
                     );
                 }
                 break;
@@ -128,10 +136,25 @@ class LanguageGridCellProvider extends GridCellProvider
                 $actionArgs['value'] = !$element['supportedFormLocales'];
                 $actionRequest = new AjaxAction($router->url($request, null, null, 'saveLanguageSetting', null, $actionArgs));
                 break;
+            case 'defaultSubmissionLocale':
+                $default = $element['supportedDefaultSubmissionLocale'];
+                if (!$default) {
+                    $action = 'setDefaultSubmissionLocale-' . $row->getId();
+                    $actionArgs['setting'] = 'supportedDefaultSubmissionLocale';
+                    $actionArgs['value'] = !$element['supportedDefaultSubmissionLocale'];
+                    $actionRequest = new AjaxAction($router->url($request, null, null, 'setDefaultSubmissionLocale', null, $actionArgs));
+                }
+                break;
             case 'submissionLocale':
                 $action = 'setSubmissionLocale-' . $row->getId();
                 $actionArgs['setting'] = 'supportedSubmissionLocales';
                 $actionArgs['value'] = !$element['supportedSubmissionLocales'];
+                $actionRequest = new AjaxAction($router->url($request, null, null, 'saveLanguageSetting', null, $actionArgs));
+                break;
+            case 'submissionMetadataLocale':
+                $action = 'setSubmissionMetadataLocale-' . $row->getId();
+                $actionArgs['setting'] = 'supportedSubmissionMetadataLocales';
+                $actionArgs['value'] = !$element['supportedSubmissionMetadataLocales'];
                 $actionRequest = new AjaxAction($router->url($request, null, null, 'saveLanguageSetting', null, $actionArgs));
                 break;
         }

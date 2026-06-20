@@ -15,6 +15,8 @@
 
 namespace PKP\components\forms;
 
+use PKP\controlledVocab\ControlledVocabEntry;
+
 class FieldControlledVocab extends FieldBaseAutosuggest
 {
     /** @copydoc Field::$component */
@@ -34,13 +36,13 @@ class FieldControlledVocab extends FieldBaseAutosuggest
             $config['selected'] = [];
             foreach ($this->locales as $locale) {
                 if (array_key_exists($locale['key'], $this->value)) {
-                    $config['selected'][$locale['key']] = array_map([$this, 'mapSelected'], (array) $this->value[$locale['key']]);
+                    $config['selected'][$locale['key']] = array_map($this->mapSelected(...), (array) $this->value[$locale['key']]);
                 } else {
                     $config['selected'][$locale['key']] = [];
                 }
             }
         } else {
-            $config['selected'] = array_map([$this, 'mapSelected'], $this->value);
+            $config['selected'] = array_map($this->mapSelected(...), $this->value);
         }
 
         return $config;
@@ -58,7 +60,7 @@ class FieldControlledVocab extends FieldBaseAutosuggest
     {
         return [
             'value' => $value,
-            'label' => $value,
+            'label' => $value['name'] ?? $value,
         ];
     }
 }

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/galley/maps/Schema.php
  *
@@ -31,7 +32,7 @@ class Schema extends \PKP\core\maps\Schema
     public string $schema = PKPSchemaService::SCHEMA_GALLEY;
     public Submission $submission;
 
-    public function __construct(Submission $submission, Publication  $publication, array $genres, Request $request, Context $context, PKPSchemaService $schemaService)
+    public function __construct(Submission $submission, Publication $publication, array $genres, Request $request, Context $context, PKPSchemaService $schemaService)
     {
         parent::__construct($request, $context, $schemaService);
         $this->publication = $publication;
@@ -102,7 +103,7 @@ class Schema extends \PKP\core\maps\Schema
                     break;
                 case 'file':
                     $output[$prop] = null;
-                    if (is_a($galley, 'Galley')) {
+                    if ($galley instanceof Galley) {
                         if (!$galley->getData('submissionFileId')) {
                             break;
                         }
@@ -114,8 +115,8 @@ class Schema extends \PKP\core\maps\Schema
                         }
 
                         $output[$prop] = Repo::submissionFile()
-                            ->getSchemaMap()
-                            ->map($submissionFile, $this->genres);
+                            ->getSchemaMap($this->submission, $this->genres)
+                            ->map($submissionFile);
                     }
                     break;
                 case 'urlPublished':
@@ -140,7 +141,9 @@ class Schema extends \PKP\core\maps\Schema
             }
         }
 
-        $output = $this->schemaService->addMissingMultilingualValues($this->schema, $output, $this->context->getSupportedFormLocales());
+        $locales = $this->publication->getLanguages($this->context->getSupportedSubmissionMetadataLocales(), $galley->getLanguages());
+
+        $output = $this->schemaService->addMissingMultilingualValues($this->schema, $output, $locales);
 
         ksort($output);
 

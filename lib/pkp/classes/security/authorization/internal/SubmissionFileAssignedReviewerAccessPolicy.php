@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/security/authorization/internal/SubmissionFileAssignedReviewerAccessPolicy.php
  *
@@ -18,10 +19,10 @@
 namespace PKP\security\authorization\internal;
 
 use APP\core\Application;
+use APP\facades\Repo;
 use Exception;
 use PKP\db\DAORegistry;
 use PKP\security\authorization\AuthorizationPolicy;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\ReviewFilesDAO;
 use PKP\submissionFile\SubmissionFile;
 
@@ -33,7 +34,7 @@ class SubmissionFileAssignedReviewerAccessPolicy extends SubmissionFileBaseAcces
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         $request = $this->getRequest();
 
@@ -50,8 +51,9 @@ class SubmissionFileAssignedReviewerAccessPolicy extends SubmissionFileBaseAcces
         }
 
         $context = $request->getContext();
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignments = $reviewAssignmentDao->getByUserId($user->getId());
+        $reviewAssignments = Repo::reviewAssignment()->getCollector()
+            ->filterByReviewerIds([$user->getId()])
+            ->getMany();
         $reviewFilesDao = DAORegistry::getDAO('ReviewFilesDAO'); /** @var ReviewFilesDAO $reviewFilesDao */
         foreach ($reviewAssignments as $reviewAssignment) {
             if ($context->getData('restrictReviewerFileAccess') && !$reviewAssignment->getDateConfirmed()) {

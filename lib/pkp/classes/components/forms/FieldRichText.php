@@ -2,8 +2,8 @@
 /**
  * @file classes/components/form/FieldRichText.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2024 Simon Fraser University
+ * Copyright (c) 2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class FieldRichText
@@ -29,10 +29,10 @@ class FieldRichText extends Field
     public $size = 'oneline';
 
     /** @var string Optional. A preset toolbar configuration. */
-    public $toolbar = 'formatgroup';
+    public $toolbar = 'bold italic underline superscript subscript';
 
     /** @var array Optional. A list of required plugins. */
-    public $plugins = 'paste';
+    public $plugins = [];
 
     /** @var string Optional. A list of comma separated elements. */
     public $invalidElements;
@@ -49,7 +49,8 @@ class FieldRichText extends Field
 
         $config['i18nFormattingLabel'] = __('common.formatting');
 
-        $config['toolbar'] = $this->toolbar;
+        $config['toolbar'] = 'formatgroup';
+        $config['formatToolbar'] = $this->toolbar;
         $config['plugins'] = $this->plugins;
         $config['size'] = $this->size;
 

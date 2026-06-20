@@ -1599,12 +1599,6 @@ msgstr "本誌について"
 msgid "about.history"
 msgstr "雑誌の歴史"
 
-msgid "about.editorialTeam"
-msgstr "編集委員会"
-
-msgid "about.editorialTeam.biography"
-msgstr "人物紹介"
-
 msgid "about.editorialPolicies"
 msgstr "編集ポリシー"
 
@@ -1894,7 +1888,7 @@ msgstr ""
 "\n"
 "<p>Public Knowledgeプロジェクトの<strong>オープン･ジャーナル･システム</"
 "strong>をダウンロードしていただきありがとうございました。処理を進める前に、こ"
-"のソフトウェアに添付されている<a href=\"{$baseUrl}/docs/README.md\">README</"
+"のソフトウェアに添付されている<a href=\"{$baseUrl}/README.md\">README</"
 "a>ファイルをお読みください。Public Knowledgeプロジェクトと本ソフトウェアプロ"
 "ジェクトに関してより詳しく知りたい方は、<a href=\"http://pkp.sfu.ca/\" "
 "target=\"_blank\">PKPのWebサイト</a>にアクセスしてください。オープン･ジャーナ"
@@ -1963,6 +1957,7 @@ msgstr ""
 "できるようにする必要があります（以下の「ファイル設定」を参照してください）。"
 "</p>"
 
+#, fuzzy
 msgid "installer.upgradeInstructions"
 msgstr ""
 "<h4>OJS バージョン {$version}</h4>\n"

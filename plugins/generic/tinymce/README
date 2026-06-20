@@ -13,7 +13,7 @@ more control over the appearance of their content.
 
 License
 -------
-This plugin is licensed under the GNU General Public License v2. See the file
+This plugin is licensed under the GNU General Public License v3. See the file
 LICENSE for the complete terms of this license.
 
 System Requirements
@@ -26,11 +26,6 @@ To install the plugin:
  - as Manager, go into the "System Plugins" page and enable the TinyMCE plugin.
 
 Select textareas should now be enabled with the TinyMCE editor.
-
-Localization
-------------
-TinyMCE language packs are available on the TinyMCE website at: <https://www.tiny.cloud/download/language-packages/>.
-Language packs should be installed under the langs/ subdirectory of this plugin.
 
 Contact/Support
 ---------------

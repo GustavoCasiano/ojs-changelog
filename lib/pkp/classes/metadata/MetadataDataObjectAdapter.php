@@ -75,8 +75,8 @@ class MetadataDataObjectAdapter extends PersistableFilter
         // extracting meta-data.
         $metadataTypeDescription = null; /** @var MetadataTypeDescription $metadataTypeDescription */
         $dataObjectTypeDescription = null; /** @var ClassTypeDescription $dataObjectTypeDescription */
-        $inputType = & $this->getInputType();
-        $outputType = & $this->getOutputType();
+        $inputType = $this->getInputType();
+        $outputType = $this->getOutputType();
         if (is_null($mode)) {
             if ($inputType instanceof \PKP\metadata\MetadataTypeDescription) {
                 $mode = self::METADATA_DOA_INJECTION_MODE;
@@ -361,12 +361,12 @@ class MetadataDataObjectAdapter extends PersistableFilter
      * Return all field names introduced by the
      * meta-data schema that might have to be persisted.
      *
-     * @param bool $translated if true, return localized field
+     * @param $translated if true, return localized field
      *  names, otherwise return additional field names.
      *
-     * @return array an array of field names to be persisted.
+     * @return An array of field names to be persisted.
      */
-    public function getMetadataFieldNames($translated = true)
+    public function getMetadataFieldNames(bool $translated = true): array
     {
         // Do we need to build the field name cache first?
         if (is_null($this->_metadataFieldNames)) {

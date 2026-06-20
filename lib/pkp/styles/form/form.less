@@ -207,6 +207,11 @@
 		// appear in the wrong space
 		display: block;
 
+		// Reserve space for the globe icon so input text doesn't overlap
+		input[type="text"] {
+			padding-inline-end: 2.5rem;
+		}
+
 		// Localization globe icon within TinyMce
 		&:after {
 			.fa();
@@ -247,7 +252,7 @@
 		display: none;
 		position: absolute;
 		left: 0;
-		z-index: 99;
+		z-index: 9;
 		padding: 0.5rem;
 		background-color: @bg;
 	}
@@ -257,7 +262,7 @@
 		position: relative;
 		margin-top: 0.5rem;
 		padding: 0;
-		z-index: 90;
+		z-index: 8;
 	}
 
 	// Position locale label off-screen but accessible to screen readers
@@ -302,6 +307,18 @@
 }
 
 // Row of buttons
+[dir='ltr'] {
+	.form_buttons {
+		text-align: right;
+	}
+}
+
+[dir='rtl'] {
+	.form_buttons {
+		text-align: left;
+	}
+}
+
 .form_buttons {
 	text-align: right;
 

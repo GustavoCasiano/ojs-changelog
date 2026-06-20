@@ -27,7 +27,7 @@ class Collector implements CollectorInterface
     public DAO $dao;
     public ?array $contextIds = null;
     public ?array $ips = null;
-    public string $searchPhrase = '';
+    public ?string $searchPhrase = null;
     public ?int $count = null;
     public ?int $offset = null;
     public bool $includeSoftDeletes = false;
@@ -52,6 +52,7 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc DAO::getMany()
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(): LazyCollection
@@ -80,7 +81,7 @@ class Collector implements CollectorInterface
     /**
      * Filter institutions by those matching a search query
      */
-    public function searchPhrase(string $phrase): self
+    public function searchPhrase(?string $phrase): self
     {
         $this->searchPhrase = $phrase;
         return $this;
@@ -129,7 +130,7 @@ class Collector implements CollectorInterface
             $qb->whereNull('i.deleted_at');
         }
 
-        if (!empty($this->searchPhrase)) {
+        if ($this->searchPhrase !== null) {
             $words = explode(' ', $this->searchPhrase);
             $pdo = DB::connection()->getPdo();
             if (count($words)) {

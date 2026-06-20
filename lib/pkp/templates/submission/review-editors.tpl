@@ -1,5 +1,5 @@
 {**
- * templates/submission/review-editors-step.tpl
+ * templates/submission/review-editors.tpl
  *
  * Copyright (c) 2014-2022 Simon Fraser University
  * Copyright (c) 2003-2022 John Willinsky
@@ -32,16 +32,13 @@
             "
         >
             {if in_array($currentContext->getData('subjects'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
-                {include file="/submission/review-publication-field.tpl" prop="subjects" inLocale=$localeKey name="{translate key="common.subjects"}" type="array"}
+                {include file="/submission/review-publication-field.tpl" prop="subjects" inLocale=$localeKey name="{translate key="common.subjects"}" type="array" dataField="name"}
             {/if}
             {if in_array($currentContext->getData('disciplines'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
-                {include file="/submission/review-publication-field.tpl" prop="disciplines" inLocale=$localeKey name="{translate key="search.discipline"}" type="array"}
-            {/if}
-            {if in_array($currentContext->getData('languages'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
-                {include file="/submission/review-publication-field.tpl" prop="languages" inLocale=$localeKey name="{translate key="common.languages"}" type="array"}
+                {include file="/submission/review-publication-field.tpl" prop="disciplines" inLocale=$localeKey name="{translate key="search.discipline"}" type="array" dataField="name"}
             {/if}
             {if in_array($currentContext->getData('agencies'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
-                {include file="/submission/review-publication-field.tpl" prop="supportingAgencies" inLocale=$localeKey name="{translate key="submission.supportingAgencies"}" type="array"}
+                {include file="/submission/review-publication-field.tpl" prop="supportingAgencies" inLocale=$localeKey name="{translate key="submission.supportingAgencies"}" type="array" dataField="name"}
             {/if}
             {if in_array($currentContext->getData('coverage'), [$currentContext::METADATA_REQUEST, $currentContext::METADATA_REQUIRE])}
                 {include file="/submission/review-publication-field.tpl" prop="coverage" inLocale=$localeKey name="{translate key="manager.setup.metadata.coverage"}" type="string"}
@@ -89,7 +86,7 @@
                     </h4>
                     <div
                         v-if="submission.commentsForTheEditors"
-                        class="submissionWizard__reviewPanel__item__value"
+                        class="submissionWizard__reviewPanel__item__value semantic-defaults"
                         v-strip-unsafe-html="submission.commentsForTheEditors"
                     ></div>
                     <div v-else class="submissionWizard__reviewPanel__item__value">

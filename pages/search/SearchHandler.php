@@ -16,21 +16,18 @@
 
 namespace APP\pages\search;
 
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\search\ArticleSearch;
 use APP\security\authorization\OjsJournalMustPublishPolicy;
 use APP\template\TemplateManager;
+use PKP\userGroup\UserGroup;
 
 class SearchHandler extends Handler
 {
     /**
      * @copydoc PKPHandler::authorize()
      *
-     * @param mixed $request
-     * @param mixed $args
-     * @param mixed $roleAssignments
      */
     public function authorize($request, &$args, $roleAssignments)
     {
@@ -170,10 +167,9 @@ class SearchHandler extends Handler
             'simDocsEnabled' => true,
             'results' => $results,
             'error' => $error,
-            'authorUserGroups' => Repo::userGroup()->getCollector()
-                ->filterByRoleIds([\PKP\security\Role::ROLE_ID_AUTHOR])
-                ->filterByContextIds($searchFilters['searchJournal'] ? [$searchFilters['searchJournal']->getId()] : null)
-                ->getMany()->remember(),
+            'authorUserGroups' => UserGroup::withRoleIds([\PKP\security\Role::ROLE_ID_AUTHOR])
+                ->withContextIds($searchFilters['searchJournal'] ? [$searchFilters['searchJournal']->getId()] : null)
+                ->get(),
             'searchResultOrderOptions' => $articleSearch->getResultSetOrderingOptions($request),
             'searchResultOrderDirOptions' => $articleSearch->getResultSetOrderingDirectionOptions(),
         ]);
@@ -236,7 +232,7 @@ class SearchHandler extends Handler
 
     protected function getSearchableContexts(): array
     {
-        $contextService = Services::get('context');
+        $contextService = app()->get('context');
         return $contextService->getManySummary([
             'isEnabled' => true,
         ]);

@@ -22,6 +22,7 @@ use APP\plugins\PubObjectsExportPlugin;
 use PKP\controllers\grid\DataObjectGridCellProvider;
 use PKP\controllers\grid\GridHandler;
 use PKP\core\PKPApplication;
+use PKP\galley\Galley;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\linkAction\request\RedirectAction;
@@ -62,14 +63,14 @@ class PubIdExportRepresentationsListGridCellProvider extends DataObjectGridCellP
     {
         $galley = $row->getData();
         $columnId = $column->getId();
-        assert(is_a($galley, 'Galley') && !empty($columnId));
+        assert($galley instanceof Galley && !empty($columnId));
 
         $publication = Repo::publication()->get($galley->getData('publicationId'));
         $submission = Repo::submission()->get($publication->getData('submissionId'));
         switch ($columnId) {
             case 'title':
                 $this->_titleColumn = $column;
-                $title = $submission->getLocalizedTitle();
+                $title = $publication->getLocalizedTitle();
                 if (empty($title)) {
                     $title = __('common.untitled');
                 }
@@ -85,7 +86,7 @@ class PubIdExportRepresentationsListGridCellProvider extends DataObjectGridCellP
                     )
                 ];
             case 'issue':
-                $contextId = $submission->getContextId();
+                $contextId = $submission->getData('contextId');
                 $issueId = $submission->getCurrentPublication()->getData('issueId');
                 $issue = Repo::issue()->get($issueId);
                 $issue = $issue->getJournalId() == $contextId ? $issue : null;
@@ -134,7 +135,7 @@ class PubIdExportRepresentationsListGridCellProvider extends DataObjectGridCellP
     {
         $submissionGalley = $row->getData();
         $columnId = $column->getId();
-        assert(is_a($submissionGalley, 'Galley') && !empty($columnId));
+        assert($submissionGalley instanceof Galley && !empty($columnId));
 
         switch ($columnId) {
             case 'id':

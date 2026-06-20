@@ -1113,8 +1113,8 @@ msgstr "Formatos de data e hora"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "Escolla o formato preferido para datas e horas. Pódese introducir un formato "
-"personalizado empregando os <a href='http://php.net/manual/en/function."
-"strftime.php#refsect1-function.strftime-parameters'>caracteres especiais do "
+"personalizado empregando os <a href='http://php.net/manual/en/datetime."
+"format.php#refsect1-datetime.format-parameters'>caracteres especiais do "
 "formato</a>."
 
 msgid "manager.setup.dateTime.longDate"
@@ -2012,24 +2012,6 @@ msgid "manager.setup.metadata.keywords.require"
 msgstr ""
 "Esixir ao autor que suxira palabras clave antes de aceptar a seu envío."
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"O idioma indica o idioma principal da obra empregando un código de idioma "
-"(\"en\") cun código de país opcional (\"en_US\")."
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "Habilitar os metadatos do idioma"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr "Non solicite ao autor os idiomas durante o envío."
-
-msgid "manager.setup.metadata.languages.request"
-msgstr "Pedirlle ao autor que indique os idiomas durante o envío."
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-"Esixirlle ao autor que introduza os idiomas do envío antes de aceptalo."
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "Calquera dereito sobre o envío, que pode incluír Dereitos de Propiedade "
@@ -2364,16 +2346,6 @@ msgstr ""
 msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "Esta ligazón só se amosará se completou a sección \"Acerca da revista\" en "
-"Configuración > Revista."
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"Ligazón a unha páxina que mostra o contido da cabeceira Configuración > "
-"Revista."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Esta ligazón só se amosará se cubriu a sección Equipo editorial en "
 "Configuración > Revista."
 
 msgid "manager.navigationMenus.submissions.description"
@@ -3455,6 +3427,9 @@ msgid "manager.setup.competingInterests.requireAuthors"
 msgstr ""
 "Pedir aos autores/as que presenten unha declaración de conflitos de "
 "intereses (CI) xuntamente co seu envío."
+
+msgid "manager.setup.masthead"
+msgstr "Cabeceira"
 
 msgid "plugins.importexport.common.validation"
 msgstr "Validar o XML antes da exportación e rexistro."

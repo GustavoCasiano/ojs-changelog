@@ -21,14 +21,10 @@ use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldText;
 use PKP\components\forms\FormComponent;
 
-define('FORM_LICENSE', 'license');
-
 class PKPLicenseForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_LICENSE;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_LICENSE = 'license';
+    public $id = self::FORM_LICENSE;
     public $method = 'PUT';
 
     /**
@@ -86,7 +82,7 @@ class PKPLicenseForm extends FormComponent
                 'isMultilingual' => true,
                 'value' => $context->getData('licenseTerms'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist',
-                'plugins' => 'paste,link,lists',
+                'plugins' => ['link','lists'],
             ]));
     }
 }

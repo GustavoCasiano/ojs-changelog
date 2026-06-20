@@ -14,12 +14,16 @@
 
 namespace PKP\userGroup\relationships;
 
-use APP\facades\Repo;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
+use Eloquence\Behaviours\HasCamelCasing;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use PKP\userGroup\UserGroup;
+
 
 class UserGroupStage extends \Illuminate\Database\Eloquent\Model
 {
+    use HasCamelCasing;
+
     public $timestamps = false;
     public $incrementing = false;
     protected $primaryKey = null;
@@ -32,41 +36,20 @@ class UserGroupStage extends \Illuminate\Database\Eloquent\Model
      */
     protected $table = 'user_group_stage';
 
-    public function userGroup(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value, $attributes) => Repo::userGroup()->get($attributes['user_group_id']),
-            set: fn ($value) => $value->getId()
-        );
-    }
 
-    public function stageId(): Attribute
+    public function userGroup(): BelongsTo
     {
-        return Attribute::make(
-            get: fn ($value, $attributes) => $attributes['stage_id'],
-            set: fn ($value) => ['stage_id' => $value]
-        );
-    }
-
-    public function userGroupId(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($userGroup, $attributes) => $attributes['user_group_id'],
-            set: fn ($value) => ['user_group_id' => $value]
-        );
-    }
-
-    public function contextId(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value, $attributes) => $attributes['context_id'],
-            set: fn ($value) => ['context_id' => $value]
-        );
+        return $this->belongsTo(UserGroup::class, 'user_group_id', 'user_group_id');
     }
 
     public function scopeWithStageId(Builder $query, int $stageId): Builder
     {
         return $query->where('stage_id', $stageId);
+    }
+
+    public function scopeWithStageIds(Builder $query, array $stageIds): Builder
+    {
+        return $query->whereIn('stage_id', $stageIds);
     }
 
     public function scopeWithUserGroupId(Builder $query, int $userGroupId): Builder

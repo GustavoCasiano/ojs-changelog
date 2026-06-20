@@ -17,7 +17,6 @@
 namespace PKP\submission\action;
 
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use Illuminate\Support\Facades\Mail;
@@ -25,23 +24,18 @@ use PKP\context\Context;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\core\PKPServices;
-use PKP\core\PKPString;
 use PKP\db\DAORegistry;
+use PKP\invitation\invitations\reviewerAccess\ReviewerAccessInvite;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\ReviewRequest;
 use PKP\mail\mailables\ReviewRequestSubsequent;
-use PKP\mail\variables\ReviewAssignmentEmailVariable;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\notification\PKPNotificationManager;
 use PKP\plugins\Hook;
-use PKP\security\AccessKeyManager;
 use PKP\security\Validation;
 use PKP\submission\PKPSubmission;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\user\User;
@@ -70,42 +64,52 @@ class EditorAction
      * @param string $reviewDueDate
      * @param string $responseDueDate
      * @param null|mixed $reviewMethod
+     *
+     * @hook EditorAction::addReviewer [[&$submission, $reviewerId]]
      */
     public function addReviewer($request, $submission, $reviewerId, &$reviewRound, $reviewDueDate, $responseDueDate, $reviewMethod = null)
     {
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
         $reviewer = Repo::user()->get($reviewerId);
 
         // Check to see if the requested reviewer is not already
         // assigned to review this submission.
 
-        $assigned = $reviewAssignmentDao->reviewerExists($reviewRound->getId(), $reviewerId);
+        $assigned = (bool) Repo::reviewAssignment()->getCollector()
+            ->filterByReviewRoundIds([$reviewRound->getId()])
+            ->filterByReviewerIds([$reviewerId])
+            ->getMany()
+            ->first();
 
         // Only add the reviewer if he has not already
         // been assigned to review this submission.
         $stageId = $reviewRound->getStageId();
         $round = $reviewRound->getRound();
+        $newData = [
+            'submissionId' => $submission->getId(),
+            'reviewerId' => $reviewerId,
+            'dateAssigned' => Core::getCurrentDate(),
+            'stageId' => $stageId,
+            'round' => $round,
+            'reviewRoundId' => $reviewRound->getId(),
+        ];
+        if (isset($reviewMethod)) {
+            $newData['reviewMethod'] = $reviewMethod;
+        }
+
         if (!$assigned && isset($reviewer) && !Hook::call('EditorAction::addReviewer', [&$submission, $reviewerId])) {
-            $reviewAssignment = $reviewAssignmentDao->newDataObject();
-            $reviewAssignment->setSubmissionId($submission->getId());
-            $reviewAssignment->setReviewerId($reviewerId);
-            $reviewAssignment->setDateAssigned(Core::getCurrentDate());
-            $reviewAssignment->setStageId($stageId);
-            $reviewAssignment->setRound($round);
-            $reviewAssignment->setReviewRoundId($reviewRound->getId());
-            if (isset($reviewMethod)) {
-                $reviewAssignment->setReviewMethod($reviewMethod);
-            }
-            $reviewAssignmentDao->insertObject($reviewAssignment);
+            $reviewAssignment = Repo::reviewAssignment()->newDataObject($newData);
+
+            $reviewAssignmentId = Repo::reviewAssignment()->add($reviewAssignment);
+            $reviewAssignment = Repo::reviewAssignment()->get($reviewAssignmentId);
 
             $this->setDueDates($request, $submission, $reviewAssignment, $reviewDueDate, $responseDueDate);
+
             // Add notification
             $notificationMgr = new NotificationManager();
             $notificationMgr->createNotification(
-                $request,
                 $reviewerId,
-                PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT,
-                $submission->getContextId(),
+                Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT,
+                $submission->getData('contextId'),
                 PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT,
                 $reviewAssignment->getId(),
                 Notification::NOTIFICATION_LEVEL_TASK
@@ -131,7 +135,7 @@ class EditorAction
 
             // Send mail
             if (!$request->getUserVar('skipEmail')) {
-                $context = PKPServices::get('context')->get($submission->getData('contextId'));
+                $context = app()->get('context')->get($submission->getData('contextId'));
                 $emailTemplate = Repo::emailTemplate()->getByKey($submission->getData('contextId'), $request->getUserVar('template'));
                 $emailBody = $request->getUserVar('personalMessage');
                 $emailSubject = $emailTemplate->getLocalizedData('subject');
@@ -140,17 +144,19 @@ class EditorAction
                 try {
                     Mail::send($mailable);
 
-                    /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                    $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                    $submissionEmailLogDao->logMailable(
+                    Repo::emailLogEntry()->logMailable(
                         $round === ReviewRound::REVIEW_ROUND_STATUS_REVISIONS_REQUESTED
-                            ? SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_REQUEST
-                            : SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_REQUEST_SUBSEQUENT, $mailable, $submission, $user);
+                            ? SubmissionEmailLogEventType::REVIEW_REQUEST
+                            : SubmissionEmailLogEventType::REVIEW_REQUEST_SUBSEQUENT,
+                        $mailable,
+                        $submission,
+                        $user
+                    );
                 } catch (TransportException $e) {
                     $notificationMgr = new PKPNotificationManager();
                     $notificationMgr->createTrivialNotification(
                         $user->getId(),
-                        PKPNotification::NOTIFICATION_TYPE_ERROR,
+                        Notification::NOTIFICATION_TYPE_ERROR,
                         ['contents' => __('email.compose.error')]
                     );
                     trigger_error('Failed to send email: ' . $e->getMessage(), E_USER_WARNING);
@@ -167,9 +173,10 @@ class EditorAction
      * @param ReviewAssignment $reviewAssignment
      * @param string $reviewDueDate
      * @param string $responseDueDate
-     * @param bool $logEntry
+     *
+     * @hook EditorAction::setDueDates [[&$reviewAssignment, &$reviewer, &$reviewDueDate, &$responseDueDate]]
      */
-    public function setDueDates($request, $submission, $reviewAssignment, $reviewDueDate, $responseDueDate, $logEntry = false)
+    public function setDueDates($request, $submission, $reviewAssignment, $reviewDueDate, $responseDueDate)
     {
         $context = $request->getContext();
 
@@ -179,42 +186,12 @@ class EditorAction
         }
 
         if ($reviewAssignment->getSubmissionId() == $submission->getId() && !Hook::call('EditorAction::setDueDates', [&$reviewAssignment, &$reviewer, &$reviewDueDate, &$responseDueDate])) {
-            // Set the review due date
-            $defaultNumWeeks = $context->getData('numWeeksPerReview');
+            Repo::reviewAssignment()->edit($reviewAssignment, [
+                'dateDue' => $reviewDueDate, // Set the review due date
+                'dateResponseDue' => $responseDueDate, // Set the response due date
+            ]);
             $reviewAssignment->setDateDue($reviewDueDate);
-
-            // Set the response due date
-            $defaultNumWeeks = $context->getData('numWeeksPerResponse');
             $reviewAssignment->setDateResponseDue($responseDueDate);
-
-            // update the assignment (with both the new dates)
-            $reviewAssignment->stampModified();
-            $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-            $reviewAssignmentDao->updateObject($reviewAssignment);
-
-            // N.B. Only logging Date Due
-            if ($logEntry) {
-                // Add log
-                $eventLog = Repo::eventLog()->newDataObject([
-                    'assocType' => PKPApplication::ASSOC_TYPE_SUBMISSION,
-                    'assocId' => $submission->getId(),
-                    'eventType' => PKPSubmissionEventLogEntry::SUBMISSION_LOG_REVIEW_SET_DUE_DATE,
-                    'userId' => Validation::loggedInAs() ?? $request->getUser()->getId(),
-                    'message' => 'log.review.reviewDueDateSet',
-                    'isTranslated' => false,
-                    'dateLogged' => Core::getCurrentDate(),
-                    'reviewAssignmentId' => $reviewAssignment->getId(),
-                    'reviewerName' => $reviewer->getFullName(),
-                    'reviewDueDate' => date(
-                        PKPString::convertStrftimeFormat($context->getLocalizedDateFormatShort()),
-                        strtotime($reviewAssignment->getDateDue())
-                    ),
-                    'submissionId' => $submission->getId(),
-                    'stageId' => $reviewAssignment->getStageId(),
-                    'round' => $reviewAssignment->getRound()
-                ]);
-                Repo::eventLog()->add($eventLog);
-            }
         }
     }
 
@@ -238,26 +215,14 @@ class EditorAction
             new ReviewRequestSubsequent($context, $submission, $reviewAssignment);
 
         if ($context->getData('reviewerAccessKeysEnabled')) {
-            $accessKeyManager = new AccessKeyManager();
-            $expiryDays = ($context->getData('numWeeksPerReview') + 4) * 7;
-            $accessKey = $accessKeyManager->createKey($context->getId(), $reviewer->getId(), $reviewAssignment->getId(), $expiryDays);
-            $mailable->buildViewDataUsing(function () use ($context, $reviewAssignment, $accessKey) {
-                return [
-                    ReviewAssignmentEmailVariable::REVIEW_ASSIGNMENT_URL => PKPApplication::get()->getDispatcher()->url(
-                        PKPApplication::get()->getRequest(),
-                        PKPApplication::ROUTE_PAGE,
-                        $context->getData('urlPath'),
-                        'reviewer',
-                        'submission',
-                        null,
-                        [
-                            'submissionId' => $reviewAssignment->getSubmissionId(),
-                            'reviewId' => $reviewAssignment->getId(),
-                            'key' => $accessKey,
-                        ]
-                    )
-                ];
-            });
+            $reviewInvitation = new ReviewerAccessInvite();
+            $reviewInvitation->initialize($reviewAssignment->getReviewerId(), $context->getId(), null, $sender->getId());
+
+            $reviewInvitation->getPayload()->reviewAssignmentId = $reviewAssignment->getId();
+            $reviewInvitation->updatePayload();
+
+            $reviewInvitation->invite();
+            $reviewInvitation->updateMailableWithUrl($mailable);
         }
 
         $mailable

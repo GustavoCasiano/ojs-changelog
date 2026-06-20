@@ -3,8 +3,8 @@
 /**
  * @file classes/facades/Repo.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class Repo
@@ -24,20 +24,37 @@
 
 namespace PKP\facades;
 
+use PKP\affiliation\Repository as AffiliationRepository;
 use PKP\announcement\Repository as AnnouncementRepository;
 use PKP\author\Repository as AuthorRepository;
 use PKP\category\Repository as CategoryRepository;
+use PKP\controlledVocab\Repository as ControlledVocabRepository;
 use PKP\decision\Repository as DecisionRepository;
 use PKP\emailTemplate\Repository as EmailTemplateRepository;
+use PKP\highlight\Repository as HighlightRepository;
 use PKP\institution\Repository as InstitutionRepository;
+use PKP\invitation\repositories\Repository as InvitationRepository;
+use PKP\jats\Repository as JatsRepository;
 use PKP\job\repositories\FailedJob as FailedJobRepository;
 use PKP\job\repositories\Job as JobRepository;
-use PKP\submissionFile\Repository as SubmissionFileRepository;
-use PKP\userGroup\Repository as UserGroupRepository;
 use PKP\log\event\Repository as EventLogRepository;
+use PKP\log\Repository as EmailLogEntryRepository;
+use PKP\note\Repository as NoteRepository;
+use PKP\notification\Repository as NotificationRepository;
+use PKP\query\Repository as QueryRepository;
+use PKP\ror\Repository as RorRepository;
+use PKP\stageAssignment\Repository as StageAssignmentRepository;
+use PKP\submissionFile\Repository as SubmissionFileRepository;
+use PKP\user\interest\Repository as UserInterestRepository;
+use PKP\userGroup\Repository as UserGroupRepository;
 
 class Repo
 {
+    public static function affiliation(): AffiliationRepository
+    {
+        return app(AffiliationRepository::class);
+    }
+
     public static function announcement(): AnnouncementRepository
     {
         return app(AnnouncementRepository::class);
@@ -88,8 +105,63 @@ class Repo
         return app(UserGroupRepository::class);
     }
 
-	public static function eventLog(): EventLogRepository
-	{
-		return app(EventLogRepository::class);
-	}
+    public static function eventLog(): EventLogRepository
+    {
+        return app(EventLogRepository::class);
+    }
+
+    public static function invitation(): InvitationRepository
+    {
+        return app(InvitationRepository::class);
+    }
+
+    public static function highlight(): HighlightRepository
+    {
+        return app(HighlightRepository::class);
+    }
+
+    public static function jats(): JatsRepository
+    {
+        return app(JatsRepository::class);
+    }
+
+    public static function ror(): RorRepository
+    {
+        return app(RorRepository::class);
+    }
+
+    public static function stageAssignment(): StageAssignmentRepository
+    {
+        return app(StageAssignmentRepository::class);
+    }
+
+    public static function emailLogEntry(): EmailLogEntryRepository
+    {
+        return app(EmailLogEntryRepository::class);
+    }
+
+    public static function notification(): NotificationRepository
+    {
+        return app(NotificationRepository::class);
+    }
+
+    public static function note(): NoteRepository
+    {
+        return app(NoteRepository::class);
+    }
+
+    public static function query(): QueryRepository
+    {
+        return app(QueryRepository::class);
+    }
+
+    public static function controlledVocab(): ControlledVocabRepository
+    {
+        return app(ControlledVocabRepository::class);
+    }
+
+    public static function userInterest(): UserInterestRepository
+    {
+        return app(UserInterestRepository::class);
+    }
 }

@@ -15,15 +15,19 @@
 </script>
 
 <form class="pkp_form" id="contactForm" method="post" action="{url op="saveContact"}">
-	{* Help Link *}
-	{help file="user-profile" class="pkp_help_tab"}
-
 	{csrf}
 
 	{include file="controllers/notification/inPlaceNotification.tpl" notificationId="contactFormNotification"}
 
 	{fbvFormSection}
-		{fbvElement type="email" label="user.email" id="email" value=$email size=$fbvStyles.size.MEDIUM required=true}
+		{if $changeEmailPending}
+			<p>
+				{fbvElement type="hidden" id="pendingEmail" value=$changeEmailPending}
+				{translate key="user.pendingEmailChange" pendingEmail=$changeEmailPending}
+				<button type="submit" class="pkp_button" name="action" value="cancelPendingEmail">{translate key="common.cancel"}</button>
+			</p>
+		{/if}
+		{fbvElement type="email" readonly=$changeEmailPending|default:false label="user.email" id="email" value=$email size=$fbvStyles.size.MEDIUM required=true}
 		{fbvElement type="textarea" label="user.signature" multilingual="true" name="signature" id="signature" value=$signature rich=true size=$fbvStyles.size.MEDIUM}
 		{fbvElement type="tel" label="user.phone" name="phone" id="phone" value=$phone maxlength="24" size=$fbvStyles.size.SMALL}
 		{fbvElement type="text" label="user.affiliation" multilingual="true" name="affiliation" id="affiliation" value=$affiliation size=$fbvStyles.size.MEDIUM}
@@ -47,7 +51,7 @@
 	{/if}
 
 	<p>
-		{capture assign="privacyUrl"}{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
+		{capture assign="privacyUrl"}{url router=PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
 		{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 	</p>
 

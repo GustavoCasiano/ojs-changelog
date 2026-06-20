@@ -1170,8 +1170,8 @@ msgstr "Datuma un laika formāts"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "Izvēlieties vēlamo datuma un laika formātu. Pielāgotu formātu var ievadīt, "
-"izmantojot īpašās <a href=\"https://www.php.net/manual/en/function.strftime."
-"php#refsect1-function.strftime-parameters\">formāta rakstzīmes</a>."
+"izmantojot īpašās <a href=\"https://www.php.net/manual/en/datetime.format."
+"php#refsect1-datetime.format-parameters\">formāta rakstzīmes</a>."
 
 msgid "manager.setup.dateTime.longDate"
 msgstr "Datums"
@@ -2432,16 +2432,6 @@ msgstr ""
 msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "Šī saite tiks parādīta tikai tad, ja būsiet aizpildījis lauku \"Par žurnālu\""
-" sadaļā Iestatījumi > Žurnāls."
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"Saite uz lapu, kurā parādīts lauka \"Galvenā lapa\" saturs sadaļā "
-"Iestatījumi > Žurnāls."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Šī saite tiks parādīta tikai tad, ja būsiet aizpildījis lauku \"Redkolēģija\""
 " sadaļā Iestatījumi > Žurnāls."
 
 msgid "manager.navigationMenus.submissions.description"
@@ -3725,6 +3715,9 @@ msgstr "Iekļaut vecākelementa informāciju"
 
 msgid "manager.statistics.counterR5Report.settings.excludeMonthlyDetails"
 msgstr "Neietvert ikmēneša sīkāku informāciju"
+
+msgid "manager.setup.masthead"
+msgstr "Galvenā lapa"
 
 msgid "plugins.importexport.common.validation"
 msgstr "XML validācija pirms eksportēšanas un reģistrācijas."

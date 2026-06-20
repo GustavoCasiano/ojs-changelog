@@ -16,11 +16,9 @@
 
 namespace PKP\galley;
 
-use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
-use APP\statistics\StatisticsHelper;
 use PKP\facades\Locale;
+use PKP\services\PKPSchemaService;
 use PKP\submission\Representation;
 use PKP\submissionFile\SubmissionFile;
 
@@ -31,32 +29,6 @@ class Galley extends Representation
     //
     // Get/set methods
     //
-    /**
-     * Get views count.
-     *
-     * @deprecated 3.4
-     *
-     * @return int
-     */
-    public function getViews()
-    {
-        $fileId = $this->getData('submissionFileId');
-        if (!$fileId) {
-            return 0;
-        }
-        $filters = [
-            'dateStart' => StatisticsHelper::STATISTICS_EARLIEST_DATE,
-            'dateEnd' => date('Y-m-d', strtotime('yesterday')),
-            'contextIds' => [Application::get()->getRequest()->getContext()->getId()],
-            'submissionFileIds' => [$fileId],
-        ];
-        $metrics = Services::get('publicationStats')
-            ->getQueryBuilder($filters)
-            ->getSum([])
-            ->value('metric');
-        return $metrics ? $metrics : 0;
-    }
-
     /**
      * Get label/title.
      *
@@ -156,8 +128,8 @@ class Galley extends Representation
     public function getGalleyLabel()
     {
         $label = $this->getLabel();
-        if ($this->getLocale() && $this->getLocale() != Locale::getLocale()) {
-            $label .= ' (' . Locale::getMetadata($this->getLocale())->getDisplayName() . ')';
+        if ($this->getLocale() && $this->getLocale() !== Locale::getLocale()) {
+            $label .= ' (' . Locale::getSubmissionLocaleDisplayNames([$this->getLocale()])[$this->getLocale()] . ')';
         }
         return $label;
     }
@@ -211,6 +183,30 @@ class Galley extends Representation
         } else {
             parent::setStoredPubId($pubIdType, $pubId);
         }
+    }
+
+    /**
+     * Get metadata language names
+     */
+    public function getLanguageNames(): array
+    {
+        return Locale::getSubmissionLocaleDisplayNames($this->getLanguages());
+    }
+
+    /**
+     * Get metadata languages
+     */
+    public function getLanguages(): array
+    {
+        $props = app()->get('schema')->getMultilingualProps(PKPSchemaService::SCHEMA_GALLEY);
+        $locales = array_map(fn (string $prop): array => array_keys($this->getData($prop) ?? []), $props);
+        return collect([$this->getData('locale')])
+            ->concat($locales)
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
     }
 }
 

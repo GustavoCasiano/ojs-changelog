@@ -52,7 +52,7 @@ class IssueGridCellProvider extends GridCellProvider
     {
         if ($column->getId() == 'identification') {
             $issue = $row->getData();
-            assert(is_a($issue, 'Issue'));
+            assert($issue instanceof Issue);
             $router = $request->getRouter();
             return [
                 new LinkAction(
@@ -60,7 +60,7 @@ class IssueGridCellProvider extends GridCellProvider
                     new AjaxModal(
                         $router->url($request, null, null, 'editIssue', null, ['issueId' => $issue->getId()]),
                         __('editor.issues.editIssue', ['issueIdentification' => htmlspecialchars($issue->getIssueIdentification())]),
-                        'modal_edit',
+                        null,
                         true
                     ),
                     htmlspecialchars($issue->getIssueIdentification())
@@ -83,16 +83,13 @@ class IssueGridCellProvider extends GridCellProvider
     {
         $issue = $row->getData(); /** @var Issue $issue */
         $columnId = $column->getId();
-        assert(is_a($issue, 'Issue'));
+        assert($issue instanceof Issue);
         assert(!empty($columnId));
         switch ($columnId) {
             case 'identification':
                 return ['label' => '']; // Title returned as action
             case 'published':
                 $datePublished = $issue->getDatePublished();
-                if ($datePublished) {
-                    $datePublished = strtotime($datePublished);
-                }
                 return ['label' => $datePublished ? (new \Carbon\Carbon($datePublished))->locale(Locale::getLocale())->translatedFormat($this->dateFormatShort) : ''];
             case 'numArticles':
                 return ['label' => $issue->getNumArticles()];

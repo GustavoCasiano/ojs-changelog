@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/submissionFile/Collector.php
  *
@@ -84,6 +85,7 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc DAO::getMany()
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(): LazyCollection
@@ -208,13 +210,15 @@ class Collector implements CollectorInterface
 
     /**
      * @copydoc CollectorInterface::getQueryBuilder()
+     *
+     * @hook SubmissionFile::Collector::getQueryBuilder [[&$qb, $this]]
      */
     public function getQueryBuilder(): Builder
     {
         $qb = DB::table($this->dao->table . ' as sf')
             ->join('submissions as s', 's.submission_id', '=', 'sf.submission_id')
             ->join('files as f', 'f.file_id', '=', 'sf.file_id')
-            ->select(['sf.*', 'f.*', 's.locale as locale']);
+            ->select(['sf.*', 'f.*', 's.locale as submission_locale']);
 
         if ($this->submissionIds !== null) {
             $qb->whereIn('sf.submission_id', $this->submissionIds);

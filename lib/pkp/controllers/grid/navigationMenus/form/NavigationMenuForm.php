@@ -18,7 +18,6 @@
 
 namespace PKP\controllers\grid\navigationMenus\form;
 
-use APP\core\Services;
 use APP\template\TemplateManager;
 use PKP\db\DAORegistry;
 use PKP\form\Form;
@@ -30,23 +29,11 @@ use PKP\plugins\PluginRegistry;
 
 class NavigationMenuForm extends Form
 {
-    /** @var int Context ID */
-    public $_contextId;
-
-    /** @var int $_navigationMenuId The menu id being edited */
-    public $_navigationMenuId;
-
     /**
      * Constructor
-     *
-     * @param int $contextId Context ID
-     * @param int $navigationMenuId NavigationMenu Id
      */
-    public function __construct($contextId, $navigationMenuId = null)
+    public function __construct(public ?int $_contextId, public ?int $_navigationMenuId = null)
     {
-        $this->_navigationMenuId = !empty($navigationMenuId) ? (int) $navigationMenuId : null;
-        $this->_contextId = $contextId;
-
         parent::__construct('controllers/grid/navigationMenus/form/navigationMenuForm.tpl');
 
         $this->addCheck(new \PKP\form\validation\FormValidator($this, 'title', 'required', 'manager.navigationMenus.form.titleRequired'));
@@ -57,12 +44,10 @@ class NavigationMenuForm extends Form
 
     /**
      * Get a list of localized field names for this form
-     *
-     * @return ?array
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
-        return null;
+        return [];
     }
 
     /**
@@ -93,7 +78,7 @@ class NavigationMenuForm extends Form
         }
 
         $context = $request->getContext();
-        $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE;
+        $contextId = \PKP\core\PKPApplication::SITE_CONTEXT_ID;
         if ($context) {
             $contextId = $context->getId();
         }
@@ -108,10 +93,10 @@ class NavigationMenuForm extends Form
         });
 
         foreach ($unassignedItems as $unassignedItem) {
-            Services::get('navigationMenu')->transformNavMenuItemTitle($templateMgr, $unassignedItem);
+            app()->get('navigationMenu')->transformNavMenuItemTitle($templateMgr, $unassignedItem);
         }
 
-        $navigationMenuItemTypes = Services::get('navigationMenu')->getMenuItemTypes();
+        $navigationMenuItemTypes = app()->get('navigationMenu')->getMenuItemTypes();
 
         $typeConditionalWarnings = [];
         foreach ($navigationMenuItemTypes as $type => $settings) {
@@ -144,7 +129,7 @@ class NavigationMenuForm extends Form
             $navigationMenu = $navigationMenusDao->getById($this->_navigationMenuId);
 
             if ($navigationMenu != null) {
-                Services::get('navigationMenu')->getMenuTree($navigationMenu);
+                app()->get('navigationMenu')->getMenuTree($navigationMenu);
 
                 $this->_data = [
                     'title' => $navigationMenu->getTitle(),

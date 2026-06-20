@@ -1,8 +1,8 @@
 {**
  * lib/pkp/templates/controllers/grid/settings/category/form/categoryForm.tpl
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * Form to edit or create a category
@@ -16,6 +16,7 @@
 			{ldelim}
 				publishChangeEvents: ['updateSidebar'],
 				$uploader: $('#plupload'),
+				$preview: $('#coverImagePreview'),
 				uploaderOptions: {ldelim}
 					uploadUrl: {url|json_encode op="uploadImage" escape=false},
 					baseUrl: {$baseUrl|json_encode},
@@ -30,7 +31,7 @@
 	{rdelim});
 </script>
 
-<form class="pkp_form" id="categoryForm" method="post" action="{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.category.CategoryCategoryGridHandler" op="updateCategory" categoryId=$categoryId}">
+<form class="pkp_form" id="categoryForm" method="post" action="{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.category.CategoryCategoryGridHandler" op="updateCategory" categoryId=$categoryId}">
 	{csrf}
 	{include file="controllers/notification/inPlaceNotification.tpl" notificationId="categoryFormNotification"}
 
@@ -48,12 +49,11 @@
 
 		{fbvFormSection title="grid.category.path" required=true for="path"}
 			{capture assign="sampleUrl"}
-				{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="catalog" op="category" path="path"}
+				{url router=PKP\core\PKPApplication::ROUTE_PAGE page=$catalogPage op="category" path="path"}
 			{/capture}
 			{capture assign="instruct"}
 				{translate key="grid.category.urlWillBe" sampleUrl=$sampleUrl}
 			{/capture}
-			
 			{fbvElement type="text" id="path" value=$path maxlength="32" label=$instruct subLabelTranslate=false}
 		{/fbvFormSection}
 
@@ -65,23 +65,35 @@
 			{fbvElement type="select" id="sortOption" from=$sortOptions selected=$sortOption translate=false}
 		{/fbvFormSection}
 
-		{fbvFormSection title="category.coverImage"}
-			{include file="controllers/fileUploadContainer.tpl" id="plupload"}
-			<input type="hidden" name="temporaryFileId" id="temporaryFileId" value="" />
-		{/fbvFormSection}
-
-		{if $image}
+		{fbvFormArea id="coverImage" title="category.coverImage"}
 			{fbvFormSection}
-				{capture assign="altTitle"}{translate key="submission.currentCoverImage"}{/capture}
-				<img class="pkp_helpers_container_center" height="{$image.thumbnailHeight}" width="{$image.thumbnailWidth}" src="{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="catalog" op="thumbnail" type="category" id=$categoryId}" alt="{$altTitle|escape}" />
+				{include file="controllers/fileUploadContainer.tpl" id="plupload"}
+				<input type="hidden" name="temporaryFileId" id="temporaryFileId" value="" />
 			{/fbvFormSection}
-		{/if}
+
+			{fbvFormSection id="coverImagePreview"}
+				{if $image != ''}
+					<div class="pkp_form_file_view pkp_form_image_view">
+						{capture assign="altTitle"}{translate key="submission.currentCoverImage"}{/capture}
+						<div class="img">
+							<img class="pkp_helpers_container_center" height="{$image.thumbnailHeight}" width="{$image.thumbnailWidth}" src="{url router=PKP\core\PKPApplication::ROUTE_PAGE page=$catalogPage op="thumbnail" type="category" id=$categoryId}" alt="{$altTitle|escape}" />
+						</div>
+
+						<div class="data">
+							<div id="{$deleteCoverImageLinkAction->getId()}" class="actions">
+								{include file="linkAction/linkAction.tpl" action=$deleteCoverImageLinkAction contextId="categoryForm"}
+							</div>
+						</div>
+					</div>
+				{/if}
+			{/fbvFormSection}
+		{/fbvFormArea}
 
 		{fbvFormSection list=true title="manager.sections.form.assignEditors"}
 		<div>{translate key="manager.categories.form.assignEditors.description"}</div>
 		{foreach from=$assignableUserGroups item="assignableUserGroup"}
-			{assign var="role" value=$assignableUserGroup.userGroup->getLocalizedName()}
-			{assign var="userGroupId" value=$assignableUserGroup.userGroup->getId()}
+			{assign var="role" value=$assignableUserGroup.userGroup->getLocalizedData('name')}
+			{assign var="userGroupId" value=$assignableUserGroup.userGroup->id}
 			{foreach from=$assignableUserGroup.users item=$username key="id"}
 				{fbvElement
 					type="checkbox"

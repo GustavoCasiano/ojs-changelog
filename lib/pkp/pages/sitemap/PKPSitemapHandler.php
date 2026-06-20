@@ -18,10 +18,10 @@ namespace PKP\pages\sitemap;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\facades\Repo;
 use APP\handler\Handler;
 use DOMDocument;
 use DOMNode;
+use PKP\announcement\Announcement;
 use PKP\db\DAORegistry;
 use PKP\navigationMenu\NavigationMenuItem;
 use PKP\navigationMenu\NavigationMenuItemDAO;
@@ -109,13 +109,10 @@ class PKPSitemapHandler extends Handler
         // Announcements
         if ($context->getData('enableAnnouncements') == 1) {
             $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'announcement')));
-            $announcementIds = Repo::announcement()
-                ->getCollector()
-                ->filterByContextIds([$context->getId()])
-                ->getIds();
+            $announcementIds = Announcement::withContextIds([$context->getId()])->pluck((new Announcement())->getKeyName())->toArray();
 
             foreach ($announcementIds as $announcementId) {
-                $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'announcement', 'view', $announcementId)));
+                $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'announcement', 'view', [$announcementId])));
             }
         }
         // About: context
@@ -124,10 +121,6 @@ class PKPSitemapHandler extends Handler
         }
         // About: submissions
         $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'about', 'submissions')));
-        // About: editorial team
-        if (!empty($context->getData('editorialTeam'))) {
-            $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'about', 'editorialTeam')));
-        }
         // About: contact
         if (!empty($context->getData('mailingAddress')) || !empty($context->getData('contactName'))) {
             $root->appendChild($this->_createUrlTree($doc, $request->url($context->getPath(), 'about', 'contact')));

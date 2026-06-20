@@ -30,6 +30,7 @@ use APP\publicationFormat\PublicationFormat;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
 use Exception;
+use PKP\controlledVocab\ControlledVocab;
 use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
@@ -40,8 +41,6 @@ use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\plugins\GenericPlugin;
 use PKP\plugins\Hook;
-use PKP\submission\SubmissionKeywordDAO;
-use PKP\submission\SubmissionLanguageDAO;
 use Seboettg\CiteProc\CiteProc;
 use stdClass;
 
@@ -97,19 +96,21 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             return $success;
         }
         if ($success && $this->getEnabled($mainContextId)) {
-            Hook::add('PreprintHandler::view', [$this, 'getTemplateData']);
-            Hook::add('CatalogBookHandler::book', [$this, 'getTemplateData']);
-            Hook::add('ArticleHandler::view', [$this, 'getTemplateData']);
-            Hook::add('Templates::Article::Details', [$this, 'addCitationMarkup']);
-            Hook::add('Templates::Catalog::Book::Details', [$this, 'addCitationMarkup']);
-            Hook::add('Templates::Catalog::Chapter::Details', [$this, 'addCitationMarkup']);
-            Hook::add('LoadHandler', [$this, 'setPageHandler']);
+            Hook::add('PreprintHandler::view', $this->getTemplateData(...));
+            Hook::add('CatalogBookHandler::book', $this->getTemplateData(...));
+            Hook::add('ArticleHandler::view', $this->getTemplateData(...));
+            Hook::add('Templates::Article::Details', $this->addCitationMarkup(...));
+            Hook::add('Templates::Catalog::Book::Details', $this->addCitationMarkup(...));
+            Hook::add('Templates::Catalog::Chapter::Details', $this->addCitationMarkup(...));
+            Hook::add('LoadHandler', $this->setPageHandler(...));
         }
         return $success;
     }
 
     /**
      * Get list of citation styles available
+     *
+     * @hook CitationStyleLanguage::citationStyleDefaults [[&$defaults, $this]]
      */
     public function getCitationStyles(): array
     {
@@ -223,6 +224,8 @@ class CitationStyleLanguagePlugin extends GenericPlugin
 
     /**
      * Get list of citation download formats available
+     *
+     * @hook CitationStyleLanguage::citationDownloadDefaults [[&$defaults, $this]]
      */
     public function getCitationDownloads(): array
     {
@@ -334,9 +337,9 @@ class CitationStyleLanguagePlugin extends GenericPlugin
                 break;
             case 'omp':
                 /** @var Submission $submission */
-                $submission = & $args[1];
-                $publication = & $args[2];
-                $chapter = & $args[3];
+                $submission = &$args[1];
+                $publication = &$args[2];
+                $chapter = &$args[3];
                 $issue = null;
                 $citation = $this->getCitation($request, $submission, $this->getPrimaryStyleName($contextId), $issue, $publication);
                 break;
@@ -385,8 +388,8 @@ class CitationStyleLanguagePlugin extends GenericPlugin
 
     public function addCitationMarkup(string $hookName, array $args): bool
     {
-        $smarty = & $args[1];
-        $output = & $args[2];
+        $smarty = &$args[1];
+        $output = &$args[2];
         $output .= $smarty->fetch($this->getTemplateResource('citationblock.tpl'));
 
         return false;
@@ -403,11 +406,13 @@ class CitationStyleLanguagePlugin extends GenericPlugin
      * @see Mendeley's mappings http://support.mendeley.com/customer/portal/articles/364144-csl-type-mapping
      *
      * @param string $citationStyle Name of the citation style to use.
-     * @param Issue $issue Optional. Will fetch from db if not passed.
-     * @param Publication $publication Optional. A particular version
-     * @param Chapter $chapter Optional. OMP chapter pages only.
+     * @param ?Issue $issue Optional. Will fetch from db if not passed.
+     * @param ?Publication $publication Optional. A particular version
+     * @param ?Chapter $chapter Optional. OMP chapter pages only.
      *
      * @throws Exception
+     *
+     * @hook CitationStyleLanguage::citation [[&$citationData, &$citationStyle, $submission, $issue, $context, $publication]]
      */
     public function getCitation(PKPRequest $request, Submission $submission, string $citationStyle = 'apa', ?Issue $issue = null, ?Publication $publication = null, ?Chapter $chapter = null): string
     {
@@ -417,9 +422,14 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             $chapter = $this->application === 'omp' ? $this->getChapter($request, $publication) : null;
         }
         $this->setDocumentType($chapter);
-        /** @var SubmissionKeywordDAO $submissionKeywordDao */
-        $submissionKeywordDao = DAORegistry::getDAO('SubmissionKeywordDAO');
-        $keywords = $submissionKeywordDao->getKeywords($publication->getId(), [Locale::getSupportedLocales()]);
+
+        $keywords = collect($publication->getData('keywords'))
+                            ->map(
+                                fn(array $items): array => collect($items)
+                                    ->pluck("name")
+                                ->all()
+                                )
+                            ->all();
 
         $citationData = new stdClass();
 
@@ -449,7 +459,7 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             }
             $citationData->abstract = PKPString::html2text($publication->getLocalizedData('abstract'));
             $citationData = $this->setArticleAuthors($citationData, $publication, $context);
-            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'view', $submission->getBestId());
+            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'view', [$publication->getData('urlPath') ?? $submission->getId()], urlLocaleForPage: '');
             if ($publication->getDoi()) {
                 $citationData->DOI = $publication->getDoi();
             }
@@ -467,7 +477,7 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             $citationData->abstract = PKPString::html2text($publication->getLocalizedData('abstract'));
             $citationData->serialNumber = $this->getSerialNumber($publication);
             $citationData = $this->setBookAuthors($citationData, $publication, $context);
-            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'book', $submission->getBestId());
+            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'book', [$publication->getData('urlPath') ?? $submission->getId()], urlLocaleForPage: '');
             if ($publication->getDoi()) {
                 $citationData->DOI = $publication->getDoi();
             }
@@ -485,7 +495,7 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             $citationData->abstract = htmlspecialchars(strip_tags($chapter->getLocalizedData('abstract')));
             $citationData->serialNumber = $this->getSerialNumber($publication);
             $citationData = $this->setBookChapterAuthors($citationData, $publication, $context, $chapter);
-            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'book', [$submission->getBestId(), 'chapter', $chapter->getSourceChapterId()]);
+            $citationData->URL = $request->getDispatcher()->url($request, PKPApplication::ROUTE_PAGE, null, $this->getPublicationTypeUrlPath(), 'book', [$publication->getData('urlPath') ?? $submission->getId(), 'chapter', $chapter->getSourceChapterId()], urlLocaleForPage: '');
 
             if ($chapter->getDoi()) {
                 $citationData->DOI = $chapter->getDoi();
@@ -494,12 +504,10 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             throw new Exception('Unknown submission content type!');
         }
 
-        /** @var SubmissionLanguageDAO $submissionLanguageDao */
-        $submissionLanguageDao = DAORegistry::getDAO('SubmissionLanguageDAO');
-        $languages = $submissionLanguageDao->getLanguages($publication->getId(), [Locale::getLocale()]);
-        if (array_key_exists(Locale::getLocale(), $languages)) {
-            $citationData->languages = $languages[Locale::getLocale()];
-        }
+        $citationData->languages = collect($publication->getData('galleys') ?? [])
+            ->map(fn ($g) => $g->getData('locale'))
+            ->push($submission->getData('locale'))
+            ->filter()->unique()->sort()->values()->toArray();
 
         $citationData->{'publisher-place'} = $this->getSetting($context->getId(), 'publisherLocation');
         $abbreviation = $context->getData('abbreviation', $context->getPrimaryLocale()) ?? $context->getData('acronym', $context->getPrimaryLocale());
@@ -566,32 +574,20 @@ class CitationStyleLanguagePlugin extends GenericPlugin
             } else {
                 $style = $this->loadStyle($styleConfig);
                 if ($style) {
-                    // Determine what locale to use. Try in order:
-                    //  - xx_YY
-                    //  - xx
-                    // Fall back English if none found.
-                    foreach ([
-                        str_replace('_', '-', substr(Locale::getLocale(), 0, 5)),
-                        substr(Locale::getLocale(), 0, 2),
-                        'en-US',
-                    ] as $tryLocale) {
-                        if (file_exists(dirname(__FILE__) . '/lib/vendor/citation-style-language/locales/locales-' . $tryLocale . '.xml')) {
-                            break;
-                        }
-                    }
+                    // Determine what locale to use. Fall back English if none found.
+                    $tryLocale = $this->getCSLLocale(Locale::getLocale(), 'en-US');
 
-                    //Clickable URL and DOI including affixes
+                    // Clickable URL and DOI including affixes
                     $additionalMarkup = [
                         'DOI' => [
                             'function' => function ($item, $renderedValue) {
-                                $doiWithUrl = 'https://doi.org/'.$item->DOI;
+                                $doiWithUrl = 'https://doi.org/' . $item->DOI;
                                 if (str_contains($renderedValue, $doiWithUrl)) {
                                     $doiLink = '<a href="' . $doiWithUrl . '">' . $doiWithUrl . '</a>';
                                     return str_replace($doiWithUrl, $doiLink, $renderedValue);
                                 } else {
                                     $doiLink = '<a href="' . $doiWithUrl . '">' . $item->DOI . '</a>';
                                     return str_replace($item->DOI, $doiLink, $renderedValue);
-
                                 }
                             },
                             'affixes' => true
@@ -657,7 +653,7 @@ class CitationStyleLanguagePlugin extends GenericPlugin
 
         $encodedFilename = urlencode(substr(($publication ? $publication->getLocalizedTitle() : ''), 0, 60)) . '.' . $styleConfig['fileExtension'];
 
-        header("Content-Disposition: attachment; filename*=UTF-8''\"{$encodedFilename}\"");
+        header("Content-Disposition: attachment; filename*=UTF-8''{$encodedFilename}");
         header('Content-Type: ' . $styleConfig['contentType']);
         echo $citation;
         exit;
@@ -729,8 +725,8 @@ class CitationStyleLanguagePlugin extends GenericPlugin
      */
     public function setPageHandler(string $hookName, array $params): bool
     {
-        $page = & $params[0];
-        $handler = & $params[3];
+        $page = &$params[0];
+        $handler = &$params[3];
         if ($this->getEnabled() && $page === 'citationstylelanguage') {
             $handler = new CitationStyleLanguageHandler($this);
             return true;
@@ -995,7 +991,7 @@ class CitationStyleLanguagePlugin extends GenericPlugin
         }
 
         if (isset($citationData->{'container-author'})) {
-            $diffChapterAuthorsAuthors = array_udiff($citationData->{'container-author'}, $citationData->author, [$this, 'compareAuthors']);
+            $diffChapterAuthorsAuthors = array_udiff($citationData->{'container-author'}, $citationData->author, $this->compareAuthors(...));
             if (count($diffChapterAuthorsAuthors) === 0) {
                 $citationData->{'container-author'} = [];
             }
@@ -1007,5 +1003,50 @@ class CitationStyleLanguagePlugin extends GenericPlugin
     protected function compareAuthors($a, $b): int
     {
         return 0 === strcmp($a->family, $b->family) && 0 === strcmp($a->given, $b->given) ? 0 : 1;
+    }
+
+    /**
+     * Find the best match for a CSL locale.
+     *
+     * @param $locale Weblate locale.
+     * @param $defaultLocale A locale code to use as default. This should already be sanitized.
+     *
+     * @return string A language code that's available in the CSL library.
+     */
+    public function getCSLLocale(string $locale, string $defaultLocale = 'en-US'): string
+    {
+        $prefix = $this->getPluginPath() . '/lib/vendor/citation-style-language/locales/locales-';
+        $suffix = '.xml';
+        $preferences = [
+            'de' => 'de-DE',
+            'en' => 'en-US',
+            'es' => 'es-ES',
+            'fr' => 'fr-FR',
+            'pt' => 'pt-PT',
+            'zh_Hans' => 'zh-CN',
+            'zh_Hant' => 'zh-TW',
+        ];
+        // Determine the language and region we're looking for from $locale
+        $language = \Locale::getPrimaryLanguage($locale);
+        $region = \Locale::getRegion($locale) ?? null;
+        $localeAndRegion = $language . ($region ? "-{$region}" : '');
+        // Get a list of available options from the filesystem.
+        $availableLocaleFiles = glob("{$prefix}*{$suffix}");
+        // 1. Look for an exact match and return it.
+        if (in_array("{$prefix}{$locale}{$suffix}", $availableLocaleFiles)) {
+            return $locale;
+        }
+        // 2. Look in the preference list for a preferred fallback.
+        if ($preference = $preferences[$locale] ?? $preferences[$localeAndRegion] ?? false) {
+            return $preference;
+        }
+        // 3. Find the first match by language.
+        foreach ($availableLocaleFiles as $filename) {
+            if (strpos($filename, "{$prefix}{$language}-") === 0) {
+                return substr($filename, strlen($prefix), -strlen($suffix));
+            }
+        }
+        // 4. Use the supplied default.
+        return $defaultLocale;
     }
 }

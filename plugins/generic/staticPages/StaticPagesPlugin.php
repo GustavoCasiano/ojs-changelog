@@ -74,15 +74,15 @@ class StaticPagesPlugin extends GenericPlugin
                 $staticPagesDao = new StaticPagesDAO();
                 DAORegistry::registerDAO('StaticPagesDAO', $staticPagesDao);
 
-                Hook::add('Template::Settings::website', [$this, 'callbackShowWebsiteSettingsTabs']);
+                Hook::add('Template::Settings::website', $this->callbackShowWebsiteSettingsTabs(...));
 
                 // Intercept the LoadHandler hook to present
                 // static pages when requested.
-                Hook::add('LoadHandler', [$this, 'callbackHandleContent']);
+                Hook::add('LoadHandler', $this->callbackHandleContent(...));
 
                 // Register the components this plugin implements to
                 // permit administration of static pages.
-                Hook::add('LoadComponentHandler', [$this, 'setupGridHandler']);
+                Hook::add('LoadComponentHandler', $this->setupGridHandler(...));
             }
             return true;
         }
@@ -100,7 +100,7 @@ class StaticPagesPlugin extends GenericPlugin
     public function callbackShowWebsiteSettingsTabs($hookName, $args)
     {
         $templateMgr = $args[1];
-        $output = & $args[2];
+        $output = &$args[2];
         $request = & Registry::get('request');
         $dispatcher = $request->getDispatcher();
 
@@ -123,9 +123,9 @@ class StaticPagesPlugin extends GenericPlugin
         $request = Application::get()->getRequest();
         $templateMgr = TemplateManager::getManager($request);
 
-        $page = & $args[0];
-        $op = & $args[1];
-        $handler = & $args[3];
+        $page = &$args[0];
+        $op = &$args[1];
+        $handler = &$args[3];
 
         /** @var StaticPagesDAO */
         $staticPagesDao = DAORegistry::getDAO('StaticPagesDAO');
@@ -149,7 +149,7 @@ class StaticPagesPlugin extends GenericPlugin
             // Look for a static page with the given path
             $context = $request->getContext();
             $staticPage = $staticPagesDao->getByPath(
-                $context?->getId() ?? Application::CONTEXT_ID_NONE,
+                $context?->getId() ?? Application::SITE_CONTEXT_ID,
                 $path
             );
         }
@@ -174,8 +174,8 @@ class StaticPagesPlugin extends GenericPlugin
      */
     public function setupGridHandler($hookName, $params)
     {
-        $component = & $params[0];
-        $componentInstance = & $params[2];
+        $component = &$params[0];
+        $componentInstance = &$params[2];
         if ($component == 'plugins.generic.staticPages.controllers.grid.StaticPageGridHandler') {
             // Allow the static page grid handler to get the plugin object
             $componentInstance = new StaticPageGridHandler($this);
@@ -200,7 +200,7 @@ class StaticPagesPlugin extends GenericPlugin
                         null,
                         'management',
                         'settings',
-                        'website',
+                        ['website'],
                         ['uid' => uniqid()], // Force reload
                         'staticPages' // Anchor for tab
                     )),

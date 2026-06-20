@@ -1838,21 +1838,6 @@ msgstr ""
 msgid "manager.setup.metadata.keywords.require"
 msgstr ""
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.request"
-msgstr ""
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 
@@ -2121,12 +2106,6 @@ msgid "manager.navigationMenus.about.description"
 msgstr ""
 
 msgid "manager.navigationMenus.about.conditionalWarning"
-msgstr ""
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
 msgstr ""
 
 msgid "manager.navigationMenus.submissions.description"
@@ -3190,6 +3169,9 @@ msgid "manager.setup.competingInterests.requireAuthors"
 msgstr ""
 "داوا لە توێژەرە پێشکەشکراوەکان بکە بۆ ئەوەی (CI) لەگەڵ پێشکەشکردنەکانیان "
 "داخل بکەن."
+
+msgid "manager.setup.masthead"
+msgstr "دەستەی بەڕێوەبردنی گۆڤار"
 
 msgid "plugins.importexport.common.validation"
 msgstr "وردبینی لە XML بکە پێش هەناردەکردن و تۆمارکردن."

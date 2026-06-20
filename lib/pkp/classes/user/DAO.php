@@ -3,8 +3,8 @@
 /**
  * @file classes/user/DAO.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2026 Simon Fraser University
+ * Copyright (c) 2000-2026 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class DAO
@@ -20,15 +20,18 @@ namespace PKP\user;
 
 use APP\facades\Repo;
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use PKP\core\DataObject;
 use PKP\core\EntityDAO;
 use PKP\identity\Identity;
+use PKP\security\Role;
 
 /**
  * @template T of User
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO
@@ -67,6 +70,7 @@ class DAO extends EntityDAO
         'disabled' => 'disabled',
         'disabledReason' => 'disabled_reason',
         'inlineHelp' => 'inline_help',
+        'rememberToken' => 'remember_token',
     ];
 
     /* These constants are used user-selectable search fields. */
@@ -96,7 +100,7 @@ class DAO extends EntityDAO
         $row = DB::table($this->table)
             ->where($this->primaryKeyColumn, $id)
             ->first();
-        /** @var User */
+        /** @var User $user */
         $user = $row ? $this->fromRow($row) : null;
         if (!$allowDisabled && $user?->getDisabled()) {
             return null;
@@ -116,15 +120,17 @@ class DAO extends EntityDAO
 
     /**
      * Get a collection of users matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query->getQueryBuilder()->get();
+            if ($rows->isEmpty()) {
+                return;
+            }
 
-        return LazyCollection::make(function () use ($rows, $query) {
             foreach ($rows as $row) {
                 yield $row->user_id => $this->fromRow($row, $query->includeReviewerData);
             }
@@ -155,9 +161,20 @@ class DAO extends EntityDAO
     }
 
     /**
+     * Get a collection associating [user IDs => usernames]
+     *
+     * @return Collection<int,string>
+     */
+    public function getUsernames(Collector $query): Collection
+    {
+        return $query
+            ->getQueryBuilder()
+            ->pluck('u.username', 'u.' . $this->primaryKeyColumn);
+    }
+
+    /**
      * Retrieve a user by username.
      *
-     * @return ?User
      */
     public function getByUsername(string $username, bool $allowDisabled = false): ?User
     {
@@ -175,7 +192,6 @@ class DAO extends EntityDAO
     /**
      * Retrieve a user by email address.
      *
-     * @return ?User
      */
     public function getByEmail(string $email, bool $allowDisabled = false): ?User
     {
@@ -195,7 +211,6 @@ class DAO extends EntityDAO
      * @param string $authstr
      * @param bool $allowDisabled
      *
-     * @return ?User
      */
     public function getUserByAuthStr($authstr, $allowDisabled = true): ?User
     {
@@ -216,7 +231,6 @@ class DAO extends EntityDAO
      * @param string $password encrypted password
      * @param bool $allowDisabled
      *
-     * @return ?User
      */
     public function getUserByCredentials($username, $password, $allowDisabled = true): ?User
     {
@@ -245,8 +259,6 @@ class DAO extends EntityDAO
             $user->setData('declinedCount', (int) $row->declined_count);
             $user->setData('cancelledCount', (int) $row->cancelled_count);
             $user->setData('averageTime', (int) $row->average_time);
-
-            // 0 values should return null. They represent a reviewer with no ratings
             if ($reviewerRating = $row->reviewer_rating) {
                 $user->setData('reviewerRating', max(1, round($reviewerRating)));
             }
@@ -280,22 +292,30 @@ class DAO extends EntityDAO
 
     /**
      * Update user names when the site primary locale changes.
-     *
-     * @param string $oldLocale
-     * @param string $newLocale
      */
-    public function changeSitePrimaryLocale($oldLocale, $newLocale)
+    public function changeSitePrimaryLocale(string $oldLocale, string $newLocale): void
     {
-        // remove all empty user names in the new locale
-        // so that we do not have to take care if we should insert or update them -- we can then only insert them if needed
-        $settingNames = [Identity::IDENTITY_SETTING_GIVENNAME, Identity::IDENTITY_SETTING_FAMILYNAME, 'preferredPublicName'];
-        foreach ($settingNames as $settingName) {
-            DB::delete("DELETE from user_settings WHERE locale = ? AND setting_name = ? AND setting_value = ''", [$newLocale, $settingName]);
-        }
-    
+        // Remove empty or null values in the target locale before copying so they can be recreated
+        // with the source locale's values through a single insert operation.
+        $settingNames = [
+            Identity::IDENTITY_SETTING_GIVENNAME,
+            Identity::IDENTITY_SETTING_FAMILYNAME,
+            'preferredPublicName'
+        ];
+
+        DB::table('user_settings')
+            ->where('locale', $newLocale)
+            ->whereIn('setting_name', $settingNames)
+            ->where(function (Builder $query) {
+                $query->where('setting_value', '')
+                    ->orWhereNull('setting_value');
+            })
+            ->delete();
+
+
         // escape new locale value
         $newLocaleEscaped = DB::getPdo()->quote($newLocale);
-    
+
         // insert missing data
         DB::table('user_settings')->insertUsing(
             ['user_id', 'locale', 'setting_name', 'setting_value'],
@@ -308,10 +328,10 @@ class DAO extends EntityDAO
                 })
                 ->where('us_old.locale', '=', $oldLocale)
                 ->whereIn('us_old.setting_name', $settingNames)
-                ->whereNull('us_new.setting_value')
+                ->whereNull('us_new.user_id')
         );
     }
-       
+
     /**
      * Delete unvalidated expired users
      *
@@ -334,5 +354,29 @@ class DAO extends EntityDAO
         $users->each(fn ($user) => $userRepository->delete($userRepository->get($user->user_id, true)));
 
         return $users->count();
+    }
+
+    /** Get admin users */
+    public function getAdminUsers(): LazyCollection
+    {
+        return LazyCollection::make(function () {
+            $adminGroups = Repo::userGroup()->getArrayIdByRoleId(Role::ROLE_ID_SITE_ADMIN);
+            $rows = collect();
+            if (count($adminGroups)) {
+                $rows = DB::table('users', 'u')
+                    ->select('u.*')
+                    ->where('u.disabled', '=', 0)
+                    ->whereExists(
+                        fn (Builder $query) => $query->from('user_user_groups', 'uug')
+                            ->join('user_groups AS ug', 'uug.user_group_id', '=', 'ug.user_group_id')
+                            ->whereColumn('uug.user_id', '=', 'u.user_id')
+                            ->whereIn('uug.user_group_id', $adminGroups)
+                    )
+                    ->get();
+            }
+            foreach ($rows as $row) {
+                yield $row->user_id => $this->fromRow($row);
+            }
+        });
     }
 }

@@ -68,35 +68,35 @@ class DAO extends \PKP\section\DAO
      */
     public function getByIssueId(int $issueId): LazyCollection
     {
-        $issue = Repo::issue()->get($issueId);
-        $allowedStatuses = [Submission::STATUS_PUBLISHED];
-        if (!$issue->getPublished()) {
-            $allowedStatuses[] = Submission::STATUS_SCHEDULED;
-        }
+        return LazyCollection::make(function () use ($issueId) {
+            $issue = Repo::issue()->get($issueId);
+            $allowedStatuses = [Submission::STATUS_PUBLISHED];
+            if (!$issue->getPublished()) {
+                $allowedStatuses[] = Submission::STATUS_SCHEDULED;
+            }
 
-        $submissionsCollector = Repo::submission()->getCollector()
-            ->filterByContextIds([$issue->getJournalId()])
-            ->filterByIssueIds([$issueId])
-            ->filterByStatus($allowedStatuses)
-            ->orderBy(\APP\submission\Collector::ORDERBY_SEQUENCE, \APP\submission\Collector::ORDER_DIR_ASC);
+            $submissionsCollector = Repo::submission()->getCollector()
+                ->filterByContextIds([$issue->getJournalId()])
+                ->filterByIssueIds([$issueId])
+                ->filterByStatus($allowedStatuses)
+                ->orderBy(\APP\submission\Collector::ORDERBY_SEQUENCE, \APP\submission\Collector::ORDER_DIR_ASC);
 
-        // Extend the submissions query to fetch the list of section IDs instead
-        $sectionIdsQuery = $submissionsCollector->getQueryBuilder()
-            ->join('publications AS p', 'p.publication_id', '=', 's.current_publication_id')
-            ->select('p.section_id');
+            // Extend the submissions query to fetch the list of section IDs instead
+            $sectionIdsQuery = $submissionsCollector->getQueryBuilder()
+                ->join('publications AS p', 'p.publication_id', '=', 's.current_publication_id')
+                ->select('p.section_id');
 
-        $rows = DB::table('sections', 's')
-            ->select('s.*', DB::raw('COALESCE(o.seq, s.seq) AS section_seq'))
-            ->leftJoin('custom_section_orders AS o', function ($join) use ($issueId) {
-                $join->on('s.section_id', '=', 'o.section_id')
-                    ->on('o.issue_id', '=', DB::raw($issueId));
-            })
-            ->whereIn('s.section_id', $sectionIdsQuery)
-            ->orderBy('section_seq')
-            ->get();
+            $rows = DB::table('sections', 's')
+                ->select('s.*', DB::raw('COALESCE(o.seq, s.seq) AS section_seq'))
+                ->leftJoin('custom_section_orders AS o', function ($join) use ($issueId) {
+                    $join->on('s.section_id', '=', 'o.section_id')
+                        ->on('o.issue_id', '=', DB::raw($issueId));
+                })
+                ->whereIn('s.section_id', $sectionIdsQuery)
+                ->orderBy('section_seq')
+                ->get();
 
-        return LazyCollection::make(function () use ($rows) {
-            foreach ($rows as $row) {
+            foreach ($rows as $i => $row) {
                 yield $row->section_id => $this->fromRow($row);
             }
         });

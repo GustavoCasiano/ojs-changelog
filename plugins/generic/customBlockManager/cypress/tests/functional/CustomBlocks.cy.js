@@ -11,7 +11,9 @@ describe('Custom Block Manager plugin tests', function() {
 	it('Creates and exercises a custom block', function() {
 		cy.login('admin', 'admin', 'publicknowledge');
 
-		cy.get('.app__nav a').contains('Website').click();
+		cy.get('nav').contains('Settings').click();
+		// Ensure submenu item click despite animation
+		cy.get('nav').contains('Website').click({ force: true });
 		cy.get('button[id="plugins-button"]').click();
 
 		// Find and enable the plugin
@@ -32,12 +34,13 @@ describe('Custom Block Manager plugin tests', function() {
 		cy.get('form[id="customBlockForm"] button[id^="submitFormButton-"]').click({force: true});
 		cy.waitJQuery();
 		cy.wait(500); // Make sure the form has closed
-		cy.get('.pkp_modal_panel > .close').click();
+		cy.get('[role="dialog"] button:contains(\'Close\')').click();
 
-		// FIXME: The settings area has to be reloaded before the new block will appear.a
-		// This click should be unnecessary.
-		cy.get('.app__nav a').contains('Website').click();
-		cy.get('#appearance > .pkpTabs > .pkpTabs__buttons > #appearance-setup-button').click();
+		cy.reload();
+		cy.waitJQuery();
+
+		cy.get('button[id="appearance-button"]').click();
+		cy.get('#appearance-setup-button').click();
 		cy.get('#appearance-setup span:contains("test-custom-block"):first').click();
 		cy.get('#appearance-setup button:contains("Save")').click();
 		cy.waitJQuery();

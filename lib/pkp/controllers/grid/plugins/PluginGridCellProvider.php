@@ -37,9 +37,9 @@ class PluginGridCellProvider extends GridCellProvider
      */
     public function getTemplateVarsFromRowColumn($row, $column)
     {
-        $plugin = & $row->getData();
+        $plugin = &$row->getData();
         $columnId = $column->getId();
-        assert(is_a($plugin, 'Plugin') && !empty($columnId));
+        assert($plugin instanceof Plugin && !empty($columnId));
 
         switch ($columnId) {
             case 'name':
@@ -82,7 +82,8 @@ class PluginGridCellProvider extends GridCellProvider
                                 $request->getSession(),
                                 __('grid.plugin.disable'),
                                 __('common.disable'),
-                                $request->url(null, null, 'disable', null, $requestArgs)
+                                $request->url(null, null, 'disable', null, $requestArgs),
+                                'negative'
                             ),
                             __('manager.plugins.disable'),
                             null
@@ -93,7 +94,7 @@ class PluginGridCellProvider extends GridCellProvider
                             'enable',
                             new AjaxAction(
                                 $request->url(null, null, 'enable', null, array_merge(
-                                    ['csrfToken' => $request->getSession()->getCSRFToken()],
+                                    ['csrfToken' => $request->getSession()->token()],
                                     $requestArgs
                                 ))
                             ),

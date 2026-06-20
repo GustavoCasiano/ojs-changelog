@@ -28,7 +28,6 @@
 
 namespace PKP\mail;
 
-use APP\core\Services;
 use APP\decision\Decision;
 use APP\facades\Repo;
 use APP\mail\variables\ContextEmailVariable;
@@ -55,6 +54,7 @@ use PKP\mail\variables\SenderEmailVariable;
 use PKP\mail\variables\SiteEmailVariable;
 use PKP\mail\variables\Variable;
 use PKP\payment\QueuedPayment;
+use PKP\plugins\Hook;
 use PKP\site\Site;
 use PKP\submission\PKPSubmission;
 use PKP\submission\reviewAssignment\ReviewAssignment;
@@ -68,6 +68,8 @@ use ReflectionUnionType;
 
 class Mailable extends IlluminateMailable
 {
+    public const EMAIL_TEMPLATE_STYLE_PROPERTY = 'emailTemplateStyle';
+
     /** Used internally by Illuminate Mailer. Do not touch. */
     public const DATA_KEY_MESSAGE = 'message';
 
@@ -320,6 +322,7 @@ class Mailable extends IlluminateMailable
      */
     public function build(): self
     {
+        Hook::run('Mailable::build', ['mailable' => $this]);
         return $this;
     }
 
@@ -504,6 +507,7 @@ class Mailable extends IlluminateMailable
 
     /**
      * Retrieve the list of type names that might compose a given type
+     *
      * @return string[]
      */
     protected static function getTypeNames(ReflectionType $type): array
@@ -513,7 +517,6 @@ class Mailable extends IlluminateMailable
         }
         $isUnion = $type instanceof ReflectionUnionType;
         if ($isUnion || $type instanceof ReflectionIntersectionType) {
-            /** @var ReflectionIntersectionType $type */
             $flattenTypes = collect($type->getTypes())
                 ->map(fn ($type) => static::getTypeNames($type))
                 ->flatten();
@@ -549,6 +552,7 @@ class Mailable extends IlluminateMailable
      * Retrieves arguments of the specified methods
      *
      * @see self::getTemplateVarsDescription
+     *
      * @return ReflectionParameter[]
      */
     protected static function getParamsClass(ReflectionMethod $method): array
@@ -616,7 +620,7 @@ class Mailable extends IlluminateMailable
         if (!$submissionFile) {
             throw new Exception('Tried to attach submission file ' . $id . ' that does not exist.');
         }
-        $file = Services::get('file')->get($submissionFile->getData('fileId'));
+        $file = app()->get('file')->get($submissionFile->getData('fileId'));
         $this->attach(
             Config::getVar('files', 'files_dir') . '/' . $file->path,
             [

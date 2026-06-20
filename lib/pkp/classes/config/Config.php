@@ -37,16 +37,19 @@ class Config
      * ]
      */
     public const SENSITIVE_DATA = [
+        'general' => [
+            'app_key',
+        ],
         'database' => [
             'password',
         ],
         'email' => [
             'smtp_password',
-            'smtp_username'
+            'smtp_username',
         ],
         'security' => [
+            'api_key_secret',
             'salt',
-            'api_key_secret'
         ],
         'captcha' => [
             'recaptcha_private_key',
@@ -111,6 +114,14 @@ class Config
         }
 
         return $configData;
+    }
+
+    /**
+     * Reset the config data in registry
+     */
+    public static function resetData()
+    {
+        Registry::set('configData', static::reloadData());
     }
 
     /**

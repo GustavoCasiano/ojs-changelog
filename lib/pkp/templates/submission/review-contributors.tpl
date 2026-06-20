@@ -1,5 +1,5 @@
 {**
- * templates/submission/review-contributors-step.tpl
+ * templates/submission/review-contributors.tpl
  *
  * Copyright (c) 2014-2022 Simon Fraser University
  * Copyright (c) 2003-2022 John Willinsky
@@ -28,7 +28,7 @@
         "
     >
         <notification v-if="!publication.authors.length" type="warning" class="submissionWizard__reviewEmptyWarning">
-            <icon icon="exclamation-triangle" :inline="true"></icon>
+            <icon icon="Error" class="h-5 w-5" :inline="true"></icon>
             {translate key="submission.wizard.noContributors"}
         </notification>
         <ul
@@ -40,7 +40,7 @@
                 :key="i"
             >
                 <notification type="warning">
-                    <icon icon="exclamation-triangle" :inline="true"></icon>
+                    <icon icon="Error" class="h-5 w-5" :inline="true"></icon>
                     {{ error }}
                 </notification>
             </li>

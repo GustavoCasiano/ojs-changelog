@@ -26,8 +26,7 @@ use PKP\form\Form;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\ConfirmationModal;
 use PKP\security\Role;
-use PKP\stageAssignment\StageAssignmentDAO;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\submissionFile\SubmissionFile;
@@ -77,7 +76,7 @@ class PKPSubmissionFilesUploadBaseForm extends Form
             !is_numeric($fileStage) || $fileStage <= 0 ||
             !is_numeric($stageId) || $stageId < 1 || $stageId > 5 ||
             isset($assocType) !== isset($assocId)) {
-            fatalError('Invalid parameters!');
+            throw new \Exception('Invalid parameters!');
         }
 
         // Initialize class.
@@ -88,12 +87,9 @@ class PKPSubmissionFilesUploadBaseForm extends Form
             $this->_reviewRound = & $reviewRound;
         } elseif ($assocType == Application::ASSOC_TYPE_REVIEW_ASSIGNMENT && !$reviewRound) {
             // Get the review assignment object.
-            /** @var ReviewAssignmentDAO */
-            $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO');
-            /** @var \PKP\submission\reviewAssignment\ReviewAssignment */
-            $reviewAssignment = $reviewAssignmentDao->getById((int) $assocId);
+            $reviewAssignment = Repo::reviewAssignment()->get((int) $assocId);
             if ($reviewAssignment->getDateCompleted()) {
-                fatalError('Review already completed!');
+                throw new \Exception('Review already completed!');
             }
 
             // Get the review round object.
@@ -182,7 +178,7 @@ class PKPSubmissionFilesUploadBaseForm extends Form
         if (is_null($this->_submissionFiles)) {
             if ($this->getStageId() == WORKFLOW_STAGE_ID_INTERNAL_REVIEW || $this->getStageId() == WORKFLOW_STAGE_ID_EXTERNAL_REVIEW) {
                 // If we have a review stage id then we also expect a review round.
-                if (!$this->getData('fileStage') == SubmissionFile::SUBMISSION_FILE_QUERY && !is_a($this->getReviewRound(), 'ReviewRound')) {
+                if (!$this->getData('fileStage') == SubmissionFile::SUBMISSION_FILE_QUERY && !$this->getReviewRound() instanceof ReviewRound) {
                     throw new Exception('Can not request submission files for a review stage without specifying a review round.');
                 }
                 // Can only upload submission files, review files, review attachments, dependent files, or query attachments.
@@ -215,9 +211,9 @@ class PKPSubmissionFilesUploadBaseForm extends Form
 
                     $this->_submissionFiles = Repo::submissionFile()
                         ->getCollector()
+                        ->filterByFileStages([(int) $this->getData('fileStage')])
                         ->filterByReviewRoundIds([(int) $reviewRound->getId()])
                         ->filterBySubmissionIds([$submissionId])
-                        ->filterByFileStages([(int) $this->getData('fileStage')])
                         ->getMany()
                         ->toArray();
                 } else {
@@ -225,6 +221,18 @@ class PKPSubmissionFilesUploadBaseForm extends Form
                     $this->_submissionFiles = [];
                 }
             } else {
+                // For representations (galleys), don't show revision selector
+                if ($this->getAssocType() === Application::ASSOC_TYPE_REPRESENTATION) {
+                    if ($this->getRevisedFileId()) {
+                        // Include only the file being revised so fetch() validation passes
+                        $revisedFile = Repo::submissionFile()->get($this->getRevisedFileId());
+                        $this->_submissionFiles = $revisedFile ? [$revisedFile->getId() => $revisedFile] : [];
+                    } else {
+                        $this->_submissionFiles = [];
+                    }
+                    return $this->_submissionFiles;
+                }
+
                 $collector = Repo::submissionFile()
                     ->getCollector()
                     ->filterByFileStages([(int) $this->getData('fileStage')])
@@ -253,7 +261,6 @@ class PKPSubmissionFilesUploadBaseForm extends Form
      */
     public function getRevisionSubmissionFilesSelection($user, $uploadedFile = null)
     {
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
         $allSubmissionFiles = $this->getSubmissionFiles();
         $submissionFiles = [];
         foreach ($allSubmissionFiles as $submissionFile) {
@@ -261,6 +268,12 @@ class PKPSubmissionFilesUploadBaseForm extends Form
             if ($uploadedFile && $uploadedFile->getId() == $submissionFile->getId()) {
                 continue;
             }
+            // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+            $hasAnyAssignments = StageAssignment::withSubmissionIds([$submissionFile->getData('submissionId')])
+                ->withRoleIds([Role::ROLE_ID_AUTHOR])
+                ->withStageIds([$this->getStageId()])
+                ->withUserId($user->getId())
+                ->exists();
 
             $allowedFileStages = [
                 SubmissionFile::SUBMISSION_FILE_REVIEW_ATTACHMENT,
@@ -268,9 +281,10 @@ class PKPSubmissionFilesUploadBaseForm extends Form
                 SubmissionFile::SUBMISSION_FILE_INTERNAL_REVIEW_FILE,
             ];
 
+            // #11341 Might not be necessary, as the fileType is now filtered also for review stage in getSubmissionFiles
             if (
                 in_array($submissionFile->getFileStage(), $allowedFileStages) &&
-                $stageAssignmentDao->getBySubmissionAndRoleIds($submissionFile->getData('submissionId'), [Role::ROLE_ID_AUTHOR], $this->getStageId(), $user->getId())->next()
+                $hasAnyAssignments
             ) {
                 // Authors are not permitted to revise reviewer documents.
                 continue;
@@ -305,7 +319,7 @@ class PKPSubmissionFilesUploadBaseForm extends Form
 
         // Set the review round id, if any.
         $reviewRound = $this->getReviewRound();
-        if (is_a($reviewRound, 'ReviewRound')) {
+        if ($reviewRound instanceof ReviewRound) {
             $this->setData('reviewRoundId', $reviewRound->getId());
         }
 
@@ -357,7 +371,7 @@ class PKPSubmissionFilesUploadBaseForm extends Form
         // Make sure that the revised file (if any) really was among
         // the retrieved submission files in the current file stage.
         if ($revisedFileId && !$foundRevisedFile) {
-            fatalError('Invalid revised file id!');
+            throw new \Exception('Invalid revised file id!');
         }
 
         // Set the review file candidate data in the template.
@@ -371,7 +385,8 @@ class PKPSubmissionFilesUploadBaseForm extends Form
                 'addUser',
                 new ConfirmationModal(
                     __('review.anonymousPeerReview'),
-                    __('review.anonymousPeerReview.title')
+                    __('review.anonymousPeerReview.title'),
+                    'primary'
                 ),
                 __('review.anonymousPeerReview.title')
             );

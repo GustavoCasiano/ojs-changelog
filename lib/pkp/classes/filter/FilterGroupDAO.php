@@ -18,6 +18,7 @@
 
 namespace PKP\filter;
 
+use APP\core\Application;
 use PKP\db\DAORegistry;
 
 class FilterGroupDAO extends \PKP\db\DAO
@@ -25,11 +26,10 @@ class FilterGroupDAO extends \PKP\db\DAO
     /**
      * Insert a new filter group.
      *
-     * @param FilterGroup $filterGroup
      *
      * @return int the new filter group id
      */
-    public function insertObject(&$filterGroup)
+    public function insertObject(FilterGroup $filterGroup): int
     {
         $this->update(
             sprintf('INSERT INTO filter_groups
@@ -49,29 +49,21 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Retrieve a filter group
-     *
-     * @param FilterGroup $filterGroup
-     *
-     * @return FilterGroup
      */
-    public function getObject($filterGroup)
+    public function getObject(FilterGroup $filterGroup): FilterGroup
     {
         return $this->getObjectById($filterGroup->getId());
     }
 
     /**
      * Retrieve a configured filter group by id.
-     *
-     * @param int $filterGroupId
-     *
-     * @return FilterGroup
      */
-    public function getObjectById($filterGroupId)
+    public function getObjectById(int $filterGroupId): ?FilterGroup
     {
         $result = $this->retrieve(
             'SELECT * FROM filter_groups' .
-                ' WHERE filter_group_id = ?',
-            [$filterGroupId]
+                ' WHERE COALESCE(filter_group_id, 0) = ?',
+            [(int) $filterGroupId]
         );
         $row = (array) $result->current();
         return $row ? $this->_fromRow($row) : null;
@@ -79,12 +71,8 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Retrieve a configured filter group by its symbolic representation.
-     *
-     * @param string $filterGroupSymbolic
-     *
-     * @return FilterGroup
      */
-    public function getObjectBySymbolic($filterGroupSymbolic)
+    public function getObjectBySymbolic(string $filterGroupSymbolic): ?FilterGroup
     {
         $result = $this->retrieve(
             'SELECT * FROM filter_groups' .
@@ -98,10 +86,8 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Update an existing filter group.
-     *
-     * @param FilterGroup $filterGroup
      */
-    public function updateObject(&$filterGroup)
+    public function updateObject(FilterGroup $filterGroup): void
     {
         $this->update(
             'UPDATE	filter_groups
@@ -124,23 +110,19 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Delete a filter group (only works if there are not more filters in this group).
-     *
-     * @param FilterGroup $filterGroup
-     *
-     * @return bool
      */
-    public function deleteObject($filterGroup)
+    public function deleteObject(FilterGroup $filterGroup): bool
     {
         $filterDao = DAORegistry::getDAO('FilterDAO'); /** @var FilterDAO $filterDao */
 
         // Check whether there are still templates saved for this filter group.
-        $filterTemplates = $filterDao->getObjectsByGroup($filterGroup->getSymbolic(), null, true, false);
+        $filterTemplates = $filterDao->getObjectsByGroup($filterGroup->getSymbolic(), Application::SITE_CONTEXT_ID, true, false);
         if (!empty($filterTemplates)) {
             return false;
         }
 
         // Check whether there are still filters saved for this filter group.
-        $filters = $filterDao->getObjectsByGroup($filterGroup->getSymbolic(), null, false, false);
+        $filters = $filterDao->getObjectsByGroup($filterGroup->getSymbolic(), Application::SITE_CONTEXT_ID, false, false);
         if (!empty($filters)) {
             return false;
         }
@@ -153,16 +135,11 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Delete a filter group by id.
-     *
-     * @param int $filterGroupId
-     *
-     * @return bool
      */
-    public function deleteObjectById($filterGroupId)
+    public function deleteObjectById(int $filterGroupId): bool
     {
-        $filterGroupId = (int)$filterGroupId;
         $filterGroup = $this->getObjectById($filterGroupId);
-        if (!$filterGroup instanceof \PKP\filter\FilterGroup) {
+        if (!$filterGroup) {
             return false;
         }
         return $this->deleteObject($filterGroup);
@@ -170,15 +147,11 @@ class FilterGroupDAO extends \PKP\db\DAO
 
     /**
      * Delete a filter group by symbolic name.
-     *
-     * @param string $filterGroupSymbolic
-     *
-     * @return bool
      */
-    public function deleteObjectBySymbolic($filterGroupSymbolic)
+    public function deleteObjectBySymbolic(string $filterGroupSymbolic): bool
     {
         $filterGroup = $this->getObjectBySymbolic($filterGroupSymbolic);
-        if (!$filterGroup instanceof \PKP\filter\FilterGroup) {
+        if (!$filterGroup) {
             return false;
         }
         return $this->deleteObject($filterGroup);
@@ -190,10 +163,8 @@ class FilterGroupDAO extends \PKP\db\DAO
     //
     /**
      * Construct and return a new data object
-     *
-     * @return FilterGroup
      */
-    public function newDataObject()
+    public function newDataObject(): FilterGroup
     {
         return new FilterGroup();
     }
@@ -205,12 +176,8 @@ class FilterGroupDAO extends \PKP\db\DAO
     /**
      * Internal function to return a filter group
      * object from a row.
-     *
-     * @param array $row
-     *
-     * @return FilterGroup
      */
-    public function _fromRow($row)
+    public function _fromRow(array $row): FilterGroup
     {
         // Instantiate the filter group.
         $filterGroup = $this->newDataObject();

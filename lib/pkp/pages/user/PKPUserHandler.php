@@ -17,13 +17,12 @@
 namespace PKP\pages\user;
 
 use APP\core\Request;
+use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\template\TemplateManager;
 use PKP\core\JSONMessage;
 use PKP\core\PKPRequest;
-use PKP\facades\Locale;
 use PKP\security\Validation;
-use PKP\user\InterestManager;
 
 class PKPUserHandler extends Handler
 {
@@ -33,38 +32,6 @@ class PKPUserHandler extends Handler
     public function index($args, $request)
     {
         $request->redirect(null, null, 'profile');
-    }
-
-    /**
-     * Change the locale for the current user.
-     *
-     * @param array $args first parameter is the new locale
-     */
-    public function setLocale($args, $request)
-    {
-        $setLocale = array_shift($args);
-
-        $site = $request->getSite();
-        $context = $request->getContext();
-        if ($context != null) {
-            $contextSupportedLocales = (array) $context->getSupportedLocales();
-        }
-
-        if (Locale::isLocaleValid($setLocale) && (!isset($contextSupportedLocales) || in_array($setLocale, $contextSupportedLocales)) && in_array($setLocale, $site->getSupportedLocales())) {
-            $session = $request->getSession();
-            $session->setSessionVar('currentLocale', $setLocale);
-        }
-
-        $source = str_replace('@', '', $request->getUserVar('source'));
-        if (preg_match('#^/\w#', $source) === 1) {
-            $request->redirectUrl($source);
-        }
-
-        if (isset($_SERVER['HTTP_REFERER'])) {
-            $request->redirectUrl($_SERVER['HTTP_REFERER']);
-        }
-
-        $request->redirect(null, 'index');
     }
 
     /**
@@ -79,7 +46,7 @@ class PKPUserHandler extends Handler
     {
         return new JSONMessage(
             true,
-            (new InterestManager())->getAllInterests($request->getUserVar('term'))
+            Repo::userInterest()->getAllInterests($request->getUserVar('term'))
         );
     }
 
@@ -98,7 +65,7 @@ class PKPUserHandler extends Handler
         // Get message with sanity check (for XSS or phishing)
         $authorizationMessage = $request->getUserVar('message');
         if (!preg_match('/^[a-zA-Z0-9.]+$/', $authorizationMessage)) {
-            fatalError('Invalid locale key for auth message.');
+            throw new \Exception('Invalid locale key for auth message.');
         }
 
         $this->setupTemplate($request);

@@ -21,13 +21,12 @@ use APP\facades\Repo;
 use APP\pages\user\UserHandler;
 use APP\template\TemplateManager;
 use PKP\config\Config;
-use PKP\core\Core;
 use PKP\core\PKPRequest;
-use PKP\notification\PKPNotification;
+use PKP\invitation\core\enums\InvitationAction;
+use PKP\notification\Notification;
 use PKP\notification\PKPNotificationManager;
 use PKP\observers\events\UserRegisteredContext;
 use PKP\observers\events\UserRegisteredSite;
-use PKP\security\AccessKeyManager;
 use PKP\security\Validation;
 use PKP\user\form\RegistrationForm;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -87,7 +86,7 @@ class RegistrationHandler extends UserHandler
             $notificationMgr = new PKPNotificationManager();
             $notificationMgr->createTrivialNotification(
                 $userId,
-                PKPNotification::NOTIFICATION_TYPE_ERROR,
+                Notification::NOTIFICATION_TYPE_ERROR,
                 ['contents' => __('email.compose.error')]
             );
             trigger_error($e->getMessage(), E_USER_WARNING);
@@ -154,31 +153,42 @@ class RegistrationHandler extends UserHandler
     {
         $username = array_shift($args);
         $accessKeyCode = array_shift($args);
-        $user = Repo::user()->getByUsername($username, true);
-        if (!$user) {
+
+        if (isset($username) && isset($accessKeyCode)) { // Backward compatibility - use MD5 to create keyHash
+            $invitation = Repo::invitation()
+                ->getByKey($accessKeyCode);
+
+            if (isset($invitation)) {
+                $invitationHandler = $invitation->getInvitationActionRedirectController();
+                $invitationHandler->preRedirectActions(InvitationAction::ACCEPT);
+                $invitationHandler->acceptHandle($request);
+            }
+        } elseif (isset($username)) {
+            $invitationId = $request->getUserVar('invitationId');
+            $invitationKey = $request->getUserVar('invitationKey');
+
+            /** @var \PKP\invitation\invitations\registrationAccess\RegistrationAccessInvite|null $invitation */
+            $invitation = Repo::invitation()->getByIdAndKey($invitationId, $invitationKey);
+
+            if (!$invitation) {
+                $request->redirect(null, 'login');
+            }
+            $invitation->finalize();
+
+            $user = Repo::user()->getByUsername($username, true);
+            if (!$user) {
+                $request->redirect(null, 'login');
+            }
+
+            if ($user->getDateValidated() != null) { // The user is activated
+                $templateMgr = TemplateManager::getManager($request);
+                $templateMgr->assign('message', 'user.login.activated');
+                return $templateMgr->display('frontend/pages/message.tpl');
+            }
+
             $request->redirect(null, 'login');
         }
 
-        // Checks user and token
-        $accessKeyManager = new AccessKeyManager();
-        $accessKeyHash = $accessKeyManager->generateKeyHash($accessKeyCode);
-        $accessKey = $accessKeyManager->validateKey(
-            'RegisterContext',
-            $user->getId(),
-            $accessKeyHash
-        );
-
-        if ($accessKey != null && $user->getDateValidated() === null) {
-            // Activate user
-            $user->setDisabled(false);
-            $user->setDisabledReason('');
-            $user->setDateValidated(Core::getCurrentDate());
-            Repo::user()->edit($user);
-
-            $templateMgr = TemplateManager::getManager($request);
-            $templateMgr->assign('message', 'user.login.activated');
-            return $templateMgr->display('frontend/pages/message.tpl');
-        }
         $request->redirect(null, 'login');
     }
 

@@ -89,7 +89,6 @@ class StaticPageGridHandler extends GridHandler
                 new AjaxModal(
                     $router->url($request, null, null, 'addStaticPage'),
                     __('plugins.generic.staticPages.addStaticPage'),
-                    'modal_add_item'
                 ),
                 __('plugins.generic.staticPages.addStaticPage'),
                 'add_item'
@@ -133,6 +132,7 @@ class StaticPageGridHandler extends GridHandler
      *
      * @param array $args
      * @param PKPRequest $request
+     *
      * @return JSONMessage
      */
     public function index($args, $request)
@@ -212,7 +212,9 @@ class StaticPageGridHandler extends GridHandler
      */
     public function delete($args, $request)
     {
-        if (!$request->checkCSRF()) return new JSONMessage(false);
+        if (!$request->checkCSRF()) {
+            return new JSONMessage(false);
+        }
 
         $staticPageId = $request->getUserVar('staticPageId');
         $context = $request->getContext();

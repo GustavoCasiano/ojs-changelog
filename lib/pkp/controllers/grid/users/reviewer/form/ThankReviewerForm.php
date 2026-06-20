@@ -19,18 +19,16 @@ namespace PKP\controllers\grid\users\reviewer\form;
 use APP\core\Application;
 use APP\facades\Repo;
 use APP\notification\NotificationManager;
+use APP\orcid\actions\SendReviewToOrcid;
 use Illuminate\Support\Facades\Mail;
 use PKP\core\Core;
-use PKP\db\DAORegistry;
 use PKP\facades\Locale;
 use PKP\form\Form;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\ReviewAcknowledgement;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\Hook;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use Symfony\Component\Mailer\Exception\TransportException;
 
 class ThankReviewerForm extends Form
@@ -105,6 +103,8 @@ class ThankReviewerForm extends Form
 
     /**
      * @copydoc Form::execute()
+     *
+     * @hook ThankReviewerForm::thankReviewer [[$submission, $reviewAssignment, $mailable]]
      */
     public function execute(...$functionArgs)
     {
@@ -124,13 +124,13 @@ class ThankReviewerForm extends Form
         $mailable->body($this->getData('message'))->subject($template->getLocalizedData('subject'));
 
         Hook::call('ThankReviewerForm::thankReviewer', [$submission, $reviewAssignment, $mailable]);
+
         if (!$this->getData('skipEmail')) {
             $mailable->setLocale(Locale::getLocale());
             try {
                 Mail::send($mailable);
-                $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                $submissionEmailLogDao->logMailable(
-                    SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_THANK_REVIEWER,
+                Repo::emailLogEntry()->logMailable(
+                    SubmissionEmailLogEventType::REVIEW_THANK_REVIEWER,
                     $mailable,
                     $submission,
                     $user,
@@ -139,7 +139,7 @@ class ThankReviewerForm extends Form
                 $notificationMgr = new NotificationManager();
                 $notificationMgr->createTrivialNotification(
                     $request->getUser()->getId(),
-                    PKPNotification::NOTIFICATION_TYPE_ERROR,
+                    Notification::NOTIFICATION_TYPE_ERROR,
                     ['contents' => __('email.compose.error')]
                 );
                 trigger_error($e->getMessage(), E_USER_WARNING);
@@ -147,17 +147,20 @@ class ThankReviewerForm extends Form
         }
 
         // update the ReviewAssignment with the acknowledged date
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignment->setDateAcknowledged(Core::getCurrentDate());
-        $reviewAssignment->stampModified();
+        $newData = ['dateAcknowledged' => Core::getCurrentDate()];
         if (!in_array($reviewAssignment->getConsidered(), [ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED, ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED])) {
-            $reviewAssignment->setConsidered(
-                $reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW
-                    ? ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED
-                    : ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED
-            );
+            $newData['considered'] = ($reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW ||
+                                     $reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_VIEWED)
+                ? ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED
+                : ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED;
         }
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+
+        if(!$reviewAssignment->getDateConsidered()) {
+            // set the date when the editor confirms the review
+            $newData['dateConsidered'] = Core::getCurrentDate();
+        }
+
+        Repo::reviewAssignment()->edit($reviewAssignment, $newData);
 
         parent::execute(...$functionArgs);
     }

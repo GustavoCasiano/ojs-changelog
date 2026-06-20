@@ -3,8 +3,8 @@
 /**
  * @file controllers/grid/files/SubmissionFilesCategoryGridDataProvider.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class SubmissionFilesCategoryGridDataProvider
@@ -20,8 +20,8 @@ use APP\core\Application;
 use APP\facades\Repo;
 use PKP\controllers\grid\CategoryGridDataProvider;
 use PKP\db\DAORegistry;
-use PKP\note\NoteDAO;
-use PKP\query\QueryDAO;
+use PKP\note\Note;
+use PKP\query\Query;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\submissionFile\SubmissionFile;
 
@@ -148,13 +148,11 @@ class SubmissionFilesCategoryGridDataProvider extends CategoryGridDataProvider
                     if ($submissionFile->getData('assocType') != Application::ASSOC_TYPE_NOTE) {
                         break;
                     }
-                    $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-                    $note = $noteDao->getById($submissionFile->getData('assocId'));
-                    $queryDao = DAORegistry::getDAO('QueryDAO'); /** @var QueryDAO $queryDao */
-                    if ($note && $note->getAssocType() == Application::ASSOC_TYPE_QUERY) {
-                        $query = $queryDao->getById($note->getAssocId());
+                    $note = Note::find($submissionFile->getData('assocId'));
+                    if ($note?->assocType == Application::ASSOC_TYPE_QUERY) {
+                        $query = Query::find($note->assocId);
                     }
-                    if ($query && $query->getStageId() == $stageId) {
+                    if ($query && $query->stageId == $stageId) {
                         $stageSubmissionFiles[$key] = $submissionFile;
                     }
                 }

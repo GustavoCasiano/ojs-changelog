@@ -43,7 +43,9 @@
 
 namespace PKP\filter;
 
+use APP\core\Application;
 use Exception;
+use PKP\core\DataObject;
 use PKP\db\DAORegistry;
 use PKP\db\DAOResultFactory;
 
@@ -60,19 +62,23 @@ class FilterDAO extends \PKP\db\DAO
      * Instantiates a new filter from configuration data and then
      * installs it.
      *
-     * @param string $filterClassName
-     * @param string $filterGroupSymbolic
      * @param array $settings key-value pairs that can be directly written
      *  via \PKP\core\DataObject::setData().
-     * @param bool $asTemplate
      * @param int $contextId the context the filter should be installed into
      * @param array $subFilters sub-filters (only allowed when the filter is a CompositeFilter)
      * @param bool $persist whether to actually persist the filter
      *
      * @return PersistableFilter|boolean the new filter if installation successful, otherwise 'false'.
      */
-    public function configureObject($filterClassName, $filterGroupSymbolic, $settings = [], $asTemplate = false, $contextId = 0, $subFilters = [], $persist = true)
-    {
+    public function configureObject(
+        string $filterClassName,
+        string $filterGroupSymbolic,
+        array $settings = [],
+        bool $asTemplate = false,
+        ?int $contextId = Application::SITE_CONTEXT_ID,
+        array $subFilters = [],
+        bool $persist = true
+    ): bool|PersistableFilter {
         // Retrieve the filter group from the database.
         $filterGroupDao = DAORegistry::getDAO('FilterGroupDAO'); /** @var FilterGroupDAO $filterGroupDao */
         $filterGroup = $filterGroupDao->getObjectBySymbolic($filterGroupSymbolic);
@@ -90,7 +96,7 @@ class FilterDAO extends \PKP\db\DAO
             // Could not find class
             return false;
         }
-        if (!is_object($filter)) {
+        if (!$filter) {
             return false;
         }
 
@@ -99,8 +105,12 @@ class FilterDAO extends \PKP\db\DAO
 
         // Add sub-filters (if any).
         if (!empty($subFilters)) {
-            assert($filter instanceof \PKP\filter\CompositeFilter);
-            assert(is_array($subFilters));
+            if (!$filter instanceof \PKP\filter\CompositeFilter) {
+                throw new Exception('Filter is not expected type CompositeFilter!');
+            }
+            if (!is_array($subFilters)) {
+                throw new Exception('Subfilters must be an array!');
+            }
             foreach ($subFilters as $subFilter) {
                 $filter->addFilter($subFilter);
             }
@@ -115,7 +125,7 @@ class FilterDAO extends \PKP\db\DAO
         // Persist the filter.
         if ($persist) {
             $filterId = $this->insertObject($filter, $contextId);
-            if (!is_integer($filterId) || $filterId == 0) {
+            if (!$filterId) {
                 return false;
             }
         }
@@ -126,12 +136,11 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * Insert a new filter instance (transformation).
      *
-     * @param PersistableFilter $filter The configured filter instance to be persisted
-     * @param int $contextId
+     * @param $filter The configured filter instance to be persisted
      *
-     * @return int the new filter id
+     * @return The new filter id
      */
-    public function insertObject($filter, $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE)
+    public function insertObject(PersistableFilter $filter, ?int $contextId = Application::SITE_CONTEXT_ID): int
     {
         $filterGroup = $filter->getFilterGroup();
         assert($filterGroup->getSymbolic() != FILTER_GROUP_TEMPORARY_ONLY);
@@ -141,12 +150,12 @@ class FilterDAO extends \PKP\db\DAO
                 (filter_group_id, context_id, display_name, class_name, is_template, parent_filter_id, seq)
                 VALUES (?, ?, ?, ?, ?, ?, ?)'),
             [
-                (int) $filterGroup->getId(),
-                (int) $contextId,
+                $filterGroup->getId(),
+                $contextId,
                 $filter->getDisplayName(),
                 $filter->getClassName(),
                 $filter->getIsTemplate() ? 1 : 0,
-                (int) $filter->getParentFilterId(),
+                $filter->getParentFilterId(),
                 (int) $filter->getSequence()
             ]
         );
@@ -165,29 +174,20 @@ class FilterDAO extends \PKP\db\DAO
 
     /**
      * Retrieve a configured filter instance (transformation)
-     *
-     * @param PersistableFilter $filter
-     *
-     * @return PersistableFilter
      */
-    public function getObject($filter)
+    public function getObject(PersistableFilter $filter): PersistableFilter
     {
         return $this->getObjectById($filter->getId());
     }
 
     /**
      * Retrieve a configured filter instance (transformation) by id.
-     *
-     * @param int $filterId
-     * @param bool $allowSubfilter
-     *
-     * @return PersistableFilter
      */
-    public function getObjectById($filterId, $allowSubfilter = false)
+    public function getObjectById(int $filterId, bool $allowSubfilter = false): ?PersistableFilter
     {
         $result = $this->retrieve(
             'SELECT * FROM filters
-            WHERE ' . ($allowSubfilter ? '' : 'parent_filter_id = 0 AND ') . '
+            WHERE ' . ($allowSubfilter ? '' : 'parent_filter_id IS NULL AND ') . '
             filter_id = ?',
             [(int) $filterId]
         );
@@ -199,21 +199,22 @@ class FilterDAO extends \PKP\db\DAO
      * Retrieve a result set with all filter instances
      * (transformations) that are based on the given class.
      *
-     * @param string $className
-     * @param int $contextId
      * @param bool $getTemplates set true if you want filter templates
      *  rather than actual transformations
-     * @param bool $allowSubfilters
      *
      * @return DAOResultFactory<PersistableFilter>
      */
-    public function getObjectsByClass($className, $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE, $getTemplates = false, $allowSubfilters = false)
-    {
+    public function getObjectsByClass(
+        string $className,
+        ?int $contextId = Application::SITE_CONTEXT_ID,
+        bool $getTemplates = false,
+        bool $allowSubfilters = false
+    ): DAOResultFactory {
         $result = $this->retrieve(
-            'SELECT	* FROM filters
-                WHERE context_id = ? AND
+            'SELECT * FROM filters
+                WHERE COALESCE(context_id, 0) = ? AND
                 LOWER(class_name) = LOWER(?) AND
-            ' . ($allowSubfilters ? '' : ' parent_filter_id = 0 AND ') . '
+            ' . ($allowSubfilters ? '' : ' parent_filter_id IS NULL AND ') . '
             ' . ($getTemplates ? ' is_template = 1' : ' is_template = 0'),
             [(int) $contextId, $className]
         );
@@ -226,22 +227,23 @@ class FilterDAO extends \PKP\db\DAO
      * (transformations) within a given group that are
      * based on the given class.
      *
-     * @param string $groupSymbolic
-     * @param string $className
-     * @param int $contextId
      * @param bool $getTemplates set true if you want filter templates
      *  rather than actual transformations
-     * @param bool $allowSubfilters
      *
      * @return DAOResultFactory<PersistableFilter>
      */
-    public function getObjectsByGroupAndClass($groupSymbolic, $className, $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE, $getTemplates = false, $allowSubfilters = false)
-    {
+    public function getObjectsByGroupAndClass(
+        string $groupSymbolic,
+        string $className,
+        ?int $contextId = Application::SITE_CONTEXT_ID,
+        bool $getTemplates = false,
+        bool $allowSubfilters = false
+    ): DAOResultFactory {
         $result = $this->retrieve(
             'SELECT f.* FROM filters f' .
             ' INNER JOIN filter_groups fg ON f.filter_group_id = fg.filter_group_id' .
-            ' WHERE fg.symbolic = ? AND f.context_id = ? AND LOWER(f.class_name) = LOWER(?)' .
-            ' ' . ($allowSubfilters ? '' : 'AND f.parent_filter_id = 0') .
+            ' WHERE fg.symbolic = ? AND COALESCE(f.context_id, 0) = ? AND LOWER(f.class_name) = LOWER(?)' .
+            ' ' . ($allowSubfilters ? '' : 'AND f.parent_filter_id IS NULL') .
             ' AND ' . ($getTemplates ? 'f.is_template = 1' : 'f.is_template = 0'),
             [$groupSymbolic, (int) $contextId, $className]
         );
@@ -262,8 +264,12 @@ class FilterDAO extends \PKP\db\DAO
      *
      * @return PersistableFilter[] a list of matched filters.
      */
-    public function getObjectsByTypeDescription($inputTypeDescription, $outputTypeDescription, $data = null, $dataIsInput = true)
-    {
+    public function getObjectsByTypeDescription(
+        string $inputTypeDescription,
+        string $outputTypeDescription,
+        $data = null,
+        bool $dataIsInput = true
+    ): array {
         static $filterCache = [];
         static $objectFilterCache = [];
 
@@ -280,7 +286,7 @@ class FilterDAO extends \PKP\db\DAO
                 '  INNER JOIN filter_groups fg ON f.filter_group_id = fg.filter_group_id' .
                 ' WHERE LOWER(fg.input_type) LIKE LOWER(?)' .
                 '  AND LOWER(fg.output_type) LIKE LOWER(?)' .
-                '  AND f.parent_filter_id = 0 AND f.is_template = 0',
+                '  AND f.parent_filter_id IS NULL AND f.is_template = 0',
                 [$inputTypeDescription, $outputTypeDescription]
             );
 
@@ -324,25 +330,28 @@ class FilterDAO extends \PKP\db\DAO
      * Only filters supported by the current run-time environment
      * will be returned when $checkRuntimeEnvironment is set to 'true'.
      *
-     * @param string $groupSymbolic
-     * @param int $contextId returns filters from context 0 and
+     * @param $contextId returns filters from the site context and
      *  the given filters of all contexts if set to null
-     * @param bool $getTemplates set true if you want filter templates
+     * @param $getTemplates set true if you want filter templates
      *  rather than actual transformations
-     * @param bool $checkRuntimeEnvironment whether to remove filters
+     * @param $checkRuntimeEnvironment whether to remove filters
      *  from the result set that do not match the current run-time environment.
      *
-     * @return array filter instances (transformations) in the given group
+     * @return filter instances (transformations) in the given group
      */
-    public function getObjectsByGroup($groupSymbolic, $contextId = \PKP\core\PKPApplication::CONTEXT_ID_NONE, $getTemplates = false, $checkRuntimeEnvironment = true)
-    {
+    public function getObjectsByGroup(
+        string $groupSymbolic,
+        ?int $contextId = Application::SITE_CONTEXT_ID_ALL,
+        bool $getTemplates = false,
+        bool $checkRuntimeEnvironment = true
+    ): array {
         // 1) Get all available transformations in the group.
         $result = $this->retrieve(
             'SELECT f.* FROM filters f' .
             ' INNER JOIN filter_groups fg ON f.filter_group_id = fg.filter_group_id' .
             ' WHERE LOWER(fg.symbolic) = LOWER(?) AND ' . ($getTemplates ? 'f.is_template = 1' : 'f.is_template = 0') .
-            '  ' . ($contextId ? 'AND f.context_id in (0, ' . (int)$contextId . ')' : '') .
-            '  AND f.parent_filter_id = 0',
+            '  ' . ($contextId !== Application::SITE_CONTEXT_ID_ALL ? 'AND COALESCE(f.context_id, 0) IN (0, ' . (int)$contextId . ')' : '') .
+            '  AND f.parent_filter_id IS NULL',
             [$groupSymbolic]
         );
 
@@ -363,29 +372,27 @@ class FilterDAO extends \PKP\db\DAO
 
     /**
      * Update an existing filter instance (transformation).
-     *
-     * @param PersistableFilter $filter
      */
-    public function updateObject($filter)
+    public function updateObject(PersistableFilter $filter): void
     {
         $filterGroup = $filter->getFilterGroup();
         assert($filterGroup->getSymbolic() != FILTER_GROUP_TEMPORARY_ONLY);
 
         $this->update(
             'UPDATE	filters
-			SET	filter_group_id = ?,
-				display_name = ?,
-				class_name = ?,
-				is_template = ?,
-				parent_filter_id = ?,
-				seq = ?
-			WHERE filter_id = ?',
+            SET	filter_group_id = ?,
+                display_name = ?,
+                class_name = ?,
+                is_template = ?,
+                parent_filter_id = ?,
+                seq = ?
+            WHERE filter_id = ?',
             [
                 (int) $filterGroup->getId(),
                 $filter->getDisplayName(),
                 $filter->getClassName(),
                 $filter->getIsTemplate() ? 1 : 0,
-                (int) $filter->getParentFilterId(),
+                $filter->getParentFilterId(),
                 (int) $filter->getSequence(),
                 (int) $filter->getId()
             ]
@@ -408,28 +415,19 @@ class FilterDAO extends \PKP\db\DAO
 
     /**
      * Delete a filter instance (transformation).
-     *
-     * @param PersistableFilter $filter
-     *
-     * @return bool
      */
-    public function deleteObject($filter)
+    public function deleteObject(PersistableFilter $filter): bool
     {
         return $this->deleteObjectById($filter->getId());
     }
 
     /**
      * Delete a filter instance (transformation) by id.
-     *
-     * @param int $filterId
-     *
-     * @return bool
      */
-    public function deleteObjectById($filterId)
+    public function deleteObjectById(int $filterId): bool
     {
-        $filterId = (int)$filterId;
-        $this->update('DELETE FROM filters WHERE filter_id = ?', [(int) $filterId]);
-        $this->update('DELETE FROM filter_settings WHERE filter_id = ?', [(int) $filterId]);
+        $this->update('DELETE FROM filters WHERE filter_id = ?', [$filterId]);
+        $this->update('DELETE FROM filter_settings WHERE filter_id = ?', [$filterId]);
         $this->_deleteSubFiltersByParentFilterId($filterId);
         return true;
     }
@@ -441,7 +439,7 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * @see DAO::updateDataObjectSettings()
      */
-    public function updateDataObjectSettings($tableName, $dataObject, $idArray)
+    public function updateDataObjectSettings(string $tableName, DataObject $dataObject, array $idArray): void
     {
         // Make sure that the update function finds the filter settings
         $this->additionalFieldNames = $dataObject->getSettingNames();
@@ -468,18 +466,16 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * @see DAO::getAdditionalFieldNames()
      */
-    public function getAdditionalFieldNames()
+    public function getAdditionalFieldNames(): array
     {
-        assert(is_array($this->additionalFieldNames));
         return $this->additionalFieldNames;
     }
 
     /**
      * @see DAO::getLocaleFieldNames()
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
-        assert(is_array($this->localeFieldNames));
         return $this->localeFieldNames;
     }
 
@@ -491,16 +487,16 @@ class FilterDAO extends \PKP\db\DAO
      * Construct a new configured filter instance (transformation).
      *
      * @param string $filterClassName a fully qualified class name
-     * @param int $filterGroupId
      *
-     * @return PersistableFilter
      */
-    public function _newDataObject($filterClassName, $filterGroupId)
+    public function _newDataObject(string $filterClassName, int $filterGroupId): PersistableFilter
     {
         // Instantiate the filter group.
         $filterGroupDao = DAORegistry::getDAO('FilterGroupDAO'); /** @var FilterGroupDAO $filterGroupDao */
         $filterGroup = $filterGroupDao->getObjectById($filterGroupId);
-        assert($filterGroup instanceof \PKP\filter\FilterGroup);
+        if (!$filterGroup) {
+            throw new Exception('Could not get filter group by ID!');
+        }
 
         // Instantiate the filter
         if (preg_match('/^[a-zA-Z0-9_.]+$/', $filterClassName)) {
@@ -519,12 +515,8 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * Internal function to return a filter instance (transformation)
      * object from a row.
-     *
-     * @param array $row
-     *
-     * @return PersistableFilter
      */
-    public function _fromRow($row)
+    public function _fromRow(array $row): PersistableFilter
     {
         static $lockedFilters = [];
         $filterId = $row['filter_id'];
@@ -534,7 +526,7 @@ class FilterDAO extends \PKP\db\DAO
         // could eat up lots of memory if the PHP memory max was
         // set too high.
         if (isset($lockedFilters[$filterId])) {
-            fatalError('Detected a loop in the definition of the filter with id ' . $filterId . '!');
+            throw new Exception('Detected a loop in the definition of the filter with id ' . $filterId . '!');
         }
 
         // Lock the filter id.
@@ -547,7 +539,7 @@ class FilterDAO extends \PKP\db\DAO
         $filter->setId((int)$row['filter_id']);
         $filter->setDisplayName($row['display_name']);
         $filter->setIsTemplate((bool)$row['is_template']);
-        $filter->setParentFilterId((int)$row['parent_filter_id']);
+        $filter->setParentFilterId($row['parent_filter_id']);
         $filter->setSequence((int)$row['seq']);
         $this->getDataObjectSettings('filter_settings', 'filter_id', $row['filter_id'], $filter);
 
@@ -563,10 +555,8 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * Populate the sub-filters (if any) for the
      * given parent filter.
-     *
-     * @param PersistableFilter $parentFilter
      */
-    public function _populateSubFilters($parentFilter)
+    public function _populateSubFilters(PersistableFilter $parentFilter): void
     {
         if (!$parentFilter instanceof \PKP\filter\CompositeFilter) {
             // Nothing to do. Only composite filters
@@ -575,10 +565,9 @@ class FilterDAO extends \PKP\db\DAO
         }
 
         // Retrieve the sub-filters from the database.
-        $parentFilterId = $parentFilter->getId();
         $result = $this->retrieve(
             'SELECT * FROM filters WHERE parent_filter_id = ? ORDER BY seq',
-            [(int) $parentFilterId]
+            [$parentFilter->getId()]
         );
         /** @var DAOResultFactory<PersistableFilter> */
         $daoResultFactory = new DAOResultFactory($result, $this, '_fromRow', ['filter_id']);
@@ -594,10 +583,8 @@ class FilterDAO extends \PKP\db\DAO
     /**
      * Recursively insert sub-filters of
      * the given parent filter.
-     *
-     * @param Filter $parentFilter
      */
-    public function _insertSubFilters($parentFilter)
+    public function _insertSubFilters(Filter $parentFilter): void
     {
         if (!$parentFilter instanceof \PKP\filter\CompositeFilter) {
             // Nothing to do. Only composite filters
@@ -609,24 +596,18 @@ class FilterDAO extends \PKP\db\DAO
         foreach ($parentFilter->getFilters() as $subFilter) {
             $subFilter->setParentFilterId($parentFilter->getId());
             $subfilterId = $this->insertObject($subFilter);
-            assert(is_numeric($subfilterId));
         }
     }
 
     /**
-     * Recursively delete all sub-filters for
-     * the given parent filter.
-     *
-     * @param int $parentFilterId
+     * Recursively delete all sub-filters for the given parent filter.
      */
-    public function _deleteSubFiltersByParentFilterId($parentFilterId)
+    public function _deleteSubFiltersByParentFilterId(int $parentFilterId): void
     {
-        $parentFilterId = (int) $parentFilterId;
-
         // Identify sub-filters.
         $result = $this->retrieve(
             'SELECT * FROM filters WHERE parent_filter_id = ?',
-            [(int) $parentFilterId]
+            [$parentFilterId]
         );
 
         foreach ($result as $row) {

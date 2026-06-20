@@ -3,8 +3,8 @@
 /**
  * @file classes/core/PKPApplication.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class PKPApplication
@@ -24,13 +24,18 @@ use DateTimeZone;
 use Exception;
 use GuzzleHttp\Client;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\MariaDbConnection;
 use Illuminate\Database\MySqlConnection;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Support\Facades\DB;
 use PKP\config\Config;
+use PKP\context\Context;
+use PKP\db\DAO;
 use PKP\db\DAORegistry;
 use PKP\facades\Locale;
+use PKP\plugins\Hook;
 use PKP\security\Role;
-use PKP\session\SessionManager;
+use PKP\site\Version;
 use PKP\site\VersionDAO;
 use PKP\submission\RepresentationDAOInterface;
 
@@ -38,44 +43,65 @@ interface iPKPApplicationInfoProvider
 {
     /**
      * Get the top-level context DAO.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getContextDAO();
+    public static function getContextDAO(): \PKP\context\ContextDAO;
 
     /**
      * Get the representation DAO.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getRepresentationDAO(): RepresentationDAOInterface;
+    public static function getRepresentationDAO(): DAO|RepresentationDAOInterface;
 
     /**
      * Get a SubmissionSearchIndex instance.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getSubmissionSearchIndex();
+    public static function getSubmissionSearchIndex(): \PKP\search\SubmissionSearchIndex;
 
     /**
      * Get a SubmissionSearchDAO instance.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getSubmissionSearchDAO();
+    public static function getSubmissionSearchDAO(): \PKP\search\SubmissionSearchDAO;
 
     /**
      * Get the stages used by the application.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getApplicationStages();
+    public static function getApplicationStages(): array;
 
     /**
      * Get the file directory array map used by the application.
      * should return array('context' => ..., 'submission' => ...)
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getFileDirectories();
+    public static function getFileDirectories(): array;
 
     /**
      * Returns the context type for this application.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public static function getContextAssocType();
+    public static function getContextAssocType(): int;
+
+    /**
+     * Get the review workflow stages used by this application.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
+     */
+    public function getReviewStages(): array;
 }
 
 abstract class PKPApplication implements iPKPApplicationInfoProvider
 {
-    public const PHP_REQUIRED_VERSION = '8.0.2';
+    public const PHP_REQUIRED_VERSION = '8.2.0';
 
     // Constant used to distinguish between editorial and author workflows
     public const WORKFLOW_TYPE_EDITORIAL = 'editorial';
@@ -87,11 +113,17 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     public const ROUTE_PAGE = 'page';
     public const ROUTE_API = 'api';
 
-    public const CONTEXT_SITE = 0;
-    public const CONTEXT_ID_NONE = 0;
-    public const CONTEXT_ID_ALL = '_';
-    public const REVIEW_ROUND_NONE = 0;
+    public const SITE_CONTEXT_ID_ALL = -1;
+    public const SITE_CONTEXT_ID = null;
+    public const SITE_CONTEXT_PATH = 'index';
+    /** @deprecated 3.5 Use Application::SITE_CONTEXT_ID, which had the value modified to null */
+    public const CONTEXT_SITE = self::SITE_CONTEXT_ID;
+    /** @deprecated 3.5 Use Application::SITE_CONTEXT_ID, which had the value modified to null */
+    public const CONTEXT_ID_NONE = self::SITE_CONTEXT_ID;
+    /** @deprecated 3.5 Use Application::SITE_CONTEXT_PATH, which had the value modified to "index" */
+    public const CONTEXT_ID_ALL = self::SITE_CONTEXT_ID_ALL;
 
+    public const ASSOC_TYPE_SITE = 0x0;
     public const ASSOC_TYPE_PRODUCTION_ASSIGNMENT = 0x0000202;
     public const ASSOC_TYPE_SUBMISSION_FILE = 0x0000203;
     public const ASSOC_TYPE_REVIEW_RESPONSE = 0x0000204;
@@ -124,8 +156,7 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     // Constant used in UsageStats for submission files that are not full texts
     public const ASSOC_TYPE_SUBMISSION_FILE_COUNTER_OTHER = 0x0000213;
 
-    public $enabledProducts = [];
-    public $allProducts;
+    public array $enabledProducts = [];
 
     /**
      * Constructor
@@ -137,19 +168,27 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
             class_alias('\PKP\config\Config', '\Config');
             class_alias('\PKP\core\Registry', '\Registry');
             class_alias('\PKP\core\Core', '\Core');
-            class_alias('\PKP\cache\CacheManager', '\CacheManager');
             class_alias('\PKP\handler\PKPHandler', '\PKPHandler');
             class_alias('\PKP\payment\QueuedPayment', '\QueuedPayment'); // QueuedPayment instances may be serialized
         }
 
+        // Ensure that nobody registers for hooks that are no longer supported
+        Hook::addUnsupportedHooks('API::_submissions::params', 'Template::Workflow::Publication', 'Template::Workflow', 'Workflow::Recommendations'); // pkp/pkp-lib#10766 Removed with new submission lists for 3.5.0
+        Hook::addUnsupportedHooks('APIHandler::endpoints'); // pkp/pkp-lib#9434 Unavailable since stable-3_4_0; remove for 3.6.0 development branch
+        Hook::addUnsupportedHooks('Mail::send', 'EditorAction::modifyDecisionOptions', 'EditorAction::recordDecision', 'Announcement::getProperties', 'Author::getProperties::values', 'EmailTemplate::getProperties', 'Galley::getProperties::values', 'Issue::getProperties::fullProperties', 'Issue::getProperties::summaryProperties', 'Issue::getProperties::values', 'Publication::getProperties', 'Section::getProperties::fullProperties', 'Section::getProperties::summaryProperties', 'Section::getProperties::values', 'Submission::getProperties::values', 'SubmissionFile::getProperties', 'User::getProperties::fullProperties', 'User::getProperties::reviewerSummaryProperties', 'User::getProperties::summaryProperties', 'User::getProperties::values', 'Announcement::getMany::queryBuilder', 'Announcement::getMany::queryObject', 'Author::getMany::queryBuilder', 'Author::getMany::queryObject', 'EmailTemplate::getMany::queryBuilder', 'EmailTemplate::getMany::queryObject::custom', 'EmailTemplate::getMany::queryObject::default', 'Galley::getMany::queryBuilder', 'Issue::getMany::queryBuilder', 'Publication::getMany::queryBuilder', 'Publication::getMany::queryObject', 'Stats::getOrderedObjects::queryBuilder', 'Stats::getRecords::queryBuilder', 'Stats::queryBuilder', 'Stats::queryObject', 'Submission::getMany::queryBuilder', 'Submission::getMany::queryObject', 'SubmissionFile::getMany::queryBuilder', 'SubmissionFile::getMany::queryObject', 'User::getMany::queryBuilder', 'User::getMany::queryObject', 'User::getReviewers::queryBuilder', 'CategoryDAO::_fromRow', 'IssueDAO::_fromRow', 'IssueDAO::_returnIssueFromRow', 'SectionDAO::_fromRow', 'UserDAO::_returnUserFromRow', 'UserDAO::_returnUserFromRowWithData', 'UserDAO::_returnUserFromRowWithReviewerStats', 'UserGroupDAO::_returnFromRow', 'ReviewerSubmissionDAO::_fromRow', 'API::stats::publication::abstract::params', 'API::stats::publication::galley::params', 'API::stats::publications::abstract::params', 'API::stats::publications::galley::params', 'PKPLocale::installLocale', 'PKPLocale::registerLocaleFile', 'PKPLocale::registerLocaleFile::isValidLocaleFile', 'PKPLocale::translate', 'API::submissions::files::params', 'ArticleGalleyDAO::getLocalizedGalleysByArticle', 'PluginGridHandler::plugin', 'PluginGridHandler::plugin', 'SubmissionFile::assignedFileStages', 'SubmissionHandler::saveSubmit'); // From the 3.4.0 Release Notebook; remove for 3.6.0 development branch
+        Hook::addUnsupportedHooks('AcronPlugin::parseCronTab'); // pkp/pkp-lib#9678 Unavailable since stable-3_5_0;
+        Hook::addUnsupportedHooks('Announcement::delete::before', 'Announcement::delete', 'Announcement::Collector'); // pkp/pkp-lib#10328 Unavailable since stable-3_5_0, use Eloquent Model events instead
+        Hook::addUnsupportedHooks('UserGroup::delete::before', 'UserGroup::delete'); // unavailable since stable-3_6_0, use Eloquent Model events instead
+        Hook::addUnsupportedHooks('CitationDAO::afterImportCitations'); // pkp/pkp-lib#11238 Renamed since stable-3_5_0
         // If not in strict mode, globally expose constants on this class.
         if (!PKP_STRICT_MODE) {
             foreach ([
                 'WORKFLOW_TYPE_EDITORIAL', 'WORKFLOW_TYPE_AUTHOR', 'PHP_REQUIRED_VERSION',
                 'API_VERSION',
                 'ROUTE_COMPONENT', 'ROUTE_PAGE', 'ROUTE_API',
-                'CONTEXT_SITE', 'CONTEXT_ID_NONE', 'CONTEXT_ID_ALL', 'REVIEW_ROUND_NONE',
+                'CONTEXT_SITE', 'CONTEXT_ID_NONE', 'CONTEXT_ID_ALL',
 
+                'ASSOC_TYPE_SITE',
                 'ASSOC_TYPE_PRODUCTION_ASSIGNMENT',
                 'ASSOC_TYPE_SUBMISSION_FILE',
                 'ASSOC_TYPE_REVIEW_RESPONSE',
@@ -188,13 +227,14 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
         }
 
         ini_set('display_errors', Config::getVar('debug', 'display_errors', ini_get('display_errors')));
-        if (!static::isInstalled()) {
-            SessionManager::disable();
+
+        if (!static::isInstalled() && !PKPSessionGuard::isSessionDisable()) {
+            PKPSessionGuard::disableSession();
         }
 
         Registry::set('application', $this);
 
-        $microTime = Core::microtime();
+        $microTime = microtime(true); // Necessary for reference
         Registry::set('system.debug.startTime', $microTime);
 
         $this->initializeLaravelContainer();
@@ -230,7 +270,10 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
         $this->initializeTimeZone();
 
         if (Config::getVar('database', 'debug')) {
-            DB::listen(fn (QueryExecuted $query) => error_log("Database query\n{$query->sql}\n" . json_encode($query->bindings)));
+            DB::listen(function (QueryExecuted $query) {
+                static $count = 0;
+                error_log($count++ . ": Database query\n{$query->sql}\n" . json_encode($query->bindings));
+            });
         }
     }
 
@@ -262,29 +305,21 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
         if (Application::isInstalled()) {
             // Retrieve the current offset
             $offset = (new DateTime())->format('P');
-            $statement = DB::connection() instanceof MySqlConnection
-                ? "SET time_zone = '{$offset}'"
-                : "SET TIME ZONE INTERVAL '{$offset}' HOUR TO MINUTE";
+            $statement = match (true) {
+                DB::connection() instanceof MySqlConnection,
+                DB::connection() instanceof MariaDbConnection
+                    => "SET time_zone = '{$offset}'",
+                DB::connection() instanceof PostgresConnection
+                    => "SET TIME ZONE INTERVAL '{$offset}' HOUR TO MINUTE"
+            };
             DB::statement($statement);
         }
     }
 
     /**
-     * @copydoc PKPApplication::get()
-     *
-     * @deprecated Use PKPApplication::get() instead.
-     */
-    public static function getApplication()
-    {
-        return self::get();
-    }
-
-    /**
      * Get the current application object
-     *
-     * @return Application
      */
-    public static function get()
+    public static function get(): self
     {
         return Registry::get('application');
     }
@@ -299,7 +334,7 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
         if (!strlen((string) $uniqueSiteId)) {
             $uniqueSiteId = PKPString::generateUUID();
             $site->setUniqueSiteID($uniqueSiteId);
-            /** @var SiteDAO */
+            /** @var \PKP\site\SiteDAO */
             $siteDao = DAORegistry::getDAO('SiteDAO');
             $siteDao->updateObject($site);
         }
@@ -308,10 +343,8 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
 
     /**
      * Return a HTTP client implementation.
-     *
-     * @return Client
      */
-    public function getHttpClient()
+    public function getHttpClient(): Client
     {
         if (PKPContainer::getInstance()->runningUnitTests()) {
             $client = Registry::get(\PKP\tests\PKPTestCase::MOCKED_GUZZLE_CLIENT_NAME);
@@ -323,9 +356,7 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
         $application = Application::get();
         $userAgent = $application->getName() . '/';
         if (static::isInstalled() && !static::isUpgrading()) {
-            /** @var \PKP\site\VersionDAO */
-            $versionDao = DAORegistry::getDAO('VersionDAO');
-            $currentVersion = $versionDao->getCurrentVersion();
+            $currentVersion = $application->getCurrentVersion();
             $userAgent .= $currentVersion->getVersionString();
         } else {
             $userAgent .= '?';
@@ -345,12 +376,10 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
 
     /**
      * Get the request implementation singleton
-     *
-     * @return Request
      */
-    public function getRequest()
+    public function getRequest(): Request
     {
-        $request = & Registry::get('request', true, null); // Ref req'd
+        $request = &Registry::get('request', true, null); // Ref req'd
 
         if (is_null($request)) {
             // Implicitly set request by ref in the registry
@@ -367,7 +396,7 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
      */
     public function getDispatcher()
     {
-        $dispatcher = & Registry::get('dispatcher', true, null); // Ref req'd
+        $dispatcher = &Registry::get('dispatcher', true, null); // Ref req'd
         if (is_null($dispatcher)) {
             // Implicitly set dispatcher by ref in the registry
             $dispatcher = new Dispatcher();
@@ -387,30 +416,54 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     /**
      * This executes the application by delegating the
      * request to the dispatcher.
+     *
+     * @hook PKPApplication::execute::catch ['throwable' => $t]
      */
-    public function execute()
+    public function execute(): void
     {
-        // Dispatch the request to the correct handler
-        $dispatcher = $this->getDispatcher();
-        $dispatcher->dispatch($this->getRequest());
+        try {
+            // Give the Dispatcher::dispatch::catch hook a chance to handle errors first
+            try {
+                // Dispatch the request to the correct handler
+                $dispatcher = $this->getDispatcher();
+                $dispatcher->dispatch($this->getRequest());
+            } catch (\Throwable $t) {
+                if (Hook::run('PKPApplication::execute::catch', ['throwable' => $t]) !== Hook::ABORT) {
+                    // No hook handler took ownership; throw again
+                    throw $t;
+                }
+            }
+        } catch (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException) {
+            header('HTTP/1.0 404 Not Found');
+            echo "<h1>404 Not Found</h1>\n";
+            exit;
+        } catch (\Symfony\Component\HttpKernel\Exception\GoneHttpException) {
+            header('HTTP/1.0 410 Gone');
+            echo "<h1>404 Not Found</h1>\n";
+            exit;
+        }
+    }
+
+    /**
+     * Get the review workflow stages used by this application.
+     */
+    public function getReviewStages(): array
+    {
+        return [];
     }
 
     /**
      * Get the symbolic name of this application
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
         return 'pkp-lib';
     }
 
     /**
      * Get the locale key for the name of this application.
-     *
-     * @return string
      */
-    abstract public function getNameKey();
+    abstract public function getNameKey(): string;
 
     /**
      * Get the name of the context for this application
@@ -420,10 +473,13 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     /**
      * Get the URL to the XML descriptor for the current version of this
      * application.
-     *
-     * @return string
      */
-    abstract public function getVersionDescriptorUrl();
+    abstract public function getVersionDescriptorUrl(): string;
+
+    /**
+     * Get the help URL for this application.
+     */
+    abstract public static function getHelpUrl(): string;
 
     /**
      * This function retrieves all enabled product versions once
@@ -433,111 +489,68 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
      * @param string $category
      * @param int $mainContextId Optional ID of the top-level context
      * (e.g. Journal, Conference, Press) to query for enabled products
-     *
-     * @return array
      */
-    public function getEnabledProducts($category = null, $mainContextId = null)
+    public function getEnabledProducts($category = null, ?int $mainContextId = null): array
     {
-        if (is_null($mainContextId)) {
+        if ($mainContextId === null) {
             $request = $this->getRequest();
             $router = $request->getRouter();
 
-            $mainContextId = $router->getContext($request)?->getId() ?? self::CONTEXT_SITE;
+            $mainContextId = $router->getContext($request)?->getId() ?? self::SITE_CONTEXT_ID;
         }
-        if (!isset($this->enabledProducts[$mainContextId])) {
-            $versionDao = DAORegistry::getDAO('VersionDAO'); /** @var \PKP\site\VersionDAO $versionDao */
-            $this->enabledProducts[$mainContextId] = $versionDao->getCurrentProducts($mainContextId);
-        }
+        $versionDao = DAORegistry::getDAO('VersionDAO'); /** @var \PKP\site\VersionDAO $versionDao */
+        $enabledProducts = $this->enabledProducts[(int) $mainContextId] ??= $versionDao->getCurrentProducts($mainContextId);
 
-        if (is_null($category)) {
-            return $this->enabledProducts[$mainContextId];
-        } elseif (isset($this->enabledProducts[$mainContextId][$category])) {
-            return $this->enabledProducts[$mainContextId][$category];
-        } else {
-            return [];
-        }
+        return $category ? ($enabledProducts[$category] ?? []) : $enabledProducts;
     }
 
     /**
      * Get the list of plugin categories for this application.
-     *
-     * @return array
      */
-    abstract public function getPluginCategories();
+    abstract public function getPluginCategories(): array;
 
     /**
      * Return the current version of the application.
-     *
-     * @return \PKP\site\Version
      */
-    public function getCurrentVersion()
+    public function getCurrentVersion(): Version
     {
         $currentVersion = $this->getEnabledProducts('core');
-        assert(count($currentVersion)) == 1;
         return $currentVersion[$this->getName()];
     }
 
     /**
      * Get the map of DAOName => full.class.Path for this application.
-     *
-     * @return array
      */
-    public function getDAOMap()
+    public function getDAOMap(): array
     {
         return [
-            'AccessKeyDAO' => 'PKP\security\AccessKeyDAO',
-            'AnnouncementDAO' => 'PKP\announcement\AnnouncementDAO',
             'AnnouncementTypeDAO' => 'PKP\announcement\AnnouncementTypeDAO',
             'CitationDAO' => 'PKP\citation\CitationDAO',
-            'ControlledVocabDAO' => 'PKP\controlledVocab\ControlledVocabDAO',
-            'ControlledVocabEntryDAO' => 'PKP\controlledVocab\ControlledVocabEntryDAO',
             'DataObjectTombstoneDAO' => 'PKP\tombstone\DataObjectTombstoneDAO',
             'DataObjectTombstoneSettingsDAO' => 'PKP\tombstone\DataObjectTombstoneSettingsDAO',
             'FilterDAO' => 'PKP\filter\FilterDAO',
             'FilterGroupDAO' => 'PKP\filter\FilterGroupDAO',
             'GenreDAO' => 'PKP\submission\GenreDAO',
-            'InterestDAO' => 'PKP\user\InterestDAO',
-            'InterestEntryDAO' => 'PKP\user\InterestEntryDAO',
             'LibraryFileDAO' => 'PKP\context\LibraryFileDAO',
             'NavigationMenuDAO' => 'PKP\navigationMenu\NavigationMenuDAO',
             'NavigationMenuItemDAO' => 'PKP\navigationMenu\NavigationMenuItemDAO',
             'NavigationMenuItemAssignmentDAO' => 'PKP\navigationMenu\NavigationMenuItemAssignmentDAO',
-            'NoteDAO' => 'PKP\note\NoteDAO',
-            'NotificationDAO' => 'PKP\notification\NotificationDAO',
             'NotificationSettingsDAO' => 'PKP\notification\NotificationSettingsDAO',
             'NotificationSubscriptionSettingsDAO' => 'PKP\notification\NotificationSubscriptionSettingsDAO',
             'PluginGalleryDAO' => 'PKP\plugins\PluginGalleryDAO',
             'PluginSettingsDAO' => 'PKP\plugins\PluginSettingsDAO',
-            'PublicationDAO' => 'APP\publication\PublicationDAO',
             'QueuedPaymentDAO' => 'PKP\payment\QueuedPaymentDAO',
-            'ReviewAssignmentDAO' => 'PKP\submission\reviewAssignment\ReviewAssignmentDAO',
             'ReviewFilesDAO' => 'PKP\submission\ReviewFilesDAO',
             'ReviewFormDAO' => 'PKP\reviewForm\ReviewFormDAO',
             'ReviewFormElementDAO' => 'PKP\reviewForm\ReviewFormElementDAO',
             'ReviewFormResponseDAO' => 'PKP\reviewForm\ReviewFormResponseDAO',
             'ReviewRoundDAO' => 'PKP\submission\reviewRound\ReviewRoundDAO',
             'RoleDAO' => 'PKP\security\RoleDAO',
-            'ScheduledTaskDAO' => 'PKP\scheduledTask\ScheduledTaskDAO',
-            'SessionDAO' => 'PKP\session\SessionDAO',
             'SiteDAO' => 'PKP\site\SiteDAO',
-            'StageAssignmentDAO' => 'PKP\stageAssignment\StageAssignmentDAO',
             'SubEditorsDAO' => 'PKP\context\SubEditorsDAO',
-            'SubmissionAgencyDAO' => 'PKP\submission\SubmissionAgencyDAO',
-            'SubmissionAgencyEntryDAO' => 'PKP\submission\SubmissionAgencyEntryDAO',
             'SubmissionCommentDAO' => 'PKP\submission\SubmissionCommentDAO',
-            'SubmissionDisciplineDAO' => 'PKP\submission\SubmissionDisciplineDAO',
-            'SubmissionDisciplineEntryDAO' => 'PKP\submission\SubmissionDisciplineEntryDAO',
-            'SubmissionEmailLogDAO' => 'PKP\log\SubmissionEmailLogDAO',
-            'QueryDAO' => 'PKP\query\QueryDAO',
-            'SubmissionLanguageDAO' => 'PKP\submission\SubmissionLanguageDAO',
-            'SubmissionLanguageEntryDAO' => 'PKP\submission\SubmissionLanguageEntryDAO',
-            'SubmissionKeywordDAO' => 'PKP\submission\SubmissionKeywordDAO',
-            'SubmissionKeywordEntryDAO' => 'PKP\submission\SubmissionKeywordEntryDAO',
-            'SubmissionSubjectDAO' => 'PKP\submission\SubmissionSubjectDAO',
-            'SubmissionSubjectEntryDAO' => 'PKP\submission\SubmissionSubjectEntryDAO',
             'TemporaryFileDAO' => 'PKP\file\TemporaryFileDAO',
             'TemporaryInstitutionsDAO' => 'PKP\statistics\TemporaryInstitutionsDAO',
-            'UserStageAssignmentDAO' => 'PKP\user\UserStageAssignmentDAO',
             'VersionDAO' => 'PKP\site\VersionDAO',
             'WorkflowStageDAO' => 'PKP\workflow\WorkflowStageDAO',
             'XMLDAO' => 'PKP\db\XMLDAO',
@@ -547,14 +560,10 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     /**
      * Return the fully-qualified (e.g. page.name.ClassNameDAO) name of the
      * given DAO.
-     *
-     * @param string $name
-     *
-     * @return string
      */
-    public function getQualifiedDAOName($name)
+    public function getQualifiedDAOName(string $name): ?string
     {
-        $map = & Registry::get('daoMap', true, $this->getDAOMap()); // Ref req'd
+        $map = &Registry::get('daoMap', true, $this->getDAOMap()); // Ref req'd
         if (isset($map[$name])) {
             return $map[$name];
         }
@@ -564,10 +573,8 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     /**
      * Get a mapping of license URL to license locale key for common
      * creative commons licenses.
-     *
-     * @return array
      */
-    public static function getCCLicenseOptions()
+    public static function getCCLicenseOptions(): array
     {
         return [
             'https://creativecommons.org/licenses/by-nc-nd/4.0' => 'submission.license.cc.by-nc-nd4',
@@ -588,7 +595,7 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
      *
      * @return ?string HTML code for CC license
      */
-    public function getCCLicenseBadge($ccLicenseURL, $locale = null)
+    public function getCCLicenseBadge(?string $ccLicenseURL, ?string $locale = null): ?string
     {
         if (!$ccLicenseURL) {
             return null;
@@ -623,10 +630,8 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
      *
      * @param bool $contextOnly If false, also returns site-level roles (Site admin)
      * @param array|null $roleIds Only return role names of these IDs
-     *
-     * @return array
      */
-    public static function getRoleNames($contextOnly = false, $roleIds = null)
+    public static function getRoleNames(bool $contextOnly = false, ?array $roleIds = null): array
     {
         $siteRoleNames = [Role::ROLE_ID_SITE_ADMIN => 'user.role.siteAdmin'];
         $appRoleNames = [
@@ -647,10 +652,8 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
 
     /**
      * Get a mapping of roles allowed to access particular workflows
-     *
-     * @return array
      */
-    public static function getWorkflowTypeRoles()
+    public static function getWorkflowTypeRoles(): array
     {
         return [
             self::WORKFLOW_TYPE_EDITORIAL => [Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT],
@@ -671,7 +674,6 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
             WORKFLOW_STAGE_ID_EXTERNAL_REVIEW => 'workflow.review.externalReview',
             WORKFLOW_STAGE_ID_EDITING => 'submission.editorial',
             WORKFLOW_STAGE_ID_PRODUCTION => 'submission.production',
-            default => new Exception('Name requested for an unrecognized stage id.')
         };
     }
 
@@ -679,19 +681,16 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
      * Get the hex color (#000000) of a workflow stage
      *
      * @param int $stageId One of the WORKFLOW_STAGE_* constants
-     *
-     * @return string
      */
-    public static function getWorkflowStageColor($stageId)
+    public static function getWorkflowStageColor($stageId): string
     {
-        switch ($stageId) {
-            case WORKFLOW_STAGE_ID_SUBMISSION: return '#d00a0a';
-            case WORKFLOW_STAGE_ID_INTERNAL_REVIEW: return '#e05c14';
-            case WORKFLOW_STAGE_ID_EXTERNAL_REVIEW: return '#e08914';
-            case WORKFLOW_STAGE_ID_EDITING: return '#006798';
-            case WORKFLOW_STAGE_ID_PRODUCTION: return '#00b28d';
-        }
-        throw new Exception('Color requested for an unrecognized stage id.');
+        return match ($stageId) {
+            WORKFLOW_STAGE_ID_SUBMISSION => '#d00a0a',
+            WORKFLOW_STAGE_ID_INTERNAL_REVIEW => '#e05c14',
+            WORKFLOW_STAGE_ID_EXTERNAL_REVIEW => '#e08914',
+            WORKFLOW_STAGE_ID_EDITING => '#006798',
+            WORKFLOW_STAGE_ID_PRODUCTION => '#00b28d',
+        };
     }
 
     /**
@@ -722,14 +721,11 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
 
     /**
      * Get the supported metadata setting names for this application
-     *
-     * @return array
      */
-    public static function getMetadataFields()
+    public static function getMetadataFields(): array
     {
         return [
             'coverage',
-            'languages',
             'rights',
             'source',
             'subjects',
@@ -786,6 +782,14 @@ abstract class PKPApplication implements iPKPApplicationInfoProvider
     public static function getSectionIdPropName(): string
     {
         return 'sectionId';
+    }
+
+    /**
+     * Get the payment manager.
+     */
+    public function getPaymentManager(Context $context): \PKP\payment\PaymentManager
+    {
+        throw new \Exception('Payments not implemented.');
     }
 }
 

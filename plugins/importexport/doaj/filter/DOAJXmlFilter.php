@@ -3,8 +3,8 @@
 /**
  * @file plugins/importexport/doaj/filter/DOAJXmlFilter.php
  *
- * Copyright (c) 2014-2022 Simon Fraser University
- * Copyright (c) 2000-2022 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class DOAJXmlFilter
@@ -21,9 +21,7 @@ use APP\plugins\importexport\doaj\DOAJExportPlugin;
 use APP\publication\Publication;
 use APP\submission\Submission;
 use PKP\core\PKPString;
-use PKP\db\DAORegistry;
 use PKP\i18n\LocaleConversion;
-use PKP\submission\SubmissionKeywordDAO;
 
 class DOAJXmlFilter extends \PKP\plugins\importexport\native\filter\NativeExportFilter
 {
@@ -187,18 +185,24 @@ class DOAJXmlFilter extends \PKP\plugins\importexport\native\filter\NativeExport
             }
             // FullText URL
             $request = Application::get()->getRequest();
-            $recordNode->appendChild($node = $doc->createElement('fullTextUrl', htmlspecialchars($request->url(null, 'article', 'view', $pubObject->getId()), ENT_COMPAT, 'UTF-8')));
+            $recordNode->appendChild($node = $doc->createElement('fullTextUrl', htmlspecialchars($request->getDispatcher()->url($request, Application::ROUTE_PAGE, null, 'article', 'view', [$pubObject->getId()], urlLocaleForPage: ''), ENT_COMPAT, 'UTF-8')));
             $node->setAttribute('format', 'html');
+
             // Keywords
-            $supportedLocales = $context->getSupportedFormLocales();
-            /** @var SubmissionKeywordDAO */
-            $dao = DAORegistry::getDAO('SubmissionKeywordDAO');
-            $articleKeywords = $dao->getKeywords($publication->getId(), $supportedLocales);
+            $articleKeywords = collect($publication->getData('keywords') ?? [])
+                ->map(
+                    fn (array $items): array => collect($items)
+                        ->pluck('name')
+                        ->all()
+                )
+                ->all();
+
             if (array_key_exists($publication->getData('locale'), $articleKeywords)) {
                 $keywordsInArticleLocale = $articleKeywords[$publication->getData('locale')];
                 unset($articleKeywords[$publication->getData('locale')]);
                 $articleKeywords = array_merge([$publication->getData('locale') => $keywordsInArticleLocale], $articleKeywords);
             }
+
             foreach ($articleKeywords as $locale => $keywords) {
                 $keywordsNode = $doc->createElement('keywords');
                 $keywordsNode->setAttribute('language', LocaleConversion::get3LetterIsoFromLocale($locale));
@@ -245,11 +249,17 @@ class DOAJXmlFilter extends \PKP\plugins\importexport\native\filter\NativeExport
         $deployment = $this->getDeployment();
         $authorNode = $doc->createElement('author');
         $authorNode->appendChild($node = $doc->createElement('name', htmlspecialchars($author->getFullName(false, false, $publication->getData('locale')), ENT_COMPAT, 'UTF-8')));
-        if (in_array($author->getAffiliation($publication->getData('locale')), $affilList) && !empty($affilList[0])) {
-            $authorNode->appendChild($node = $doc->createElement('affiliationId', htmlspecialchars(current(array_keys($affilList, $author->getAffiliation($publication->getData('locale')))), ENT_COMPAT, 'UTF-8')));
+        $affiliations = $author->getLocalizedAffiliationNames($publication->getData('locale'));
+        foreach ($affiliations as $affiliation) {
+            $authorNode->appendChild(
+                $doc->createElement(
+                    'affiliationId',
+                    htmlspecialchars(current(array_keys($affilList, $affiliation)), ENT_COMPAT, 'UTF-8')
+                )
+            );
         }
-        if ($orcid = $author->getData('orcid')) {
-            $authorNode->appendChild($doc->createElement('orcid_id'))->appendChild($doc->createTextNode($orcid));
+        if ($author->getData('orcid') && $author->getData('orcidIsVerified')) {
+            $authorNode->appendChild($doc->createElement('orcid_id'))->appendChild($doc->createTextNode($author->getData('orcid')));
         }
         return $authorNode;
     }
@@ -266,8 +276,12 @@ class DOAJXmlFilter extends \PKP\plugins\importexport\native\filter\NativeExport
     {
         $affilList = [];
         foreach ($authors as $author) {
-            if (!in_array($author->getAffiliation($publication->getData('locale')), $affilList)) {
-                $affilList[] = $author->getAffiliation($publication->getData('locale')) ;
+            $affiliations = $author->getLocalizedAffiliationNames($publication->getData('locale'));
+            foreach ($affiliations as $affiliation) {
+                if (!in_array($affiliation, $affilList)) {
+                    $affilList[] = $affiliation;
+                    ;
+                }
             }
         }
         return $affilList;

@@ -18,17 +18,15 @@ namespace PKP\services;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\file\PublicFileManager;
 use APP\services\queryBuilders\ContextQueryBuilder;
-use Illuminate\Contracts\Validation\Validator;
+use PKP\announcement\Announcement;
 use PKP\announcement\AnnouncementTypeDAO;
 use PKP\context\Context;
 use PKP\context\ContextDAO;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
-use PKP\config\Config;
 use PKP\db\DAORegistry;
 use PKP\db\DAOResultFactory;
 use PKP\db\DAOResultIterator;
@@ -50,8 +48,11 @@ use PKP\services\interfaces\EntityPropertyInterface;
 use PKP\services\interfaces\EntityReadInterface;
 use PKP\services\interfaces\EntityWriteInterface;
 use PKP\submission\GenreDAO;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\userGroup\Repository as UserGroupRepository;
 use PKP\validation\ValidatorFactory;
+use PKP\userGroup\UserGroup;
+use PKP\userGroup\relationships\UserUserGroup;
+
 
 abstract class PKPContextService implements EntityPropertyInterface, EntityReadInterface, EntityWriteInterface
 {
@@ -165,6 +166,8 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
      * @copydoc \PKP\services\interfaces\EntityReadInterface::getQueryBuilder()
      *
      * @return ContextQueryBuilder
+     *
+     * @hook Context::getMany::queryBuilder [[&$contextListQB, $args]]
      */
     public function getQueryBuilder($args = [])
     {
@@ -191,10 +194,12 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
      * @copydoc \PKP\services\interfaces\EntityPropertyInterface::getProperties()
      *
      * @param null|mixed $args
+     *
+     * @hook Context::getProperties [[&$values, $context, $props, $args]]
      */
     public function getProperties($context, $props, $args = null)
     {
-        $slimRequest = $args['slimRequest'];
+        $apiRequest = $args['apiRequest'] ?? '';
         $request = $args['request'];
         $dispatcher = $request->getDispatcher();
 
@@ -211,8 +216,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
                     break;
                 case '_href':
                     $values[$prop] = null;
-                    if (!empty($slimRequest)) {
-                        $route = $slimRequest->getAttribute('route');
+                    if (!empty($apiRequest)) {
                         $values[$prop] = $dispatcher->url(
                             $args['request'],
                             PKPApplication::ROUTE_API,
@@ -228,7 +232,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         }
 
         $supportedLocales = empty($args['supportedLocales']) ? $context->getSupportedFormLocales() : $args['supportedLocales'];
-        $values = Services::get('schema')->addMissingMultilingualValues(PKPSchemaService::SCHEMA_CONTEXT, $values, $supportedLocales);
+        $values = app()->get('schema')->addMissingMultilingualValues(PKPSchemaService::SCHEMA_CONTEXT, $values, $supportedLocales);
 
         Hook::call('Context::getProperties', [&$values, $context, $props, $args]);
 
@@ -244,7 +248,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
      */
     public function getSummaryProperties($context, $args = null)
     {
-        $props = Services::get('schema')->getSummaryProps(PKPSchemaService::SCHEMA_CONTEXT);
+        $props = app()->get('schema')->getSummaryProps(PKPSchemaService::SCHEMA_CONTEXT);
 
         return $this->getProperties($context, $props, $args);
     }
@@ -256,17 +260,19 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
      */
     public function getFullProperties($context, $args = null)
     {
-        $props = Services::get('schema')->getFullProps(PKPSchemaService::SCHEMA_CONTEXT);
+        $props = app()->get('schema')->getFullProps(PKPSchemaService::SCHEMA_CONTEXT);
 
         return $this->getProperties($context, $props, $args);
     }
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::validate()
+     *
+     * @hook Context::validate [[&$errors, $action, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate($action, $props, $allowedLocales, $primaryLocale)
     {
-        $schemaService = Services::get('schema'); /** @var PKPSchemaService $schemaService */
+        $schemaService = app()->get('schema'); /** @var PKPSchemaService $schemaService */
 
         $validator = ValidatorFactory::make(
             $props,
@@ -274,9 +280,11 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
             [
                 'urlPath.regex' => __('admin.contexts.form.pathAlphaNumeric'),
                 'primaryLocale.regex' => __('validator.localeKey'),
+                'supportedDefaultSubmissionLocale.regex' => __('validator.localeKey'),
                 'supportedFormLocales.regex' => __('validator.localeKey'),
                 'supportedLocales.regex' => __('validator.localeKey'),
                 'supportedSubmissionLocales.*.regex' => __('validator.localeKey'),
+                'supportedSubmissionMetadataLocales.*.regex' => __('validator.localeKey'),
             ]
         );
 
@@ -324,7 +332,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
                     if (!in_array($props['primaryLocale'], $newSupportedLocales)) {
                         $validator->errors()->add('primaryLocale', __('admin.contexts.form.primaryLocaleNotSupported'));
                     }
-                // Or check against the $allowedLocales
+                    // Or check against the $allowedLocales
                 } elseif (!in_array($props['primaryLocale'], $allowedLocales)) {
                     $validator->errors()->add('primaryLocale', __('admin.contexts.form.primaryLocaleNotSupported'));
                 }
@@ -419,7 +427,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
             $user = Application::get()->getRequest()->getUser();
             $validator->after(function ($validator) use ($user) {
                 $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
-                if (!$roleDao->userHasRole(PKPApplication::CONTEXT_ID_NONE, $user->getId(), Role::ROLE_ID_SITE_ADMIN)) {
+                if (!$roleDao->userHasRole(PKPApplication::SITE_CONTEXT_ID, $user->getId(), Role::ROLE_ID_SITE_ADMIN)) {
                     $validator->errors()->add('disableBulkEmailUserGroups', __('admin.settings.disableBulkEmailRoles.adminOnly'));
                 }
             });
@@ -448,6 +456,9 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::add()
+     *
+     * @hook Context::defaults::localeParams [[&$localeParams, $context, $request]]
+     * @hook Context::add [[&$context, $request]]
      */
     public function add($context, $request)
     {
@@ -485,7 +496,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         // Allow plugins to extend the $localeParams for new property defaults
         Hook::call('Context::defaults::localeParams', [&$localeParams, $context, $request]);
 
-        $context = Services::get('schema')->setDefaults(
+        $context = app()->get('schema')->setDefaults(
             PKPSchemaService::SCHEMA_CONTEXT,
             $context,
             $context->getData('supportedLocales'),
@@ -496,8 +507,17 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         if (!$context->getData('supportedFormLocales')) {
             $context->setData('supportedFormLocales', [$context->getData('primaryLocale')]);
         }
+        if (!$context->getData('supportedDefaultSubmissionLocale')) {
+            $context->setData('supportedDefaultSubmissionLocale', $context->getData('primaryLocale'));
+        }
+        if (!$context->getData('supportedAddedSubmissionLocales')) {
+            $context->setData('supportedAddedSubmissionLocales', [$context->getData('supportedDefaultSubmissionLocale')]);
+        }
         if (!$context->getData('supportedSubmissionLocales')) {
-            $context->setData('supportedSubmissionLocales', [$context->getData('primaryLocale')]);
+            $context->setData('supportedSubmissionLocales', [$context->getData('supportedDefaultSubmissionLocale')]);
+        }
+        if (!$context->getData('supportedSubmissionMetadataLocales')) {
+            $context->setData('supportedSubmissionMetadataLocales', [$context->getData('supportedDefaultSubmissionLocale')]);
         }
 
         $context->setSequence(REALLY_BIG_NUMBER);
@@ -531,10 +551,29 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         $genreDao = DAORegistry::getDAO('GenreDAO'); /** @var GenreDAO $genreDao */
         $genreDao->installDefaults($context->getId(), $context->getData('supportedLocales'));
 
-        Repo::userGroup()->installSettings($context->getId(), 'registry/userGroups.xml');
+        $userGroupRepository = app(UserGroupRepository::class);
+        $userGroupRepository->installSettings($context->getId(), 'registry/userGroups.xml');
 
-        $managerUserGroup = Repo::userGroup()->getByRoleIds([Role::ROLE_ID_MANAGER], $context->getId(), true)->firstOrFail();
-        Repo::userGroup()->assignUserToGroup($currentUser->getId(), $managerUserGroup->getId());
+
+        $managerUserGroup = UserGroup::withContextIds([$context->getId()])
+            ->withRoleIds([Role::ROLE_ID_MANAGER])
+            ->isDefault(true)
+            ->firstOrFail();
+
+        $assignmentExists = UserUserGroup::query()
+            ->withUserId($currentUser->getId())
+            ->withUserGroupIds([$managerUserGroup->id])
+            ->exists();
+
+        if (!$assignmentExists) {
+            UserUserGroup::create([
+                'userId' => $currentUser->getId(),
+                'userGroupId' => $managerUserGroup->userGroupId,
+                'dateStart' => null,
+                'dateEnd' => null,
+                'masthead' => null,
+            ]);
+        }
 
         $fileManager = new FileManager();
         foreach ($this->installFileDirs as $dir) {
@@ -556,6 +595,8 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::edit()
+     *
+     * @hook Context::edit [[&$newContext, $context, $params, $request]]
      */
     public function edit($context, $params, $request)
     {
@@ -593,6 +634,8 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
 
     /**
      * @copydoc \PKP\services\entityProperties\EntityWriteInterface::delete()
+     *
+     * @hook Context::delete::before [[&$context]]
      */
     public function delete($context)
     {
@@ -601,23 +644,20 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         $announcementTypeDao = DAORegistry::getDAO('AnnouncementTypeDAO'); /** @var AnnouncementTypeDAO $announcementTypeDao */
         $announcementTypeDao->deleteByContextId($context->getId());
 
-        Repo::userGroup()->deleteByContextId($context->getId());
+        Repo::reviewAssignment()->deleteByContextId($context->getId());
+
+        UserGroup::withContextIds($context->getId())->delete();
 
         $genreDao = DAORegistry::getDAO('GenreDAO'); /** @var GenreDAO $genreDao */
         $genreDao->deleteByContextId($context->getId());
 
-        Repo::announcement()->deleteMany(
-            Repo::announcement()
-                ->getCollector()
-                ->filterByContextIds([$context->getId()])
-        );
+        // TODO is it OK to delete without listening Model's delete-associated events (not loading each Model)?
+        Announcement::withContextIds([$context->getId()])->delete();
 
-        if (Config::getVar('features', 'highlights')) {
-            Repo::highlight()
-                ->getCollector()
-                ->filterByContextIds([$context->getId()])
-                ->deleteMany();
-        }
+        Repo::highlight()
+            ->getCollector()
+            ->filterByContextIds([$context->getId()])
+            ->deleteMany();
 
         Repo::institution()->deleteMany(
             Repo::institution()
@@ -638,9 +678,6 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
 
         $navigationMenuItemDao = DAORegistry::getDAO('NavigationMenuItemDAO'); /** @var NavigationMenuItemDAO $navigationMenuItemDao */
         $navigationMenuItemDao->deleteByContextId($context->getId());
-    
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao*/
-        $reviewAssignmentDao->deleteByContextId($context->getId());
 
         $contextFileManager = new ContextFileManager($context->getId());
         $contextFileManager->rmtree($contextFileManager->getBasePath());
@@ -662,6 +699,8 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
      * @param Context $context The context to restore default values for
      * @param Request $request
      * @param string $locale Locale key to restore defaults for. Example: `en`
+     *
+     * @hook Context::restoreLocaleDefaults::localeParams [[&$localeParams, $context, $request, $locale]]
      */
     public function restoreLocaleDefaults($context, $request, $locale)
     {
@@ -685,7 +724,7 @@ abstract class PKPContextService implements EntityPropertyInterface, EntityReadI
         // Allow plugins to extend the $localeParams for new property defaults
         Hook::call('Context::restoreLocaleDefaults::localeParams', [&$localeParams, $context, $request, $locale]);
 
-        $localeDefaults = Services::get('schema')->getLocaleDefaults(PKPSchemaService::SCHEMA_CONTEXT, $locale, $localeParams);
+        $localeDefaults = app()->get('schema')->getLocaleDefaults(PKPSchemaService::SCHEMA_CONTEXT, $locale, $localeParams);
 
         $params = [];
         foreach ($localeDefaults as $paramName => $value) {

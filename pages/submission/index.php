@@ -16,7 +16,7 @@
 switch ($op) {
     case 'index':
     case 'saved':
+    case 'cancelled':
     case 'wizard': // Deprecated
-        define('HANDLER_CLASS', 'APP\pages\submission\SubmissionHandler');
-        break;
+        return new APP\pages\submission\SubmissionHandler();
 }

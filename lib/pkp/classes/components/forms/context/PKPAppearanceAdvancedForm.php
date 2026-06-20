@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/components/form/context/PKPAppearanceAdvancedForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2026 Simon Fraser University
+ * Copyright (c) 2000-2026 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class PKPAppearanceAdvancedForm
@@ -15,19 +16,17 @@
 
 namespace PKP\components\forms\context;
 
+use APP\core\Application;
+use APP\file\PublicFileManager;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldUpload;
 use PKP\components\forms\FieldUploadImage;
 use PKP\components\forms\FormComponent;
 
-define('FORM_APPEARANCE_ADVANCED', 'appearanceAdvanced');
-
 class PKPAppearanceAdvancedForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_APPEARANCE_ADVANCED;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_APPEARANCE_ADVANCED = 'appearanceAdvanced';
+    public $id = self::FORM_APPEARANCE_ADVANCED;
     public $method = 'PUT';
 
     /**
@@ -45,9 +44,20 @@ class PKPAppearanceAdvancedForm extends FormComponent
         $this->action = $action;
         $this->locales = $locales;
 
+        $stylesheetValue = $context->getData('styleSheet');
+        $stylesheetUrl = null;
+        if ($stylesheetValue) {
+            $request = Application::get()->getRequest();
+            $publicFileManager = new PublicFileManager();
+            $stylesheetUrl = $request->getBaseUrl() . '/' .
+                $publicFileManager->getContextFilesPath($context->getId()) . '/' .
+                $stylesheetValue['uploadName'];
+        }
+
         $this->addField(new FieldUpload('styleSheet', [
             'label' => __('manager.setup.useStyleSheet'),
-            'value' => $context->getData('styleSheet'),
+            'value' => $stylesheetValue,
+            'fileUrl' => $stylesheetUrl,
             'options' => [
                 'url' => $temporaryFileApiUrl,
                 'acceptedFiles' => '.css',
@@ -69,7 +79,7 @@ class PKPAppearanceAdvancedForm extends FormComponent
                 'isMultilingual' => true,
                 'value' => $context->getData('additionalHomeContent'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,lists,image,code',
+                'plugins' => ['link','lists','image','code'],
                 'uploadUrl' => $imageUploadUrl,
             ]));
     }

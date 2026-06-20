@@ -32,12 +32,6 @@ abstract class Field
     /** @var string Field tooltip */
     public $tooltip;
 
-    /** @var string Field help topic. Refers to the /dev/docs file name without .md */
-    public $helpTopic;
-
-    /** @var string Field help section. An optional anchor link to open to when loading the helpTopic. */
-    public $helpSection;
-
     /** @var string Which group should this field be placed in? */
     public $groupId;
 
@@ -52,6 +46,9 @@ abstract class Field
 
     /** @var mixed A default for this field when no value is specified. */
     public $default;
+
+    /** @var bool Whether the field should be ignored when a form is submitted */
+    public bool $isInert = false;
 
     /**
      * Only show this field when the field named here is not empty. Match an exact
@@ -110,12 +107,6 @@ abstract class Field
         if (isset($this->tooltip)) {
             $config['tooltip'] = $this->tooltip;
         }
-        if (isset($this->helpTopic)) {
-            $config['helpTopic'] = $this->helpTopic;
-            if ($this->helpSection) {
-                $config['helpSection'] = $this->helpSection;
-            }
-        }
         if (isset($this->groupId)) {
             $config['groupId'] = $this->groupId;
         }
@@ -127,6 +118,9 @@ abstract class Field
         }
         if (isset($this->showWhen)) {
             $config['showWhen'] = $this->showWhen;
+        }
+        if (isset($this->isInert)) {
+            $config['isInert'] = $this->isInert;
         }
 
         $config['value'] = $this->value ?? $this->default ?? null;

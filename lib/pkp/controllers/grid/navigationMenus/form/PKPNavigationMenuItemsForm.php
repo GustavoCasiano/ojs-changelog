@@ -29,8 +29,7 @@ class PKPNavigationMenuItemsForm extends Form
     /** @var int $navigationMenuItemId the ID of the navigationMenuItem */
     public $navigationMenuItemId;
 
-    /** @var int */
-    public $_contextId;
+    public ?int $_contextId;
 
     /**
      * Constructor
@@ -38,14 +37,14 @@ class PKPNavigationMenuItemsForm extends Form
      * @param int $contextId
      * @param int $navigationMenuItemId
      */
-    public function __construct($contextId, $navigationMenuItemId)
+    public function __construct(?int $contextId, $navigationMenuItemId)
     {
         $this->_contextId = $contextId;
         $this->navigationMenuItemId = $navigationMenuItemId;
 
         parent::__construct('controllers/grid/navigationMenus/form/navigationMenuItemsForm.tpl');
 
-        $this->addCheck(new \PKP\form\validation\FormValidatorLocale($this, 'title', 'required', 'manager.navigationMenus.items.form.title.required', $this->defaultLocale));
+        $this->addCheck(new \PKP\form\validation\FormValidatorLocale($this, 'title', 'required', 'manager.navigationMenus.items.form.title.required', $this->requiredLocale));
         $this->addCheck(new \PKP\form\validation\FormValidatorPost($this));
         $this->addCheck(new \PKP\form\validation\FormValidatorCSRF($this));
     }
@@ -57,10 +56,8 @@ class PKPNavigationMenuItemsForm extends Form
 
     /**
      * Get the current context id.
-     *
-     * @return int
      */
-    public function getContextId()
+    public function getContextId(): ?int
     {
         return $this->_contextId;
     }
@@ -90,7 +87,7 @@ class PKPNavigationMenuItemsForm extends Form
                 'supportEmail' => __('plugins.generic.tinymce.variables.supportContactEmail', ['value' => $context->getData('supportEmail')]),
             ]);
         }
-        $types = Services::get('navigationMenu')->getMenuItemTypes();
+        $types = app()->get('navigationMenu')->getMenuItemTypes();
 
         $typeTitles = [0 => __('grid.navigationMenus.navigationMenu.selectType')];
         foreach ($types as $type => $settings) {
@@ -109,7 +106,7 @@ class PKPNavigationMenuItemsForm extends Form
             }
         }
 
-        $customTemplates = Services::get('navigationMenu')->getMenuItemCustomEditTemplates();
+        $customTemplates = app()->get('navigationMenu')->getMenuItemCustomEditTemplates();
 
         $templateArray = [
             'navigationMenuItemTypeTitles' => $typeTitles,
@@ -132,7 +129,7 @@ class PKPNavigationMenuItemsForm extends Form
         $navigationMenuItem = $navigationMenuItemDao->getById($this->navigationMenuItemId);
 
         if ($navigationMenuItem) {
-            Services::get('navigationMenu')
+            app()->get('navigationMenu')
                 ->setAllNMILocalizedTitles($navigationMenuItem);
 
             $formData = [
@@ -160,7 +157,7 @@ class PKPNavigationMenuItemsForm extends Form
     /**
      * @copydoc Form::getLocaleFieldNames()
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         $navigationMenuItemDao = DAORegistry::getDAO('NavigationMenuItemDAO'); /** @var NavigationMenuItemDAO $navigationMenuItemDao */
         return $navigationMenuItemDao->getLocaleFieldNames();

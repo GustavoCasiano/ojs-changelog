@@ -13,7 +13,7 @@
 		$('#userDisableForm').pkpHandler('$.pkp.controllers.form.AjaxFormHandler');
 	{rdelim});
 </script>
-<form class="pkp_form" id="userDisableForm" method="post" action="{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.user.UserGridHandler" op="disableUser"}">
+<form class="pkp_form" id="userDisableForm" method="post" action="{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.user.UserGridHandler" op="disableUser"}">
 	{csrf}
 
 	<input type="hidden" name="userId" value="{$userId|escape}" />
@@ -21,10 +21,12 @@
 
 	{if $enable}
 		{fbvFormSection title="grid.user.enableReason" for="disableReason"}
+			<p class="mb-4">{translate key ="grid.user.enableReasonDescription"}</p>
 			{fbvElement type="textarea" id="disableReason" value=$disableReason size=$fbvStyles.size.LARGE}
 		{/fbvFormSection}
 	{else}
 		{fbvFormSection title="grid.user.disableReason" for="disableReason"}
+			<p class="mb-4">{translate key ="grid.user.disableReasonDescription"}</p>
 			{fbvElement type="textarea" id="disableReason" value=$disableReason size=$fbvStyles.size.LARGE}
 		{/fbvFormSection}
 	{/if}

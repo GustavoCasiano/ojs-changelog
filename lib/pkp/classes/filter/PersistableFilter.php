@@ -41,7 +41,7 @@ namespace PKP\filter;
 
 define('FILTER_GROUP_TEMPORARY_ONLY', '$$$temporary$$$');
 
-class PersistableFilter extends Filter
+abstract class PersistableFilter extends Filter
 {
     /** @var FilterGroup */
     public $_filterGroup;
@@ -73,7 +73,7 @@ class PersistableFilter extends Filter
         $this->_filterGroup = $filterGroup;
 
         // Initialize the filter.
-        $this->setParentFilterId(0);
+        $this->setParentFilterId(null);
         $this->setIsTemplate(false);
         parent::__construct($filterGroup->getInputType(), $filterGroup->getOutputType());
     }
@@ -125,20 +125,16 @@ class PersistableFilter extends Filter
 
     /**
      * Set the parent filter id
-     *
-     * @param int $parentFilterId
      */
-    public function setParentFilterId($parentFilterId)
+    public function setParentFilterId(?int $parentFilterId): void
     {
         $this->setData('parentFilterId', $parentFilterId);
     }
 
     /**
      * Get the parent filter id
-     *
-     * @return int
      */
-    public function getParentFilterId()
+    public function getParentFilterId(): ?int
     {
         return $this->getData('parentFilterId');
     }
@@ -156,7 +152,7 @@ class PersistableFilter extends Filter
         // Check that the setting name does not
         // collide with one of the internal settings.
         if (in_array($settingName, $this->getInternalSettings())) {
-            fatalError('Trying to override an internal filter setting!');
+            throw new \Exception('Trying to override an internal filter setting!');
         }
 
         assert(!isset($this->_settings[$settingName]));
@@ -165,14 +161,9 @@ class PersistableFilter extends Filter
 
     /**
      * Get a filter setting
-     *
-     * @param string $settingName
-     *
-     * @return FilterSetting
      */
-    public function getSetting($settingName)
+    public function getSetting(string $settingName): FilterSetting
     {
-        assert(isset($this->_settings[$settingName]));
         return $this->_settings[$settingName];
     }
 
@@ -197,12 +188,10 @@ class PersistableFilter extends Filter
 
     /**
      * Can this filter be parameterized?
-     *
-     * @return bool
      */
-    public function hasSettings()
+    public function hasSettings(): bool
     {
-        return (is_array($this->_settings) && count($this->_settings));
+        return count($this->_settings);
     }
 
     /**

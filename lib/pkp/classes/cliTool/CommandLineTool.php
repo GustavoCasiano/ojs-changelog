@@ -27,12 +27,11 @@ namespace PKP\cliTool;
 use APP\core\Application;
 use APP\core\PageRouter;
 use APP\facades\Repo;
+use PKP\config\Config;
+use PKP\core\PKPSessionGuard;
 use PKP\core\Registry;
 use PKP\plugins\PluginRegistry;
-use PKP\security\Role;
-use PKP\session\SessionManager;
 use PKP\user\User;
-use PKP\config\Config;
 
 /** Initialization code */
 define('PWD', getcwd());
@@ -40,8 +39,9 @@ chdir(dirname(INDEX_FILE_LOCATION)); /* Change to base directory */
 if (!defined('STDIN')) {
     define('STDIN', fopen('php://stdin', 'r'));
 }
+
 require_once './lib/pkp/includes/bootstrap.php';
-SessionManager::disable();
+PKPSessionGuard::disableSession();
 
 class CommandLineTool
 {
@@ -79,7 +79,9 @@ class CommandLineTool
 
         $this->scriptName = isset($this->argv[0]) ? array_shift($this->argv) : '';
 
-        if (Config::getVar('general', 'installed')) $this->checkArgsForUsername();
+        if (Config::getVar('general', 'installed')) {
+            $this->checkArgsForUsername();
+        }
 
         if (isset($this->argv[0]) && $this->argv[0] == '-h') {
             $this->exitWithUsageMessage();
@@ -107,7 +109,6 @@ class CommandLineTool
 
             unset($this->argv[$usernameKeyPos]);
         }
-
         if ($this->username) {
             $user = Repo::user()->getByUsername($this->username, true);
 
@@ -115,18 +116,11 @@ class CommandLineTool
         }
 
         if (!$this->user) {
-            $adminGroups = Repo::userGroup()->getArrayIdByRoleId(Role::ROLE_ID_SITE_ADMIN);
-
-            if (count($adminGroups)) {
-                $groupUsers = Repo::user()->getCollector()
-                    ->filterByUserGroupIds([$adminGroups[0]])
-                    ->getMany();
-
-                if ($groupUsers->isNotEmpty()) {
-                    $this->setUser($groupUsers->first());
-                } else {
-                    $this->exitWithUsageMessage();
-                }
+            $adminUsers = Repo::user()->getAdminUsers();
+            if ($adminUsers->isNotEmpty()) {
+                $this->setUser($adminUsers->first());
+            } else {
+                $this->exitWithUsageMessage();
             }
         }
     }

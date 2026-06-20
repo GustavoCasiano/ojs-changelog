@@ -5,7 +5,7 @@
  *
  * Copyright (c) 2014-2020 Simon Fraser University
  * Copyright (c) 2003-2020 John Willinsky
- * Distributed under the GNU GPL v2 or later. For full terms see the file docs/COPYING.
+ * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class CitationStyleLanguageHandler
  *
@@ -30,8 +30,9 @@ use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
 use PKP\plugins\PluginRegistry;
 use PKP\security\Role;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\PKPSubmission;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CitationStyleLanguageHandler extends Handler
 {
@@ -47,8 +48,8 @@ class CitationStyleLanguageHandler extends Handler
     /** @var Issue issue of the publication being requested */
     public ?Issue $issue = null;
 
-    /** @var array citation style being requested */
-    public $citationStyle = '';
+    /** @var string citation style being requested */
+    public string $citationStyle = '';
 
     /** @var bool Whether or not to return citation in JSON format */
     public $returnJson = false;
@@ -75,7 +76,7 @@ class CitationStyleLanguageHandler extends Handler
 
         $plugin = $this->plugin;
         if (null === $plugin) {
-            $request->getDispatcher()->handle404();
+            throw new NotFoundHttpException();
         }
         $citation = $plugin->getCitation($request, $this->submission, $this->citationStyle, $this->issue, $this->publication, $this->chapter);
 
@@ -116,10 +117,10 @@ class CitationStyleLanguageHandler extends Handler
         $applicationName = Application::get()->getName();
 
         if ($applicationName === 'ojs2') {
-            return !$issue || !$issue->getPublished() || $submission->getStatus() != PKPSubmission::STATUS_PUBLISHED;
+            return !$issue || !$issue->getPublished() || $submission->getData('status') != PKPSubmission::STATUS_PUBLISHED;
         }
 
-        return $submission->getStatus() != PKPSubmission::STATUS_PUBLISHED;
+        return $submission->getData('status') != PKPSubmission::STATUS_PUBLISHED;
     }
 
     /**
@@ -135,7 +136,7 @@ class CitationStyleLanguageHandler extends Handler
         $context = $request->getContext();
 
         if (empty($userVars['submissionId']) || !$context || empty($args)) {
-            $request->getDispatcher()->handle404();
+            throw new NotFoundHttpException();
         }
 
         // Load plugin categories which might need to add data to the citation
@@ -147,7 +148,7 @@ class CitationStyleLanguageHandler extends Handler
         $this->submission = Repo::submission()->get((int) $userVars['submissionId']);
 
         if (!$this->submission) {
-            $request->getDispatcher()->handle404();
+            throw new NotFoundHttpException();
         }
 
         $this->publication = !empty($userVars['publicationId'])
@@ -169,7 +170,7 @@ class CitationStyleLanguageHandler extends Handler
         if ($this->isSubmissionUnpublished($this->submission, $this->issue)) {
             $userRoles = $this->getAuthorizedContextObject(PKPApplication::ASSOC_TYPE_USER_ROLES);
             if (!$this->canUserAccess($context, $user, $userRoles)) {
-                $request->getDispatcher()->handle404();
+                throw new NotFoundHttpException();
             }
         }
     }
@@ -177,15 +178,13 @@ class CitationStyleLanguageHandler extends Handler
     protected function canUserAccess($context, $user, $userRoles)
     {
         if ($user && !empty(array_intersect($userRoles, [Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT]))) {
-            /** @var StageAssignmentDAO */
-            $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-            $assignments = $stageAssignmentDao->getBySubmissionAndStageId($this->submission->getId());
+            $assignments = StageAssignment::withSubmissionIds([$this->submission->getId()])->get();
             foreach ($assignments as $assignment) {
-                if ($assignment->getUser()->getId() == $user->getId()) {
+                if ($assignment->userId == $user->getId()) {
                     continue;
                 }
-                $userGroup = Repo::userGroup()->get($assignment->getUserGroupId($context->getId()));
-                if (in_array($userGroup->getRoleId(), [Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT])) {
+                $userGroup = Repo::userGroup()->get($assignment->userGroupId);
+                if (in_array($userGroup->roleId, [Role::ROLE_ID_SUB_EDITOR, Role::ROLE_ID_ASSISTANT])) {
                     return true;
                 }
             }

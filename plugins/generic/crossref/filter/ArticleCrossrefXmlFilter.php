@@ -3,8 +3,8 @@
 /**
  * @file plugins/generic/crossref/filter/ArticleCrossrefXmlFilter.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under The MIT License. For full terms see the file LICENSE.
  *
  * @class ArticleCrossrefXmlFilter
@@ -25,6 +25,7 @@ use DOMDocument;
 use DOMElement;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
+use PKP\filter\FilterGroup;
 use PKP\i18n\LocaleConversion;
 use PKP\submission\GenreDAO;
 
@@ -33,7 +34,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
     /**
      * Constructor
      *
-     * @param \PKP\filter\FilterGroup $filterGroup
+     * @param FilterGroup $filterGroup
      */
     public function __construct($filterGroup)
     {
@@ -66,7 +67,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
      */
     public function createJournalIssueNode($doc, $submission)
     {
-        /** @var CrossrefExportDeployment */
+        /** @var CrossrefExportDeployment $deployment */
         $deployment = $this->getDeployment();
         $context = $deployment->getContext();
         $cache = $deployment->getCache();
@@ -81,21 +82,20 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
                 $cache->add($issue, null);
             }
         }
-        $journalIssueNode = parent::createJournalIssueNode($doc, $issue);
-        return $journalIssueNode;
+        return parent::createJournalIssueNode($doc, $issue);
     }
 
     /**
      * Create and return the journal article node 'journal_article'.
      *
-     * @param \DOMDocument $doc
-     * @param \APP\submission\Submission $submission
+     * @param DOMDocument $doc
+     * @param Submission $submission
      *
-     * @return \DOMElement
+     * @return DOMElement
      */
     public function createJournalArticleNode($doc, $submission)
     {
-        /** @var CrossrefExportDeployment */
+        /** @var CrossrefExportDeployment $deployment */
         $deployment = $this->getDeployment();
         $context = $deployment->getContext();
         $request = Application::get()->getRequest();
@@ -108,7 +108,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
 
         $journalArticleNode = $doc->createElementNS($deployment->getNamespace(), 'journal_article');
         $journalArticleNode->setAttribute('publication_type', 'full_text');
-        $journalArticleNode->setAttribute('language', LocaleConversion::getIso1FromLocale($locale));
+        $journalArticleNode->setAttribute('language', \Locale::getPrimaryLanguage($locale));
 
         // title
         $titleLanguages = array_keys($publication->getTitles());
@@ -136,6 +136,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
 
         // contributors
         $authors = $publication->getData('authors');
+
         if ($authors->count() != 0) {
             $contributorsNode = $doc->createElementNS($deployment->getNamespace(), 'contributors');
 
@@ -155,14 +156,39 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
 
                 // Check if both givenName and familyName is set for the submission language.
                 if (!empty($familyNames[$locale]) && !empty($givenNames[$locale])) {
-                    $personNameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($locale));
-                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(ucfirst($givenNames[$locale]), ENT_COMPAT, 'UTF-8')));
-                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($familyNames[$locale]), ENT_COMPAT, 'UTF-8')));
+                    $personNameNode->setAttribute('language', \Locale::getPrimaryLanguage($locale));
+                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars($givenNames[$locale], ENT_COMPAT, 'UTF-8')));
+                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars($familyNames[$locale], ENT_COMPAT, 'UTF-8')));
+                } else {
+                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars($givenNames[$locale], ENT_COMPAT, 'UTF-8')));
+                }
 
-                    if ($author->getData('orcid')) {
-                        $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid')));
+                $affiliations = $author->getAffiliations();
+                if (count($affiliations) > 0) {
+                    $affiliationsNode = $doc->createElementNS($deployment->getNamespace(), 'affiliations');
+                    foreach ($affiliations as $affiliation) {
+                        $institutionNode = $doc->createElementNS($deployment->getNamespace(), 'institution');
+                        $institutionNameNode = $doc->createElementNS($deployment->getNamespace(), 'institution_name', htmlspecialchars($affiliation->getLocalizedName($locale), ENT_COMPAT, 'UTF-8'));
+                        $institutionNode->appendChild($institutionNameNode);
+                        $rorId = $affiliation->getRor();
+                        if ($rorId) {
+                            $institutionIdNode = $doc->createElementNS($deployment->getNamespace(), 'institution_id', $rorId);
+                            $institutionIdNode->setAttribute('type', 'ror');
+                            $institutionNode->appendChild($institutionIdNode);
+                        }
+                        $affiliationsNode->appendChild($institutionNode);
                     }
+                    $personNameNode->appendChild($affiliationsNode);
+                }
 
+                if ($author->getData('orcid')) {
+                    $orcidNode = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid'));
+                    $orcidAuthenticated = $author->getData('orcidIsVerified') ? 'true' : 'false';
+                    $orcidNode->setAttribute('authenticated', $orcidAuthenticated);
+                    $personNameNode->appendChild($orcidNode);
+                }
+
+                if (!empty($familyNames[$locale]) && !empty($givenNames[$locale])) {
                     $hasAltName = false;
                     foreach ($familyNames as $otherLocal => $familyName) {
                         if ($otherLocal != $locale && isset($familyName) && !empty($familyName)) {
@@ -173,20 +199,15 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
                             }
 
                             $nameNode = $doc->createElementNS($deployment->getNamespace(), 'name');
-                            $nameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($otherLocal));
+                            $nameNode->setAttribute('language', \Locale::getPrimaryLanguage($otherLocal));
 
-                            $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($familyName), ENT_COMPAT, 'UTF-8')));
+                            $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars($familyName, ENT_COMPAT, 'UTF-8')));
                             if (isset($givenNames[$otherLocal]) && !empty($givenNames[$otherLocal])) {
-                                $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(ucfirst($givenNames[$otherLocal]), ENT_COMPAT, 'UTF-8')));
+                                $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars($givenNames[$otherLocal], ENT_COMPAT, 'UTF-8')));
                             }
 
                             $altNameNode->appendChild($nameNode);
                         }
-                    }
-                } else {
-                    $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($givenNames[$locale]), ENT_COMPAT, 'UTF-8')));
-                    if ($author->getData('orcid')) {
-                        $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid')));
                     }
                 }
 
@@ -198,9 +219,9 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
 
         // abstract
         $abstracts = $publication->getData('abstract') ?: [];
-        foreach($abstracts as $lang => $abstract) {
+        foreach ($abstracts as $lang => $abstract) {
             $abstractNode = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:abstract');
-            $abstractNode->setAttributeNS($deployment->getXMLNamespace(), 'xml:lang', LocaleConversion::getIso1FromLocale($lang));
+            $abstractNode->setAttributeNS($deployment->getXMLNamespace(), 'xml:lang', LocaleConversion::toBcp47($lang));
             $abstractNode->appendChild($node = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:p', htmlspecialchars(html_entity_decode(strip_tags($abstract), ENT_COMPAT, 'UTF-8'), ENT_COMPAT, 'UTF-8')));
             $journalArticleNode->appendChild($abstractNode);
         }
@@ -251,7 +272,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
 
         // DOI data
         $dispatcher = $this->_getDispatcher($request);
-        $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', $submission->getBestId(), null, null, true);
+        $url = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'view', [$publication->getData('urlPath') ?? $submission->getId()], null, null, true, '');
         $doiDataNode = $this->createDOIDataNode($doc, $publication->getDoi(), $url);
         // append galleys files and collection nodes to the DOI data node
         $galleys = $publication->getData('galleys');
@@ -264,7 +285,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
         $genreDao = DAORegistry::getDAO('GenreDAO'); /** @var GenreDAO $genreDao */
         foreach ($galleys as $galley) {
             // filter supp files with DOI
-            if (!$galley->getRemoteURL()) {
+            if (!$galley->getData('urlRemote')) {
                 $galleyFile = $galley->getFile();
                 if ($galleyFile) {
                     $genre = $genreDao->getById($galleyFile->getGenreId());
@@ -314,9 +335,9 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
     /**
      * Append the collection node 'collection property="crawler-based"' to the doi data node.
      *
-     * @param \DOMDocument $doc
-     * @param \DOMElement $doiDataNode
-     * @param \APP\submission\Submission $submission
+     * @param DOMDocument $doc
+     * @param DOMElement $doiDataNode
+     * @param Submission $submission
      * @param array $galleys of \PKP\galley\Galley objects
      */
     public function appendAsCrawledCollectionNodes($doc, $doiDataNode, $submission, $galleys)
@@ -324,6 +345,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
         $deployment = $this->getDeployment();
         $context = $deployment->getContext();
         $request = Application::get()->getRequest();
+        $publication = $submission->getCurrentPublication();
         $dispatcher = $this->_getDispatcher($request);
 
         if (empty($galleys)) {
@@ -332,7 +354,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
             $doiDataNode->appendChild($crawlerBasedCollectionNode);
         }
         foreach ($galleys as $galley) {
-            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$submission->getBestId(), $galley->getBestGalleyId()], null, null, true);
+            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$publication->getData('urlPath') ?? $submission->getId(), $galley->getBestGalleyId()], null, null, true, '');
             // iParadigms crawler based collection element
             $crawlerBasedCollectionNode = $doc->createElementNS($deployment->getNamespace(), 'collection');
             $crawlerBasedCollectionNode->setAttribute('property', 'crawler-based');
@@ -347,9 +369,9 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
     /**
      * Append the collection node 'collection property="text-mining"' to the doi data node.
      *
-     * @param \DOMDocument $doc
-     * @param \DOMElement $doiDataNode
-     * @param \APP\submission\Submission $submission
+     * @param DOMDocument $doc
+     * @param DOMElement $doiDataNode
+     * @param Submission $submission
      * @param array $galleys of \PKP\galley\Galley objects
      */
     public function appendTextMiningCollectionNodes($doc, $doiDataNode, $submission, $galleys)
@@ -358,19 +380,43 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
         $context = $deployment->getContext();
         $request = Application::get()->getRequest();
         $dispatcher = $this->_getDispatcher($request);
+        $publication = $submission->getCurrentPublication();
+
+        // Check if there is at least one galley that is NOT audio or video
+        $hasTextMiningCandidate = false;
+        foreach ($galleys as $galley) {
+            $fileType = $galley->getFileType();
+            if (!$galley->getData('urlRemote') && strpos($fileType, 'audio') === false && strpos($fileType, 'video') === false) {
+                $hasTextMiningCandidate = true;
+                break;
+            }
+        }
+
+        // If all galleys are audio/video, skip adding the text-mining node
+        if (!$hasTextMiningCandidate) {
+            return;
+        }
 
         // start of the text-mining collection element
         $textMiningCollectionNode = $doc->createElementNS($deployment->getNamespace(), 'collection');
         $textMiningCollectionNode->setAttribute('property', 'text-mining');
         foreach ($galleys as $galley) {
-            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$submission->getBestId(), $galley->getBestGalleyId()], null, null, true); // text-mining collection item
-            $textMiningItemNode = $doc->createElementNS($deployment->getNamespace(), 'item');
-            $resourceNode = $doc->createElementNS($deployment->getNamespace(), 'resource', $resourceURL);
-            if (!$galley->getRemoteURL()) {
-                $resourceNode->setAttribute('mime_type', $galley->getFileType());
+            $fileType = $galley->getFileType();
+            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$publication->getData('urlPath') ?? $submission->getId(), $galley->getBestGalleyId()], null, null, true, ''); // text-mining collection item
+
+
+            // add only non-audio/video galleys to text-mining
+            if (strpos($fileType, 'audio') === false && strpos($fileType, 'video') === false) {
+                $textMiningItemNode = $doc->createElementNS($deployment->getNamespace(), 'item');
+                $resourceNode = $doc->createElementNS($deployment->getNamespace(), 'resource', $resourceURL);
+
+                if (!$galley->getData('urlRemote')) {
+                    $resourceNode->setAttribute('mime_type', $galley->getFileType());
+                }
+
+                $textMiningItemNode->appendChild($resourceNode);
+                $textMiningCollectionNode->appendChild($textMiningItemNode);
             }
-            $textMiningItemNode->appendChild($resourceNode);
-            $textMiningCollectionNode->appendChild($textMiningItemNode);
         }
         $doiDataNode->appendChild($textMiningCollectionNode);
     }
@@ -378,17 +424,18 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
     /**
      * Create and return component list node 'component_list'.
      *
-     * @param \DOMDocument $doc
-     * @param \APP\submission\Submission $submission
+     * @param DOMDocument $doc
+     * @param Submission $submission
      * @param array $componentGalleys
      *
-     * @return \DOMElement
+     * @return DOMElement
      */
     public function createComponentListNode($doc, $submission, $componentGalleys)
     {
         $deployment = $this->getDeployment();
         $context = $deployment->getContext();
         $request = Application::get()->getRequest();
+        $publication = $submission->getCurrentPublication();
         $dispatcher = $this->_getDispatcher($request);
 
         // Create the base node
@@ -406,7 +453,7 @@ class ArticleCrossrefXmlFilter extends IssueCrossrefXmlFilter
                 $componentNode->appendChild($titlesNode);
             }
             // DOI data node
-            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$submission->getBestId(), $componentGalley->getBestGalleyId()], null, null, true);
+            $resourceURL = $dispatcher->url($request, PKPApplication::ROUTE_PAGE, $context->getPath(), 'article', 'download', [$publication->getData('urlPath') ?? $submission->getId(), $componentGalley->getBestGalleyId()], null, null, true, '');
             $componentNode->appendChild($this->createDOIDataNode($doc, $componentGalley->getStoredPubId('doi'), $resourceURL));
             $componentListNode->appendChild($componentNode);
         }

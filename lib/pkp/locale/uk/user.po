@@ -1,10 +1,10 @@
-# Petro Bilous <petrobilous@ukr.net>, 2023, 2024.
+# Petro Bilous <petrobilous@ukr.net>, 2023, 2024, 2025, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-19T10:50:09+00:00\n"
-"PO-Revision-Date: 2024-06-07 09:02+0000\n"
+"PO-Revision-Date: 2026-04-09 13:27+0000\n"
 "Last-Translator: Petro Bilous <petrobilous@ukr.net>\n"
 "Language-Team: Ukrainian <http://translate.pkp.sfu.ca/projects/pkp-lib/user/"
 "uk/>\n"
@@ -106,7 +106,7 @@ msgid "user.email"
 msgstr "Електронна пошта"
 
 msgid "user.givenName"
-msgstr "Ім'я"
+msgstr "Надане ім'я"
 
 msgid "user.interests"
 msgstr "Наукові інтереси"
@@ -297,8 +297,8 @@ msgstr "Сповіщення електронною поштою про опуб
 
 msgid "user.profile.form.urlInvalid"
 msgstr ""
-"Вказана адреса URL некоректна. Будь ласка, перевірте URL та спробуйте знову. "
-"(Підказка: спробуйте додати \"https://\" перед адресою URL)."
+"Вказана адреса URL некоректна. Будь ласка, перевірте URL-адресу та спробуйте "
+"ще раз. (Підказка: спробуйте додати \"https://\" перед URL-адресою.)"
 
 msgid "user.profile.form.usergroupRequired"
 msgstr "Необхідно вказати групу користувачів."
@@ -537,3 +537,442 @@ msgstr "Ім'я користувача або електронна пошта"
 
 msgid "user.authorization.submission.incomplete.workflowAccessRestrict"
 msgstr "Доступ до робочого процесу для неповного подання обмежено."
+
+msgid "orcid.displayName"
+msgstr "Плагін профілю ORCID"
+
+msgid "orcid.description"
+msgstr "Дозволяє імпортувати інформацію профілю користувача з ORCID."
+
+msgid "orcid.instructions"
+msgstr ""
+"Ви можете попередньо заповнити цю форму інформацією з профілю ORCID. Введіть "
+"адресу електронної пошти або ORCID ID, пов'язаний з профілем ORCID, і "
+"натисніть \"Подати\"."
+
+msgid "orcid.noData"
+msgstr "Не вдалося знайти дані від ORCID."
+
+msgid "orcid.emailOrOrcid"
+msgstr "Адреса електронної пошти або ORCID ID:"
+
+msgid "orcid.manager.orcidProfileSettings"
+msgstr "Налаштування профілю ORCID"
+
+msgid "orcid.manager.settings.description"
+msgstr ""
+"Будь ласка, налаштуйте доступ до API ORCID для використання з метою "
+"перенесення інформації профілю ORCID у профілі користувачів і авторів та "
+"оновлення підключених записів ORCID новими публікаціями (тільки для членів "
+"ORCID)."
+
+msgid "orcid.manager.settings.orcidProfileAPIPath"
+msgstr "API ORCID"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.public"
+msgstr "Публічний"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.publicSandbox"
+msgstr "Публічний sandbox"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.member"
+msgstr "Член"
+
+msgid "orcid.manager.settings.orcidProfileAPIPath.memberSandbox"
+msgstr "Членський sandbox"
+
+msgid "orcid.manager.settings.orcidClientId"
+msgstr "Клієнтський ID"
+
+msgid "orcid.manager.settings.orcidClientSecret"
+msgstr "Секрет клієнта"
+
+msgid "orcid.author.submission"
+msgstr "ORCID подання"
+
+msgid "orcid.author.submission.success"
+msgstr "Ваше подання успішно пов'язане з вашим ORCID iD."
+
+msgid "orcid.author.submission.failure"
+msgstr "Ваше подання не може бути успішно пов'язане з вашим ORCID iD. Будь ласка, зв'яжіться з менеджером журналу і повідомте йому ваше ім'я, ORCID iD та подробиці надісланого вами подання."
+
+msgid "orcid.authFailure"
+msgstr "Посилання для ORCID-авторизації вже використано або є недійсним."
+
+msgid "orcid.fieldset"
+msgstr "ORCID"
+
+msgid "orcid.connect"
+msgstr "Створіть або підключіть Ваш ORCID ID"
+
+msgid "orcid.manager.settings.sendMailToAuthorsOnPublication"
+msgstr ""
+"Надіслати електронний лист для запиту ORCID-авторизації від авторів, коли "
+"статтю прийнято, наприклад, відправлено на літературне редагування"
+
+msgid "orcid.manager.settings.logLevel.error"
+msgstr "Помилки"
+
+msgid "orcid.manager.settings.logSectionTitle"
+msgstr "Журнал запитів ORCID"
+
+msgid "orcid.author.accessDenied"
+msgstr "Доступ до ORCID було відхилено"
+
+msgid "orcid.manager.settings.logLevel.all"
+msgstr "Усе"
+
+msgid "orcid.manager.settings.mailSectionTitle"
+msgstr "Налаштування електронної пошти"
+
+msgid "orcid.manager.settings.orcidScope"
+msgstr "Область доступу до профілю"
+
+msgid "orcid.manager.settings.description.globallyconfigured"
+msgstr ""
+"API ORCID був налаштований глобально хостом. Такі облікові дані було "
+"збережено."
+
+msgid "orcid.manager.settings.hidden"
+msgstr "приховано"
+
+msgid "orcid.manager.settings.title"
+msgstr "Налаштування API ORCID"
+
+msgid "orcid.about.title"
+msgstr "Що таке ORCID?"
+
+msgid "orcid.verify.title"
+msgstr "ORCID-авторизація"
+
+msgid "orcid.manager.settings.logLevel.help"
+msgstr "Виберіть кількість записів до журналу, які робитимуться плагіном"
+
+msgid "orcid.manager.settings.orcidClientSecret.error"
+msgstr "Неправильний секрет клієнта"
+
+msgid "orcid.manager.settings.orcidClientId.error"
+msgstr "Неправильний клієнтський ID"
+
+msgid "orcid.about.display"
+msgstr ""
+"Щоб підтвердити, що Ви використовували свій iD і він був автентифікований, "
+"ми відображаємо значок ORCID iD <img src=\"https://info.orcid.org/wp-content/"
+"uploads/2020/12/ORCIDiD_icon16x16.png\" alt=\"iD icon\" width=\"16\" height="
+"\"16\" border=\"0\"> поряд із Вашим ім'ям на сторінці статті Вашого подання "
+"і на вашому загальнодоступному профілі користувача.<br>\n"
+"\t\tДізнайтеся більше в <a href=\"https://info.orcid.org/"
+"how-should-an-orcid-id-be-displayed/\">How should an ORCID iD be "
+"displayed.</a>"
+
+msgid "orcid.about.display.title"
+msgstr "Де відображаються ORCID ID?"
+
+msgid "orcid.about.howAndWhyMemberAPI"
+msgstr ""
+"Цей журнал збирає Ваш ORCID iD, щоб ми та широка спільнота могли бути "
+"впевнені, що Ви правильно ідентифіковані та пов'язані з Вашою публікацією(ми)"
+". Це гарантує, що Ваш зв'язок із повним обсягом твору залишиться з Вами "
+"протягом усієї Вашої кар'єри. <br>\n"
+"\tКоли ви натискаєте кнопку \"Авторизуватися\" у спливаючому вікні ORCID, ми "
+"попросимо Вас поділитися своїм iD за допомогою автентифікованого процесу - "
+"або зареєструвавши ORCID iD, або, якщо він у Вас уже є, увійшовши у свій "
+"обліковий запис ORCID, а потім надавши нам дозвіл на отримання Вашого ORCID "
+"iD. Ми робимо це, щоб переконатися, що Ви правильно ідентифіковані та "
+"надійно підключені до Вашого ORCID iD. <br>\n"
+"\tДізнайтеся більше в <a href=\"https://info.orcid.org/"
+"whats-so-special-about-signing-in/\">Які є особливості входу.</a> <br>\n"
+"\tЦей журнал збиратиме та відображатиме iD автентифікованих авторів та "
+"співавторів на сторінці профілю OJS і статті. Крім того, метадані статті "
+"автоматично будуть переміщені до Вашого запису ORCID, що дозволить нам "
+"допомогти Вам підтримуватиВаш запис в актуальному стані з надійною "
+"інформацією. Дізнайтеся більше в <a href =\"https://info.orcid.org/"
+"six-ways-to-make-your-orcid-id-work-for-you/\">Six ways to make your ORCID "
+"iD work for you!</a>\n"
+
+msgid "orcid.about.howAndWhyPublicAPI"
+msgstr ""
+"Цей журнал збирає Ваш ORCID iD, щоб ми та широка спільнота могли бути "
+"впевнені, що Ви правильно ідентифіковані та пов'язані з Вашою публікацією(ми)"
+". Це гарантує, що Ваш зв'язок із повним обсягом твору залишиться з Вами "
+"протягом усієї Вашої кар'єри. <br>\n"
+"\tКоли ви натискаєте кнопку \"Авторизуватися\" у спливаючому вікні ORCID, ми "
+"попросимо Вас поділитися своїм iD за допомогою автентифікованого процесу - "
+"або зареєструвавши ORCID iD, або, якщо він у Вас уже є, увійшовши у свій "
+"обліковий запис ORCID, а потім надавши нам дозвіл на отримання Вашого ORCID "
+"iD. Ми робимо це, щоб переконатися, що Ви правильно ідентифіковані та "
+"надійно підключені до Вашого ORCID iD. <br>\n"
+"\tДізнайтеся більше в <a href=\"https://info.orcid.org/"
+"whats-so-special-about-signing-in/\">Які є особливості входу.</a> <br>\n"
+"\tЦей журнал збиратиме та відображатиме iD автентифікованих авторів та "
+"співавторів на сторінці профілю OJS і статті."
+
+msgid "orcid.about.howAndWhy.title"
+msgstr "Як і чому ми збираємо ORCID ID?"
+
+msgid "orcid.about.orcidExplanation"
+msgstr ""
+"ORCID є незалежною некомерційною організацією, яка надає постійний "
+"ідентифікатор – ORCID ID, який відрізняє Вас від інших дослідників, і "
+"механізм зв'язку Ваших результатів досліджень і діяльності з Вашим ID. ORCID "
+"інтегровано в багато систем, що використовуються видавцями, спонсорами, "
+"установами й іншими послугами, пов'язаними з дослідженнями. Дізнайтеся "
+"більше на <a href=\"https://orcid.org\">orcid.org</a>."
+
+msgid "orcid.authorise"
+msgstr "Авторизуйтеся та підключіть свій ORCID ID"
+
+msgid "orcid.failure.contact"
+msgstr ""
+"Будь ласка, зв'яжіться з менеджером журналу під своїм ім'ям, ORCID ID і з "
+"подробицями Вашого подання."
+
+msgid "orcid.verify.denied"
+msgstr "Вам було відмовлено в доступі до Вашого запису ORCID."
+
+msgid "orcid.verify.duplicateOrcid"
+msgstr "ORCID ID вже було збережено для цього подання."
+
+msgid "orcid.verify.failure"
+msgstr "Не вдалося перевірити Ваш ORCID ID. Покликання більше не є дійсним."
+
+msgid "orcid.verify.success"
+msgstr "Ваш ORCID ID перевірено й успішно пов'язано з поданням."
+
+msgid "orcid.verify.sendSubmissionToOrcid.notpublished"
+msgstr "Подання буде додано до Вашого запису ORCID під час опублікування."
+
+msgid "orcid.verify.sendSubmissionToOrcid.failure"
+msgstr "Не вдалося додати подання до Вашого запису ORCID."
+
+msgid "orcid.verify.sendSubmissionToOrcid.success"
+msgstr "Подання додано до Вашого запису ORCID."
+
+msgid "orcid.author.unauthenticated"
+msgstr ""
+"ORCID ID не автентифіковано! Будь ласка, надішліть запит на автентифікацію "
+"від учасника."
+
+msgid "orcid.author.orcidEmptyNotice"
+msgstr "Дивіться нижче для запиту автентифікованого ORCID ID"
+
+msgid "orcid.author.deleteORCID"
+msgstr "Видалити ORCID ID і токен доступу!"
+
+msgid "orcid.author.requestAuthorization"
+msgstr "Надіслати електронний лист, щоб запитати ORCID-авторизацію від учасника"
+
+msgid "orcid.author.accessTokenStored"
+msgstr "Доступ до запису ORCID, наданий {$orcidAccessScope}, дійсний до"
+
+msgid "orcid.manager.settings.saved"
+msgstr "Налаштування збережено"
+
+msgid "orcid.manager.settings.city"
+msgstr "Місто"
+
+msgid "orcid.invalidClient"
+msgstr "Недійсні облікові дані клієнта"
+
+msgid "orcid.manager.status.configuration.journal"
+msgstr "Налаштовано за журналом"
+
+msgid "orcid.manager.status.configuration.clientIdValid"
+msgstr "Клієнтський ID коректний"
+
+msgid "orcid.manager.status.configuration.clientSecretValid"
+msgstr "Клієнтський ключ (secret) коректний"
+
+msgid "orcid.manager.status.configuration.clientIdInvalid"
+msgstr "Клієнтський ID некоректний; будь ласка, перевірте введені дані"
+
+msgid "orcid.verify.duplicateOrcidAuthor"
+msgstr "Виявлено дублікати ORCID учасників."
+
+msgid "orcid.verify.hasUnauthenticatedOrcid"
+msgstr "Виявлено неавтентифіковані ORCID учасників."
+
+msgid "orcid.manager.status.configuration.clientSecretInvalid"
+msgstr "Клієнтський ID коректний; будь ласка, перевірте свої облікові дані"
+
+msgid "user.disabledModal.title"
+msgstr "Вимкнути {$fullName}"
+
+msgid "user.bioStatement"
+msgstr "Біологічна заява"
+
+msgid "user.authorization.submission.complete.reviewerSuggestionRestrict"
+msgstr ""
+"Додавання, оновлення або видалення пропозицій рецензентів для готових подань "
+"обмежено."
+
+msgid "orcid.manager.context.enabled"
+msgstr "Увімкніть функціональність ORCID"
+
+msgid "user.preferredAvatarInitials"
+msgstr "Бажані ініціали аватару"
+
+msgid "orcid.manager.siteWide.enabled"
+msgstr "Увімкніть функціональність ORCID на всьому вебсайті"
+
+msgid "user.preferredAvatarInitials.description"
+msgstr ""
+"Введіть дві букви, які ви хочете використовувати як свій аватар. Ці ініціали "
+"відображатимуться, щоб представляти вас."
+
+msgid "orcid.manager.siteWide.description"
+msgstr ""
+"Функціональність ORCID можна додатково ввімкнути та налаштувати на рівні "
+"вебсайту для всіх журналів / е-видавництв / серверів. Якщо її ввімкнено, це "
+"замінить усі облікові дані на рівні контексту та застосує наступні облікові "
+"дані до всіх журналів / е-видавництв / серверів у цій установці."
+
+msgid "user.role.ended"
+msgstr "Роль закінчилася"
+
+msgid "user.pendingEmailChange"
+msgstr ""
+"Ви надіслали запит на зміну електронної пошти на \"{$pendingEmail}\". Ми вже "
+"надіслали вам електронний лист з інструкціями щодо підтвердження зміненої "
+"електронної адреси."
+
+msgid "orcid.field.deleteOrcidModal.message"
+msgstr "Ви впевнені, що хочете видалити цей ORCID?"
+
+msgid "orcid.unauthenticated"
+msgstr "(неавтентифікований)"
+
+msgid "orcid.field.unverified.shouldRequest"
+msgstr ""
+"Цей ORCID не було підтверджено. Будь ласка, видаліть цей неперевірений ORCID "
+"і попросіть підтвердження безпосередньо від користувача / автора."
+
+msgid "orcid.verify.success.redirect"
+msgstr "Зараз Ви будете автоматично перенаправлені назад до {$contextName}."
+
+msgid "user.disabledModal.description"
+msgstr "Поточні ролі: {$roles}"
+
+msgid "user.enabledModal.title"
+msgstr "Увімкнути {$fullName}"
+
+msgid "user.affiliations.description"
+msgstr ""
+"Нижче введіть повну назву установи, уникаючи абревіатур. Виберіть назву зі "
+"спадного меню та натисніть «Додати», щоб включити афілійованість у свій "
+"профіль (наприклад \"Національний юридичний університет імені Ярослава "
+"Мудрого\")."
+
+msgid "user.affiliations.institution"
+msgstr "Установа"
+
+msgid "user.affiliations.translation"
+msgstr "Більше інформації"
+
+msgid "user.affiliations.translationEditActionLabel"
+msgstr "Відредагувати назву установи"
+
+msgid "user.affiliations.translationDeleteActionLabel"
+msgstr "Видалити установу"
+
+msgid "user.affiliations.translationActionsAriaLabel"
+msgstr "Клацніть, аби редагувати чи видалити"
+
+msgid "user.affiliations.translationsAllAvailable"
+msgstr "Усі доступні переклади"
+
+msgid "user.affiliations.translationsSomeAvailable"
+msgstr "Заповнено {$count} з {$total} мов"
+
+msgid "user.affiliations.typeTranslationNameInLanguageLabel"
+msgstr "Введіть назву установи мовою {$language}"
+
+msgid "user.affiliations.translationNameInLanguage"
+msgstr "Назва установи мовою {$language}"
+
+msgid "user.affiliations.deleteModal.title"
+msgstr "Ви впевнені?"
+
+msgid "user.affiliations.deleteModal.message"
+msgstr "Місце роботи <strong>{$affiliation}</strong> буде видалено."
+
+msgid "user.affiliations.searchPhraseLabel"
+msgstr "Введіть назву установи мовою {$language}"
+
+msgid "user.affiliations.searchPhraseNothingFound"
+msgstr "Вашу пошукову фразу не знайдено"
+
+msgid "user.affiliations.primaryLocaleRequired"
+msgstr "Потрібна основна мова {$primaryLocale}"
+
+msgid "user.profile.form.affiliationRequired.locale"
+msgstr ""
+"Будь ласка, додайте афілійованість (місце роботи чи навчання) мовою подання."
+
+msgid "orcid.field.verification.resendRequest"
+msgstr "Повторно надіслати електронний лист для підтвердження"
+
+msgid "orcid.field.authorEmailModal.title"
+msgstr "Запит на підтвердження ORCID"
+
+msgid "orcid.field.authorEmailModal.message"
+msgstr ""
+"Хочете надіслати електронного листа цьому автору з проханням підтвердити "
+"свій ORCID?"
+
+msgid "orcid.field.deleteOrcidModal.title"
+msgstr "Видалити ORCID"
+
+msgid "user.removeRole.message"
+msgstr ""
+"Ви впевнені, що хочете видалити цю роль? Користувач втратить доступ і пов’"
+"язані з нею дозволи."
+
+msgid "user.futureRole.notification.message"
+msgstr "Початок Вашої ролі запланований на {$roleStartDate}"
+
+msgid "user.futureRole.notification.description"
+msgstr ""
+"До того часу Ви можете переглянути й оновити свій профіль. Якщо вважаєте, що "
+"це помилка, зверніться до адміністратора."
+
+msgid "orcid.field.verification.request"
+msgstr "Підтвердження запиту"
+
+msgid "orcid.field.verification.requested"
+msgstr "Надійшов запит на підтвердження ORCID!"
+
+msgid "user.authorization.shouldBeAnonymous"
+msgstr "Користувач повинен бути анонімним. Ви зараз увійшли в систему."
+
+msgid "user.removeRole.roleRemainMessage"
+msgstr ""
+"Ви не можете видалити роль. Користувачеві має бути призначена принаймні одна "
+"роль."
+
+msgid "orcid.field.authorEmailModal.message.noAuthor"
+msgstr "Електронний лист буде надіслано відразу після створення автора."
+
+msgid "user.login.activate.description"
+msgstr "Підтвердіть і активуйте свій обліковий запис"
+
+msgid "user.affiliations.error.rorApi"
+msgstr "Помилка API РДО"
+
+msgid "user.affiliations.error.rorApiUnavailable"
+msgstr ""
+"Служба API РДО зараз недоступна. Будь ласка, оновіть сторінку або спробуйте "
+"ще раз пізніше."
+
+msgid "user.affiliations.error.rorApiDeprecated"
+msgstr ""
+"Служба API РДО в цій інсталяції застаріла. Зверніться до системного "
+"адміністратора."
+
+msgid "user.masthead.update.title"
+msgstr "Підтвердити зміну видимості заголовка"
+
+msgid "user.masthead.update.message"
+msgstr ""
+"Це оновить інформацію про те, чи відображається цей користувач у заголовку "
+"журналу для вибраної ролі. Користувача буде повідомлено про цю зміну."

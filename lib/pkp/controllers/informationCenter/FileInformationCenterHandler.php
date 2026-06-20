@@ -26,7 +26,7 @@ use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
 use PKP\log\event\EventLogEntry;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\authorization\WorkflowStageAccessPolicy;
 use PKP\security\Role;
 
@@ -68,9 +68,9 @@ class FileInformationCenterHandler extends InformationCenterHandler
     /**
      * @copydoc InformationCenterHandler::initialize
      */
-    public function initialize($request)
+    public function initialize($request, $args = null)
     {
-        parent::initialize($request);
+        parent::initialize($request, $args);
 
         $this->_stageId = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_WORKFLOW_STAGE);
         $this->submissionFile = Repo::submissionFile()->get($request->getUserVar('submissionFileId'));
@@ -133,13 +133,12 @@ class FileInformationCenterHandler extends InformationCenterHandler
         $this->setupTemplate($request);
 
         $templateMgr = TemplateManager::getManager($request);
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
 
         $notes = collect();
         $sourceSubmissionFileId = $this->submissionFile->getData('sourceSubmissionFileId');
 
         if (!is_null($sourceSubmissionFileId)) {
-            $notes = $noteDao->getByAssoc($this->_getAssocType(), $sourceSubmissionFileId);
+            $notes = Note::withAssoc($this->_getAssocType(), $sourceSubmissionFileId)->get();
         }
 
         $templateMgr->assign('notes', $notes);
@@ -176,7 +175,7 @@ class FileInformationCenterHandler extends InformationCenterHandler
 
             $user = $request->getUser();
             $notificationManager = new NotificationManager();
-            $notificationManager->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.addedNote')]);
+            $notificationManager->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.addedNote')]);
 
             $jsonViewNotesResponse = $this->viewNotes($args, $request);
             $json = new JSONMessage(true);
@@ -265,7 +264,8 @@ class FileInformationCenterHandler extends InformationCenterHandler
             $templateMgr->assign('lastEvent', $lastEvent);
 
             // Get the user who created the last event.
-            $user = Repo::user()->get($lastEvent->getUserId(), true);
+	    $userId = $lastEvent->getUserId();
+            $user = $userId ? Repo::user()->get($userId, true) : null;
             $templateMgr->assign('lastEventUser', $user);
         }
 

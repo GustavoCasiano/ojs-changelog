@@ -17,6 +17,7 @@ namespace APP\plugins\generic\announcementFeed;
 use APP\core\Application;
 use APP\template\TemplateManager;
 use PKP\core\JSONMessage;
+use PKP\core\PKPPageRouter;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\plugins\GenericPlugin;
@@ -36,7 +37,7 @@ class AnnouncementFeedPlugin extends GenericPlugin
             return false;
         }
         if ($this->getEnabled($mainContextId)) {
-            Hook::add('TemplateManager::display', [$this, 'callbackAddLinks']);
+            Hook::add('TemplateManager::display', $this->callbackAddLinks(...));
             PluginRegistry::register('blocks', new AnnouncementFeedBlockPlugin($this), $this->getPluginPath());
             PluginRegistry::register('gateways', new AnnouncementFeedGatewayPlugin($this), $this->getPluginPath());
         }
@@ -74,7 +75,7 @@ class AnnouncementFeedPlugin extends GenericPlugin
     public function callbackAddLinks($hookName, $args)
     {
         $request = Application::get()->getRequest();
-        if ($this->getEnabled() && is_a($request->getRouter(), 'PKPPageRouter')) {
+        if ($this->getEnabled() && $request->getRouter() instanceof PKPPageRouter) {
             $templateManager = $args[0];
             $currentJournal = $templateManager->getTemplateVars('currentJournal');
             $announcementsEnabled = $currentJournal ? $currentJournal->getData('enableAnnouncements') : false;
@@ -131,7 +132,7 @@ class AnnouncementFeedPlugin extends GenericPlugin
                     'settings',
                     new AjaxModal(
                         $router->url($request, null, null, 'manage', null, ['verb' => 'settings', 'plugin' => $this->getName(), 'category' => 'generic']),
-                        $this->getDisplayName()
+                        $this->getDisplayName(),
                     ),
                     __('manager.plugins.settings'),
                     null
@@ -150,7 +151,7 @@ class AnnouncementFeedPlugin extends GenericPlugin
             case 'settings':
                 $context = $request->getContext();
                 $templateMgr = TemplateManager::getManager($request);
-                $templateMgr->registerPlugin('function', 'plugin_url', [$this, 'smartyPluginUrl']);
+                $templateMgr->registerPlugin('function', 'plugin_url', $this->smartyPluginUrl(...));
 
                 $form = new AnnouncementFeedSettingsForm($this, $context->getId());
 

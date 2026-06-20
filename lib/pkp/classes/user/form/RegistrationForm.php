@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @defgroup user_form User Forms
  */
@@ -28,12 +29,13 @@ use PKP\core\Core;
 use PKP\db\DAORegistry;
 use PKP\facades\Locale;
 use PKP\form\Form;
+use PKP\form\validation\FormValidatorAltcha;
+use PKP\orcid\OrcidManager;
 use PKP\security\Role;
 use PKP\security\Validation;
-use PKP\session\SessionManager;
 use PKP\site\Site;
-use PKP\user\InterestManager;
 use PKP\user\User;
+use PKP\userGroup\UserGroup;
 
 class RegistrationForm extends Form
 {
@@ -46,12 +48,10 @@ class RegistrationForm extends Form
     /** @var bool whether or not captcha is enabled for this form */
     public $captchaEnabled;
 
-    /**
-     * Constructor.
-     *
-     * @param Site $site
-     */
-    public function __construct($site)
+    /** @var bool whether or not captcha is enabled for this form */
+    public $altchaEnabled;
+
+    public function __construct(Site $site)
     {
         parent::__construct('frontend/pages/userRegister.tpl');
 
@@ -78,6 +78,12 @@ class RegistrationForm extends Form
             $this->addCheck(new \PKP\form\validation\FormValidatorReCaptcha($this, $request->getRemoteAddr(), 'common.captcha.error.invalid-input-response', $request->getServerHost()));
         }
 
+        $this->altchaEnabled = Config::getVar('captcha', 'altcha') && Config::getVar('captcha', 'altcha_on_register');
+        if ($this->altchaEnabled) {
+            $request = Application::get()->getRequest();
+            $this->addCheck(new \PKP\form\validation\FormValidatorAltcha($this, $request->getRemoteAddr(), 'common.captcha.error.invalid-input-response'));
+        }
+
         $context = Application::get()->getRequest()->getContext();
         if ($context && $context->getData('privacyStatement')) {
             $this->addCheck(new \PKP\form\validation\FormValidator($this, 'privacyConsent', 'required', 'user.profile.form.privacyConsentRequired'));
@@ -101,6 +107,11 @@ class RegistrationForm extends Form
             $templateMgr->assign('recaptchaPublicKey', Config::getVar('captcha', 'recaptcha_public_key'));
         }
 
+        if ($this->altchaEnabled) {
+            FormValidatorAltcha::addAltchaJavascript($templateMgr);
+            FormValidatorAltcha::insertFormChallenge($templateMgr);
+        }
+
         $countries = [];
         foreach (Locale::getCountries() as $country) {
             $countries[$country->getAlpha2()] = $country->getLocalName();
@@ -117,6 +128,23 @@ class RegistrationForm extends Form
             'enableSiteWidePrivacyStatement' => Config::getVar('general', 'sitewide_privacy_statement'),
             'siteWidePrivacyStatement' => $site->getData('privacyStatement'),
         ]);
+
+        // FIXME: ORCID OAuth assumes a context so ORCID profile information cannot be filled from the site index
+        //        registration page.
+        if ($request->getContext() !== null && OrcidManager::isEnabled()) {
+            $targetOp = 'register';
+            $templateMgr->assign([
+                'orcidEnabled' => true,
+                'targetOp' => $targetOp,
+                'orcidUrl' => OrcidManager::getOrcidUrl(),
+                'orcidOAuthUrl' => OrcidManager::buildOAuthUrl('authorizeOrcid', ['targetOp' => $targetOp]),
+                'orcidIcon' => OrcidManager::getIcon(),
+            ]);
+        } else {
+            $templateMgr->assign([
+                'orcidEnabled' => false,
+            ]);
+        }
 
         return parent::fetch($request, $template, $display);
     }
@@ -150,6 +178,7 @@ class RegistrationForm extends Form
             'country',
             'interests',
             'emailConsent',
+            'orcid',
             'privacyConsent',
             'readerGroup',
             'reviewerGroup',
@@ -158,6 +187,12 @@ class RegistrationForm extends Form
         if ($this->captchaEnabled) {
             $this->readUserVars([
                 'g-recaptcha-response',
+            ]);
+        }
+
+        if ($this->altchaEnabled) {
+            $this->readUserVars([
+                'altcha'
             ]);
         }
 
@@ -179,20 +214,23 @@ class RegistrationForm extends Form
         // group sign-ups if we're in the site-wide registration form
         if (!$request->getContext()) {
             if ($request->getSite()->getData('privacyStatement')) {
-                $privacyConsent = (array) $this->getData('privacyConsent');
-                if (!is_array($privacyConsent) || !array_key_exists(Application::CONTEXT_ID_NONE, $privacyConsent)) {
-                    $this->addError('privacyConsent[' . Application::CONTEXT_ID_NONE . ']', __('user.register.form.missingSiteConsent'));
+                $privacyConsent = $this->getData('privacyConsent');
+                if (!is_array($privacyConsent) || !array_key_exists(intval(Application::SITE_CONTEXT_ID), $privacyConsent)) {
+                    $this->addError('privacyConsent[' . intval(Application::SITE_CONTEXT_ID) . ']', __('user.register.form.missingSiteConsent'));
                 }
             }
 
             if (!Config::getVar('general', 'sitewide_privacy_statement')) {
-                $contextIds = [];
-                foreach ($this->getData('userGroupIds') as $userGroupId) {
-                    $userGroup = Repo::userGroup()->get($userGroupId);
-                    $contextIds[] = $userGroup->getContextId();
-                }
+                $userGroupIds = $this->getData('userGroupIds');
 
-                $contextIds = array_unique($contextIds);
+                // Fetch all user groups in a single query
+                $userGroups = UserGroup::query()->withUserGroupIds($userGroupIds)->get();
+
+                // Collect context IDs using the 'map' method
+                $contextIds = $userGroups->map(function ($userGroup) {
+                    return $userGroup->contextId;
+                })->unique()->toArray();
+
                 if (!empty($contextIds)) {
                     $contextDao = Application::getContextDao();
                     $privacyConsent = (array) $this->getData('privacyConsent');
@@ -238,6 +276,12 @@ class RegistrationForm extends Form
         $user->setCountry($this->getData('country'));
         $user->setAffiliation($this->getData('affiliation'), $currentLocale);
 
+        // FIXME: ORCID OAuth and assignment to users assumes a context so we currently ignore
+        //        ability to assign ORCIDs at the site-level registration page
+        if ($request->getContext() !== null && OrcidManager::isEnabled()) {
+            $user->setOrcid($this->getData('orcid'));
+        }
+
         if ($sitePrimaryLocale != $currentLocale) {
             $user->setGivenName($this->getData('givenName'), $sitePrimaryLocale);
             $user->setFamilyName($this->getData('familyName'), $sitePrimaryLocale);
@@ -263,16 +307,14 @@ class RegistrationForm extends Form
             return false;
         }
 
-        // Associate the new user with the existing session
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-        $session->setSessionVar('username', $user->getUsername());
+        $request->getSession()->put('username', $user->getUsername());
+        $request->getSessionGuard()->updateSession($user->getId());
 
         // Save the selected roles or assign the Reader role if none selected
         if ($request->getContext() && !$this->getData('reviewerGroup')) {
             $defaultReaderGroup = Repo::userGroup()->getByRoleIds([Role::ROLE_ID_READER], $request->getContext()->getId(), true)->first();
             if ($defaultReaderGroup) {
-                Repo::userGroup()->assignUserToGroup($user->getId(), $defaultReaderGroup->getId(), $request->getContext()->getId());
+                Repo::userGroup()->assignUserToGroup($user->getId(), $defaultReaderGroup->id);
             }
         } else {
             $userFormHelper = new UserFormHelper();
@@ -301,8 +343,7 @@ class RegistrationForm extends Form
         }
 
         // Insert the user interests
-        $interestManager = new InterestManager();
-        $interestManager->setInterestsForUser($user, $this->getData('interests'));
+        Repo::userInterest()->setInterestsForUser($user, $this->getData('interests'));
 
         return $userId;
     }

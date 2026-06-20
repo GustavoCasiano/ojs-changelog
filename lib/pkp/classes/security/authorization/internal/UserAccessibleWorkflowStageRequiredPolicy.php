@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/security/authorization/internal/UserAccessibleWorkflowStageRequiredPolicy.php
  *
@@ -50,7 +51,7 @@ class UserAccessibleWorkflowStageRequiredPolicy extends AuthorizationPolicy
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         $request = $this->_request;
         $context = $request->getContext();
@@ -79,7 +80,7 @@ class UserAccessibleWorkflowStageRequiredPolicy extends AuthorizationPolicy
             }
             return AuthorizationPolicy::AUTHORIZATION_DENY;
 
-        // User has at least one role in any stage in any workflow
+            // User has at least one role in any stage in any workflow
         } elseif (!empty($accessibleWorkflowStages)) {
             return AuthorizationPolicy::AUTHORIZATION_PERMIT;
         }

@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/security/authorization/NoteAccessPolicy.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class NoteAccessPolicy
@@ -21,8 +22,7 @@ namespace PKP\security\authorization;
 use APP\core\Application;
 use APP\core\Request;
 use PKP\core\PKPRequest;
-use PKP\db\DAORegistry;
-use PKP\note\NoteDAO;
+use PKP\note\Note;
 
 class NoteAccessPolicy extends AuthorizationPolicy
 {
@@ -59,7 +59,7 @@ class NoteAccessPolicy extends AuthorizationPolicy
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         if (!$this->_noteId) {
             return AuthorizationPolicy::AUTHORIZATION_DENY;
@@ -73,26 +73,25 @@ class NoteAccessPolicy extends AuthorizationPolicy
             return AuthorizationPolicy::AUTHORIZATION_DENY;
         }
 
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-        $note = $noteDao->getById($this->_noteId);
+        $note = Note::find($this->_noteId);
 
         if (!$note instanceof \PKP\note\Note) {
             return AuthorizationPolicy::AUTHORIZATION_DENY;
         }
 
         // Note, query, submission and assigned stages must match
-        if ($note->getAssocId() != $query->getId()
-                || $note->getAssocType() != Application::ASSOC_TYPE_QUERY
-                || $query->getAssocId() != $submission->getId()
-                || $query->getAssocType() != Application::ASSOC_TYPE_SUBMISSION
-                || !array_key_exists($query->getStageId(), $assignedStages)
-                || empty($assignedStages[$query->getStageId()])) {
+        if ($note->assocId != $query->id
+                || $note->assocType != Application::ASSOC_TYPE_QUERY
+                || $query->assocId != $submission->getId()
+                || $query->assocType != Application::ASSOC_TYPE_SUBMISSION
+                || !array_key_exists($query->stageId, $assignedStages)
+                || empty($assignedStages[$query->stageId])) {
             return AuthorizationPolicy::AUTHORIZATION_DENY;
         }
 
         // Notes can only be edited by their original creators
         if ($this->_accessMode === self::NOTE_ACCESS_WRITE
-                && $note->getUserId() != $this->_request->getUser()->getId()) {
+                && $note->userId != $this->_request->getUser()->getId()) {
             return AuthorizationPolicy::AUTHORIZATION_DENY;
         }
 
@@ -100,10 +99,4 @@ class NoteAccessPolicy extends AuthorizationPolicy
 
         return AuthorizationPolicy::AUTHORIZATION_PERMIT;
     }
-}
-
-if (!PKP_STRICT_MODE) {
-    class_alias('\PKP\security\authorization\NoteAccessPolicy', '\NoteAccessPolicy');
-    define('NOTE_ACCESS_READ', NoteAccessPolicy::NOTE_ACCESS_READ);
-    define('NOTE_ACCESS_WRITE', NoteAccessPolicy::NOTE_ACCESS_WRITE);
 }

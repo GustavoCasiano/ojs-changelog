@@ -18,7 +18,6 @@ namespace PKP\pages\authorDashboard;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\decision\Decision;
 use APP\facades\Repo;
 use APP\handler\Handler;
@@ -30,17 +29,19 @@ use PKP\components\forms\publication\PKPCitationsForm;
 use PKP\components\forms\publication\PKPMetadataForm;
 use PKP\components\forms\publication\TitleAbstractForm;
 use PKP\components\listPanels\ContributorsListPanel;
+use PKP\config\Config;
 use PKP\context\Context;
 use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\facades\Locale;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\security\authorization\AuthorDashboardAccessPolicy;
 use PKP\security\Role;
 use PKP\submission\GenreDAO;
 use PKP\submission\PKPSubmission;
+use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\submissionFile\SubmissionFile;
 use PKP\workflow\WorkflowStageDAO;
@@ -91,11 +92,9 @@ abstract class PKPAuthorDashboardHandler extends Handler
      */
     public function submission($args, $request)
     {
-        // Pass the authorized submission on to the template.
-        $this->setupTemplate($request);
-
-        $templateMgr = TemplateManager::getManager($request);
-        return $templateMgr->display('authorDashboard/authorDashboard.tpl');
+        $submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
+        $router = $request->getRouter();
+        return $request->redirectUrl($router->url($request, null, 'dashboard', 'mySubmissions', null, ['workflowSubmissionId' => $submission->getId()]));
     }
 
 
@@ -109,14 +108,19 @@ abstract class PKPAuthorDashboardHandler extends Handler
      */
     public function readSubmissionEmail($args, $request)
     {
-        $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
         $user = $request->getUser();
         $submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
         $submissionEmailId = $request->getUserVar('submissionEmailId');
 
-        $submissionEmailFactory = $submissionEmailLogDao->getByEventType($submission->getId(), SubmissionEmailLogEntry::SUBMISSION_EMAIL_EDITOR_NOTIFY_AUTHOR, $user->getId());
-        while ($email = $submissionEmailFactory->next()) { // validate the email id for this user.
-            if ($email->getId() == $submissionEmailId) {
+        $submissionEmailFactory = Repo::emailLogEntry()->getByEventType(
+            $submission->getId(),
+            SubmissionEmailLogEventType::EDITOR_NOTIFY_AUTHOR,
+            Application::ASSOC_TYPE_SUBMISSION,
+            $user->getId()
+        );
+        foreach ($submissionEmailFactory as $email) {
+            // validate the email id for this user.
+            if ($email->id == $submissionEmailId) {
                 $templateMgr = TemplateManager::getManager($request);
                 $templateMgr->assign('submissionEmail', $email);
                 return $templateMgr->fetchJson('authorDashboard/submissionEmail.tpl');
@@ -161,8 +165,8 @@ abstract class PKPAuthorDashboardHandler extends Handler
         $submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION); /** @var Submission $submission */
         $user = $request->getUser();
         $submissionContext = $request->getContext();
-        if ($submission->getContextId() !== $submissionContext->getId()) {
-            $submissionContext = Services::get('context')->get($submission->getContextId());
+        if ($submission->getData('contextId') !== $submissionContext->getId()) {
+            $submissionContext = app()->get('context')->get($submission->getData('contextId'));
         }
 
         $contextUserGroups = Repo::userGroup()->getByRoleIds([Role::ROLE_ID_AUTHOR], $submission->getData('contextId'));
@@ -182,7 +186,7 @@ abstract class PKPAuthorDashboardHandler extends Handler
             $fileStage = $this->_fileStageFromWorkflowStage($submission->getData('stageId'));
             $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
             $lastReviewRound = $reviewRoundDao->getLastReviewRoundBySubmissionId($submission->getId(), $submission->getData('stageId'));
-            if ($fileStage && is_a($lastReviewRound, 'ReviewRound')) {
+            if ($fileStage && $lastReviewRound instanceof ReviewRound) {
                 $editorDecisions = Repo::decision()->getCollector()
                     ->filterBySubmissionIds([$submission->getId()])
                     ->filterByStageIds([$submission->getData('stageId')])
@@ -191,15 +195,10 @@ abstract class PKPAuthorDashboardHandler extends Handler
 
                 if (!$editorDecisions->isEmpty()) {
                     $lastDecision = $editorDecisions->last();
-                    $revisionDecisions = $submission->getData('stageId') === WORKFLOW_STAGE_ID_EXTERNAL_REVIEW  
-                        ? [
-                            Decision::PENDING_REVISIONS,
-                            Decision::RESUBMIT
-                        ] : [
-                            Decision::PENDING_REVISIONS_INTERNAL,
-                            Decision::RESUBMIT_INTERNAL
-                        ];
-
+                    $revisionDecisions = [
+                        Decision::PENDING_REVISIONS,
+                        Decision::RESUBMIT
+                    ];
                     if (in_array($lastDecision->getData('decision'), $revisionDecisions)) {
                         $actionArgs['submissionId'] = $submission->getId();
                         $actionArgs['stageId'] = $submission->getData('stageId');
@@ -220,10 +219,14 @@ abstract class PKPAuthorDashboardHandler extends Handler
             }
         }
 
-        $locales = $submissionContext->getSupportedSubmissionLocaleNames();
-        $locales = array_map(fn (string $locale, string $name) => ['key' => $locale, 'label' => $name], array_keys($locales), $locales);
-
         $latestPublication = $submission->getLatestPublication();
+
+        $submissionLocale = $submission->getData('locale');
+        $locales = collect($submissionContext->getSupportedSubmissionMetadataLocaleNames() + $submission->getPublicationLanguageNames())
+            ->map(fn (string $name, string $locale) => ['key' => $locale, 'label' => $name])
+            ->sortBy('key')
+            ->values()
+            ->toArray();
 
         $submissionApiUrl = $request->getDispatcher()->url($request, PKPApplication::ROUTE_API, $submissionContext->getData('urlPath'), 'submissions/' . $submission->getId());
         $latestPublicationApiUrl = $request->getDispatcher()->url($request, PKPApplication::ROUTE_API, $submissionContext->getData('urlPath'), 'submissions/' . $submission->getId() . '/publications/' . $latestPublication->getId());
@@ -241,16 +244,13 @@ abstract class PKPAuthorDashboardHandler extends Handler
         $titleAbstractForm = $this->getTitleAbstractForm($latestPublicationApiUrl, $locales, $latestPublication, $submissionContext);
         $citationsForm = new PKPCitationsForm($latestPublicationApiUrl, $latestPublication);
 
-        // Import constants
-        import('classes.components.forms.publication.PublishForm');
-
         $templateMgr->setConstants([
             'STATUS_QUEUED' => PKPSubmission::STATUS_QUEUED,
             'STATUS_PUBLISHED' => PKPSubmission::STATUS_PUBLISHED,
             'STATUS_DECLINED' => PKPSubmission::STATUS_DECLINED,
             'STATUS_SCHEDULED' => PKPSubmission::STATUS_SCHEDULED,
-            'FORM_TITLE_ABSTRACT' => FORM_TITLE_ABSTRACT,
-            'FORM_CITATIONS' => FORM_CITATIONS,
+            'FORM_TITLE_ABSTRACT' => $titleAbstractForm::FORM_TITLE_ABSTRACT,
+            'FORM_CITATIONS' => $citationsForm::FORM_CITATIONS,
         ]);
 
         // Get the submission props without the full publication details. We'll
@@ -285,7 +285,7 @@ abstract class PKPAuthorDashboardHandler extends Handler
 
         $authorItems = [];
         foreach ($latestPublication->getData('authors') as $contributor) {
-            $authorItems[] = Repo::author()->getSchemaMap()->map($contributor);
+            $authorItems[] = Repo::author()->getSchemaMap($submission)->map($contributor);
         }
 
         $contributorsListPanel = $this->getContributorsListPanel(
@@ -305,15 +305,16 @@ abstract class PKPAuthorDashboardHandler extends Handler
 
         $state = [
             'canEditPublication' => $canEditPublication,
+            'currentSubmissionLanguageLabel' => Locale::getSubmissionLocaleDisplayNames([$submissionLocale])[$submissionLocale],
             'components' => [
-                FORM_TITLE_ABSTRACT => $titleAbstractForm->getConfig(),
-                FORM_CITATIONS => $citationsForm->getConfig(),
+                $titleAbstractForm::FORM_TITLE_ABSTRACT => $this->getLocalizedForm($titleAbstractForm, $submissionLocale, $locales),
+                $citationsForm::FORM_CITATIONS => $this->getLocalizedForm($citationsForm, $submissionLocale, $locales),
                 $contributorsListPanel->id => $contributorsListPanel->getConfig(),
             ],
             'currentPublication' => $currentPublicationProps,
             'publicationFormIds' => [
-                FORM_TITLE_ABSTRACT,
-                FORM_CITATIONS,
+                $titleAbstractForm::FORM_TITLE_ABSTRACT,
+                $citationsForm::FORM_CITATIONS,
             ],
             'representationsGridUrl' => $canAccessProductionStage ? $this->_getRepresentationsGridUrl($request, $submission) : '',
             'submission' => $submissionProps,
@@ -330,17 +331,16 @@ abstract class PKPAuthorDashboardHandler extends Handler
         ];
 
         // Add the metadata form if one or more metadata fields are enabled
-        $vocabSuggestionUrlBase = $request->getDispatcher()->url($request, PKPApplication::ROUTE_API, $submissionContext->getData('urlPath'), 'vocabs', null, null, ['vocab' => '__vocab__']);
+        $vocabSuggestionUrlBase = $request->getDispatcher()->url($request, PKPApplication::ROUTE_API, $submissionContext->getData('urlPath'), 'vocabs', null, null, ['vocab' => '__vocab__', 'submissionId' => $submission->getId()]);
         $metadataForm = new PKPMetadataForm($latestPublicationApiUrl, $locales, $latestPublication, $submissionContext, $vocabSuggestionUrlBase, true);
-        $metadataFormConfig = $metadataForm->getConfig();
         $metadataEnabled = count($metadataForm->fields);
 
         if ($metadataEnabled) {
             $templateMgr->setConstants([
-                'FORM_METADATA' => FORM_METADATA,
+                'FORM_METADATA' => $metadataForm::FORM_METADATA,
             ]);
-            $state['components'][FORM_METADATA] = $metadataFormConfig;
-            $state['publicationFormIds'][] = FORM_METADATA;
+            $state['components'][$metadataForm::FORM_METADATA] = $this->getLocalizedForm($metadataForm, $submissionLocale, $locales);
+            $state['publicationFormIds'][] = $metadataForm::FORM_METADATA;
         }
 
         $templateMgr->setState($state);
@@ -372,6 +372,31 @@ abstract class PKPAuthorDashboardHandler extends Handler
             $authorItems,
             $canEditPublication
         );
+    }
+
+    /**
+     * Get the form configuration data with the correct
+     * locale settings based on the submission's locale
+     *
+     * Uses the submission locale as the primary and
+     * visible locale, and puts that locale first in the
+     * list of supported locales.
+     *
+     * Call this instead of $form->getConfig() to display
+     * a form with the correct submission's publication locales
+     */
+    protected function getLocalizedForm(\PKP\components\forms\FormComponent $form, string $submissionLocale, array $locales): array
+    {
+        $config = $form->getConfig();
+
+        $config['primaryLocale'] = $submissionLocale;
+        $config['visibleLocales'] = [$submissionLocale];
+        $config['supportedFormLocales'] = collect($locales)
+            ->sortBy([fn (array $a, array $b) => $b['key'] === $submissionLocale ? 1 : -1])
+            ->values()
+            ->toArray();
+
+        return $config;
     }
 
     /**

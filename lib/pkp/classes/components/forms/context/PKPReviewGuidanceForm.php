@@ -19,14 +19,10 @@ use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldShowEnsuringLink;
 use PKP\components\forms\FormComponent;
 
-define('FORM_REVIEW_GUIDANCE', 'reviewerGuidance');
-
 class PKPReviewGuidanceForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_REVIEW_GUIDANCE;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_REVIEW_GUIDANCE = 'reviewerGuidance';
+    public $id = self::FORM_REVIEW_GUIDANCE;
     public $method = 'PUT';
 
     /**
@@ -46,14 +42,14 @@ class PKPReviewGuidanceForm extends FormComponent
             'isMultilingual' => true,
             'value' => $context->getData('reviewGuidelines'),
             'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist',
-            'plugins' => 'paste,link,lists',
+            'plugins' => ['link','lists'],
         ]))
             ->addField(new FieldRichTextarea('competingInterests', [
                 'label' => __('manager.setup.competingInterests'),
                 'isMultilingual' => true,
                 'value' => $context->getData('competingInterests'),
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist',
-                'plugins' => 'paste,link,lists',
+                'plugins' => ['link','lists'],
             ]))
             ->addField(new FieldShowEnsuringLink('showEnsuringLink', [
                 'options' => [

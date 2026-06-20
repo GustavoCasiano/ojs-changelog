@@ -27,11 +27,11 @@ use APP\core\Application;
 use APP\notification\NotificationManager;
 use APP\template\TemplateManager;
 use PKP\core\PKPRequest;
+use PKP\core\PKPSessionGuard;
 use PKP\facades\Locale;
 use PKP\form\validation\FormValidator;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\Hook;
-use PKP\session\SessionManager;
 
 class Form
 {
@@ -86,7 +86,7 @@ class Form
         }
         $this->supportedLocales = $supportedLocales;
 
-        $this->defaultLocale = Locale::getLocale();
+        $this->defaultLocale = $this->requiredLocale;
 
         $this->_template = $template;
         $this->_data = [];
@@ -102,7 +102,7 @@ class Form
             // in hook calls named e.g. "papergalleyform::Constructor"
             // Note that class names are always lower case.
             $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-            Hook::call(strtolower_codesafe(end($classNameParts)) . '::Constructor', [$this, &$template]);
+            Hook::call(strtolower(end($classNameParts)) . '::Constructor', [$this, &$template]);
         }
     }
 
@@ -179,7 +179,7 @@ class Form
         // Note that class names are always lower case.
         $returner = null;
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        if (Hook::call(strtolower_codesafe(end($classNameParts)) . '::display', [$this, &$returner])) {
+        if (Hook::call(strtolower(end($classNameParts)) . '::display', [$this, &$returner])) {
             return $returner;
         }
 
@@ -228,7 +228,6 @@ class Form
      *
      * @param string $key
      *
-     * @return mixed
      */
     public function getData($key)
     {
@@ -263,7 +262,7 @@ class Form
         // Note that class and function names are always lower
         // case.
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        Hook::call(strtolower_codesafe(end($classNameParts) . '::initData'), [$this]);
+        Hook::call(strtolower(end($classNameParts) . '::initData'), [$this]);
     }
 
     /**
@@ -309,12 +308,12 @@ class Form
             // case.
             $value = null;
             $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-            if (Hook::call(strtolower_codesafe(end($classNameParts) . '::validate'), [$this, &$value])) {
+            if (Hook::call(strtolower(end($classNameParts) . '::validate'), [$this, &$value])) {
                 return $value;
             }
         }
 
-        if (!SessionManager::isDisabled()) {
+        if (!PKPSessionGuard::isSessionDisable()) {
             $request = Application::get()->getRequest();
             $user = $request->getUser();
 
@@ -323,7 +322,7 @@ class Form
                 $notificationManager = new NotificationManager();
                 $notificationManager->createTrivialNotification(
                     $user->getId(),
-                    PKPNotification::NOTIFICATION_TYPE_FORM_ERROR,
+                    Notification::NOTIFICATION_TYPE_FORM_ERROR,
                     ['contents' => $this->getErrorsArray()]
                 );
             }
@@ -347,16 +346,14 @@ class Form
         // case.
         $returner = null;
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        Hook::call(strtolower_codesafe(end($classNameParts) . '::execute'), array_merge([$this], $functionArgs, [&$returner]));
+        Hook::call(strtolower(end($classNameParts) . '::execute'), array_merge([$this], $functionArgs, [&$returner]));
         return $returner;
     }
 
     /**
      * Get the list of field names that need to support multiple locales
-     *
-     * @return array
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         // Call hooks based on the calling entity, assuming
         // this method is only called by a subclass. Results
@@ -365,7 +362,7 @@ class Form
         // case.
         $returner = [];
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        Hook::call(strtolower_codesafe(end($classNameParts) . '::getLocaleFieldNames'), [$this, &$returner]);
+        Hook::call(strtolower(end($classNameParts) . '::getLocaleFieldNames'), [$this, &$returner]);
         return $returner;
     }
 
@@ -391,6 +388,7 @@ class Form
     public function setDefaultFormLocale($defaultLocale)
     {
         $this->defaultLocale = $defaultLocale;
+        $this->requiredLocale = $defaultLocale;
     }
 
     /**
@@ -422,7 +420,7 @@ class Form
         // Note that class and function names are always lower
         // case.
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        Hook::call(strtolower_codesafe(end($classNameParts) . '::readUserVars'), [$this, &$vars]);
+        Hook::call(strtolower(end($classNameParts) . '::readUserVars'), [$this, &$vars]);
         $request = Application::get()->getRequest();
         foreach ($vars as $k) {
             $this->setData($k, $request->getUserVar($k));

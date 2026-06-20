@@ -5,6 +5,7 @@
 ./lib/pkp/tests/classes/xslt
 ./lib/pkp/js/lib
 ./plugins/generic/citationStyleLanguage/lib/vendor
+./plugins/generic/jatsTemplate/tests
 ./plugins/oaiMetadataFormats/dc/tests/expectedResult.xml
 ./plugins/importexport/users/sample.xml
 ./plugins/paymethod/paypal/vendor
@@ -12,3 +13,4 @@
 ./node_modules
 ./lib/ui-library/node_modules
 ./cypress/fixtures/export-issues.xml
+./phpdoc.dist.xml

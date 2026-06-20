@@ -15,27 +15,20 @@
 
 namespace PKP\components\forms\announcement;
 
-use APP\core\Application;
 use PKP\announcement\AnnouncementTypeDAO;
 use PKP\components\forms\FieldOptions;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldText;
 use PKP\components\forms\FieldUploadImage;
 use PKP\components\forms\FormComponent;
-use PKP\config\Config;
 use PKP\context\Context;
 use PKP\db\DAORegistry;
 
-define('FORM_ANNOUNCEMENT', 'announcement');
-
 class PKPAnnouncementForm extends FormComponent
 {
-    /** @copydoc FormComponent::$id */
-    public $id = FORM_ANNOUNCEMENT;
-
-    /** @copydoc FormComponent::$method */
+    public const FORM_ANNOUNCEMENT = 'announcement';
+    public $id = self::FORM_ANNOUNCEMENT;
     public $method = 'POST';
-
     public ?Context $context;
 
     /**
@@ -64,7 +57,7 @@ class PKPAnnouncementForm extends FormComponent
                 'description' => __('manager.announcements.form.descriptionShortInstructions'),
                 'isMultilingual' => true,
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,image,lists,code',
+                'plugins' => ['link', 'image', 'lists', 'code'],
                 'uploadUrl' => $imageUploadUrl,
                 'options' => [
                     'url' => $temporaryFileApiUrl,
@@ -76,26 +69,24 @@ class PKPAnnouncementForm extends FormComponent
                 'isMultilingual' => true,
                 'size' => 'large',
                 'toolbar' => 'bold italic superscript subscript | link | blockquote bullist numlist | image | code',
-                'plugins' => 'paste,link,lists,image,code',
+                'plugins' => ['link', 'lists', 'image', 'code'],
                 'uploadUrl' => $imageUploadUrl,
                 'options' => [
                     'url' => $temporaryFileApiUrl,
                 ],
-            ]));
-        if (Config::getVar('features', 'announcement_images')) {
-            $this->addField(new FieldUploadImage('image', [
+            ]))
+            ->addField(new FieldUploadImage('image', [
                 'label' => __('manager.image'),
                 'baseUrl' => $baseUrl,
                 'options' => [
                     'url' => $temporaryFileApiUrl,
                 ],
+            ]))
+            ->addField(new FieldText('dateExpire', [
+                'label' => __('manager.announcements.form.dateExpire'),
+                'description' => __('manager.announcements.form.dateExpireInstructions'),
+                'size' => 'small',
             ]));
-        }
-        $this->addField(new FieldText('dateExpire', [
-            'label' => __('manager.announcements.form.dateExpire'),
-            'description' => __('manager.announcements.form.dateExpireInstructions'),
-            'size' => 'small',
-        ]));
         if (!empty($announcementTypeOptions)) {
             $this->addField(new FieldOptions('typeId', [
                 'label' => __('manager.announcementTypes.typeName'),

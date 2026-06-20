@@ -19,9 +19,9 @@ namespace PKP\pages\index;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use Illuminate\Support\LazyCollection;
-use PKP\config\Config;
-use PKP\announcement\Collector;
+use PKP\announcement\Announcement;
 use PKP\context\Context;
+use PKP\core\PKPApplication;
 use PKP\site\Site;
 use PKP\template\PKPTemplateManager;
 
@@ -32,7 +32,6 @@ class PKPIndexHandler extends Handler
      *
      * @protected
      *
-     * @param Context $context
      * @param PKPTemplateManager $templateMgr
      */
     protected function _setupAnnouncements(Context|Site $contextOrSite, $templateMgr)
@@ -40,21 +39,14 @@ class PKPIndexHandler extends Handler
         $enableAnnouncements = $contextOrSite->getData('enableAnnouncements');
         $numAnnouncementsHomepage = $contextOrSite->getData('numAnnouncementsHomepage');
         if ($enableAnnouncements && $numAnnouncementsHomepage) {
-            $collector = Repo::announcement()
-                ->getCollector()
-                ->filterByActive()
-                ->limit((int) $numAnnouncementsHomepage);
+            $announcements = Announcement::withActiveByDate()->limit((int) $numAnnouncementsHomepage)->orderBy(Announcement::CREATED_AT, 'desc');
 
-            if (is_a($contextOrSite, Context::class)) {
-                $collector->filterByContextIds([$contextOrSite->getId()]);
-            } else  {
-                $collector->withSiteAnnouncements(Collector::SITE_ONLY);
-            }
-
-            $announcements = $collector->getMany();
+            $contextIds = [];
+            is_a($contextOrSite, Context::class) ? $contextIds[] = $contextOrSite->getId() : $contextIds[] = PKPApplication::SITE_CONTEXT_ID;
+            $announcements->withContextIds($contextIds);
 
             $templateMgr->assign([
-                'announcements' => $announcements->toArray(),
+                'announcements' => $announcements->get(),
                 'numAnnouncementsHomepage' => $numAnnouncementsHomepage,
             ]);
         }
@@ -65,10 +57,6 @@ class PKPIndexHandler extends Handler
      */
     protected function getHighlights(?Context $context = null): LazyCollection
     {
-        if (!Config::getVar('features', 'highlights')) {
-            return LazyCollection::make();
-        }
-
         $collector = Repo::highlight()->getCollector();
 
         if ($context) {

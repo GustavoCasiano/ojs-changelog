@@ -285,18 +285,17 @@ class InstitutionalSubscriptionDAO extends SubscriptionDAO
 
     /**
      * Delete an institutional subscription by subscription ID.
-     *
-     * @param int $subscriptionId
-     * @param null|mixed $journalId
      */
-    public function deleteById($subscriptionId, $journalId = null)
+    public function deleteById(int $subscriptionId, ?int $journalId = null): int
     {
         if (!$this->subscriptionExists($subscriptionId, $journalId)) {
-            return;
+            return 0;
         }
 
-        $this->update('DELETE FROM subscriptions WHERE subscription_id = ?', [(int) $subscriptionId]);
-        $this->update('DELETE FROM institutional_subscriptions WHERE subscription_id = ?', [(int) $subscriptionId]);
+        // Let subscriptions delete cascade to institutional_subscriptions
+        return DB::table('subscriptions')
+            ->where('subscription_id', '=', $subscriptionId)
+            ->delete();
     }
 
     /**
@@ -597,8 +596,8 @@ class InstitutionalSubscriptionDAO extends SubscriptionDAO
         $params = array_merge([$dateEnd[0], $dateEnd[1], $dateEnd[2], (int) $journalId], $this->getInstitutionNameFetchParameters());
 
         $result = $this->retrieveRange(
-            'SELECT	s.*, iss.*
-                ' . $this->getInstitutionNameFetchColumns() . ',
+            'SELECT	s.*, iss.*,
+                ' . $this->getInstitutionNameFetchColumns() . '
 			FROM	subscriptions s
 				JOIN subscription_types st ON (s.type_id = st.type_id)
 				JOIN institutional_subscriptions iss ON (s.subscription_id = iss.subscription_id)
@@ -644,6 +643,8 @@ class InstitutionalSubscriptionDAO extends SubscriptionDAO
      * @param array $row
      *
      * @return InstitutionalSubscription
+     *
+     * @hook InstitutionalSubscriptionDAO::_fromRow [[&$institutionalSubscription, &$row]]
      */
     public function _fromRow($row)
     {

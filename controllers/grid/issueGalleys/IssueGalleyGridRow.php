@@ -16,9 +16,11 @@
 
 namespace APP\controllers\grid\issueGalleys;
 
+use APP\issue\IssueGalley;
 use PKP\controllers\grid\GridRow;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
+
 use PKP\linkAction\request\RemoteActionConfirmationModal;
 
 class IssueGalleyGridRow extends GridRow
@@ -52,8 +54,8 @@ class IssueGalleyGridRow extends GridRow
         // Is this a new row or an existing row?
         $issueGalleyId = $this->getId();
         if (!empty($issueGalleyId) && is_numeric($issueGalleyId)) {
-            $issue = $this->getData();
-            assert(is_a($issue, 'IssueGalley'));
+            $issueGalley = $this->getData();
+            assert($issueGalley instanceof IssueGalley);
             $router = $request->getRouter();
 
             $this->addAction(
@@ -69,7 +71,7 @@ class IssueGalleyGridRow extends GridRow
                             array_merge($this->getRequestArgs(), ['issueGalleyId' => $issueGalleyId])
                         ),
                         __('editor.issues.editIssueGalley'),
-                        'modal_edit',
+                        null,
                         true
                     ),
                     __('grid.action.edit'),
@@ -92,7 +94,7 @@ class IssueGalleyGridRow extends GridRow
                             null,
                             array_merge($this->getRequestArgs(), ['issueGalleyId' => $issueGalleyId])
                         ),
-                        'modal_delete'
+                        'negative'
                     ),
                     __('grid.action.delete'),
                     'delete'

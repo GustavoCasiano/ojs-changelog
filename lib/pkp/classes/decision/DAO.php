@@ -23,6 +23,7 @@ use PKP\core\traits\EntityWithParent;
 
 /**
  * @template T of Decision
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO
@@ -94,15 +95,15 @@ class DAO extends EntityDAO
 
     /**
      * Get a collection of decisions matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
-
-        return LazyCollection::make(function () use ($rows) {
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
             foreach ($rows as $row) {
                 yield $row->edit_decision_id => $this->fromRow($row);
             }

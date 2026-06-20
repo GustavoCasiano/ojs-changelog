@@ -7,6 +7,7 @@
  *
  * Site administration index.
  *
+ * @hook Templates::Admin::Index::AdminFunctions []
  *}
 {extends file="layouts/backend.tpl"}
 
@@ -26,7 +27,7 @@
 		<p>
 			{translate key="admin.siteManagement.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<pkp-button
 				element="a"
 				href="{url op="contexts"}"
@@ -46,7 +47,7 @@
 		<p>
 			{translate key="admin.systemInformation.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<pkp-button
 				element="a"
 				href="{url op="systemInfo"}"
@@ -60,10 +61,10 @@
 		<p>
 			{translate key="admin.expireSessions.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<form type="post" action="{url op="expireSessions"}">
 				{csrf}
-				<button class="pkpButton pkpButton--isWarnable" onclick="return confirm({translate|json_encode|escape key="admin.confirmExpireSessions"})">{translate key="admin.expireSessions"}</button>
+				<button class="pkpButton pkp_button_offset" onclick="return confirm({translate|json_encode|escape key="admin.confirmExpireSessions"})">{translate key="admin.expireSessions"}</button>
 			</form>
 		</template>
 	</action-panel>
@@ -72,14 +73,14 @@
 		<p>
 			{translate key="admin.deleteCache.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<form type="post" action="{url op="clearDataCache"}">
 				{csrf}
-				<button class="pkpButton pkpButton--isWarnable">{translate key="admin.clearDataCache"}</button>
+				<button class="pkpButton pkp_button_offset">{translate key="admin.clearDataCache"}</button>
 			</form>
 			<form type="post" action="{url op="clearTemplateCache"}">
 				{csrf}
-				<button class="pkpButton pkpButton--isWarnable" onclick="return confirm({translate|json_encode|escape key="admin.confirmClearTemplateCache"})">{translate key="admin.clearTemplateCache"}</button>
+				<button class="pkpButton pkp_button_offset" onclick="return confirm({translate|json_encode|escape key="admin.confirmClearTemplateCache"})">{translate key="admin.clearTemplateCache"}</button>
 			</form>
 		</template>
 	</action-panel>
@@ -88,10 +89,10 @@
 		<p>
 			{translate key="admin.scheduledTask.clearLogs.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<form type="post" action="{url op="clearScheduledTaskLogFiles"}">
 				{csrf}
-				<button class="pkpButton pkpButton--isWarnable" onclick="return confirm({translate|json_encode|escape key="admin.scheduledTask.confirmClearLogs"})">{translate key="admin.scheduledTask.clearLogs.delete"}</button>
+				<button class="pkpButton pkp_button_offset" onclick="return confirm({translate|json_encode|escape key="admin.scheduledTask.confirmClearLogs"})">{translate key="admin.scheduledTask.clearLogs.delete"}</button>
 			</form>
 		</template>
 	</action-panel>
@@ -100,7 +101,7 @@
 		<p>
 			{translate key="navigation.tools.jobs.description"}
 		</p>
-		<template slot="actions">
+		<template #actions>
 			<pkp-button
 				element="a"
 				href="{url op="jobs"}"

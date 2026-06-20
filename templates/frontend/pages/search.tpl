@@ -15,6 +15,9 @@
  *  Value is a single string: YYYY-MM-DD HH:MM:SS
  * @uses $yearStart Earliest year that can be used in from/to filters
  * @uses $yearEnd Latest year that can be used in from/to filters
+ *
+ * @hook Templates::Search::SearchResults::AdditionalFilters []
+ * @hook Templates::Search::SearchResults::PreResults []
  *}
 {include file="frontend/components/header.tpl" pageTitle="common.search"}
 
@@ -72,7 +75,7 @@
 
 				{if $searchableContexts}
 					<label class="label label_contexts" for="searchJournal">
-						{translate key="context.context"}
+						{translate key="search.journal"}
 					</label>
 					<select name="searchJournal" id="searchJournal">
 						<option></option>

@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/submission/DAO.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class DAO
@@ -25,17 +26,16 @@ use PKP\core\EntityDAO;
 use PKP\core\traits\EntityWithParent;
 use PKP\db\DAORegistry;
 use PKP\log\event\EventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\note\NoteDAO;
-use PKP\notification\NotificationDAO;
-use PKP\query\QueryDAO;
+use PKP\note\Note;
+use PKP\notification\Notification;
+use PKP\query\Query;
 use PKP\services\PKPSchemaService;
-use PKP\stageAssignment\StageAssignmentDAO;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 
 /**
  * @template T of Submission
+ *
  * @extends EntityDAO<T>
  */
 class DAO extends EntityDAO
@@ -109,15 +109,16 @@ class DAO extends EntityDAO
 
     /**
      * Get a collection of announcements matching the configured query
+     *
      * @return LazyCollection<int,T>
      */
     public function getMany(Collector $query): LazyCollection
     {
-        $rows = $query
-            ->getQueryBuilder()
-            ->get();
+        return LazyCollection::make(function () use ($query) {
+            $rows = $query
+                ->getQueryBuilder()
+                ->get();
 
-        return LazyCollection::make(function () use ($rows) {
             foreach ($rows as $row) {
                 yield $row->submission_id => $this->fromRow($row);
             }
@@ -162,7 +163,7 @@ class DAO extends EntityDAO
      * (see <http://dtd.nlm.nih.gov/publishing/tag-library/n-4zh0.html>).
      * @param null|mixed $contextId
      */
-    public function getByPubId(string $pubIdType, string $pubId, $contextId = null): ?Submission
+    public function getByPubId(string $pubIdType, string $pubId, ?int $contextId = null): ?Submission
     {
         // Add check for incoming DOI request for legacy calls that bypass the Submission Repository
         if ($pubIdType == 'doi') {
@@ -246,7 +247,7 @@ class DAO extends EntityDAO
     /**
      * @copydoc \PKP\core\EntityDAO::deleteById()
      */
-    public function deleteById(int $id)
+    public function deleteById(int $id): int
     {
         $submission = Repo::submission()->get($id);
 
@@ -271,32 +272,27 @@ class DAO extends EntityDAO
 
         Repo::decision()->deleteBySubmissionId($id);
 
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignmentDao->deleteBySubmissionId($id);
+        Repo::reviewAssignment()->deleteMany(
+            Repo::reviewAssignment()->getCollector()->filterBySubmissionIds([$id])
+        );
 
         $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
         $reviewRoundDao->deleteBySubmissionId($id);
 
-        // Delete the queries associated with a submission
-        $queryDao = DAORegistry::getDAO('QueryDAO'); /** @var QueryDAO $queryDao */
-        $queryDao->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $id);
+        Repo::query()->deleteBySubmissionId($id);
 
         // Delete the stage assignments.
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignments = $stageAssignmentDao->getBySubmissionAndStageId($id);
-        while ($stageAssignment = $stageAssignments->next()) {
-            $stageAssignmentDao->deleteObject($stageAssignment);
-        }
+        StageAssignment::withSubmissionIds([$id])
+            ->delete();
 
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-        $noteDao->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $id);
+        Note::withAssoc(Application::ASSOC_TYPE_SUBMISSION, $id)
+            ->delete();
 
         $submissionCommentDao = DAORegistry::getDAO('SubmissionCommentDAO'); /** @var SubmissionCommentDAO $submissionCommentDao */
         $submissionCommentDao->deleteBySubmissionId($id);
 
         // Delete any outstanding notifications for this submission
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationDao->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $id);
+        Notification::withAssoc(Application::ASSOC_TYPE_SUBMISSION, $id)->delete();
 
         Repo::eventLog()->getCollector()
             ->filterByAssoc(Application::ASSOC_TYPE_SUBMISSION, [$id])
@@ -305,9 +301,8 @@ class DAO extends EntityDAO
                 Repo::eventLog()->delete($logEntry);
             });
 
-        $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-        $submissionEmailLogDao->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $id);
+        Repo::emailLogEntry()->deleteByAssoc(Application::ASSOC_TYPE_SUBMISSION, $id);
 
-        parent::deleteById($id);
+        return parent::deleteById($id);
     }
 }

@@ -1,11 +1,12 @@
-# Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>, 2021, 2022, 2023, 2024.
+# Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>, 2021, 2022, 2023, 2024, 2025.
+# Michal Jelínek <jelinek@synetix.cz>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-19T10:49:41+00:00\n"
-"PO-Revision-Date: 2024-01-21 10:39+0000\n"
-"Last-Translator: Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>\n"
+"PO-Revision-Date: 2026-03-13 01:35+0000\n"
+"Last-Translator: Michal Jelínek <jelinek@synetix.cz>\n"
 "Language-Team: Czech <http://translate.pkp.sfu.ca/projects/pkp-lib/grid/cs/>"
 "\n"
 "Language: cs\n"
@@ -413,7 +414,7 @@ msgstr "Smazat autora"
 
 msgid "grid.action.deleteContributor.confirmationMessage"
 msgstr ""
-"Jste si jisti, že chcete odebrat {$jméno} jako přispěvatele? Tuto akci nelze "
+"Jste si jisti, že chcete odebrat {$name} jako přispěvatele? Tuto akci nelze "
 "vzít zpět."
 
 msgid "grid.action.newVersion"
@@ -513,10 +514,10 @@ msgid "grid.user.email"
 msgstr "Email"
 
 msgid "grid.user.enable"
-msgstr "Povolit"
+msgstr "Povolit uživatele"
 
 msgid "grid.user.disable"
-msgstr "Zakázat"
+msgstr "Zakázat uživatele"
 
 msgid "grid.user.disableReason"
 msgstr "Důvod zákazu uživatele"
@@ -726,3 +727,31 @@ msgstr "Upravit autora"
 
 #~ msgid "grid.user.authSource"
 #~ msgstr "Zdroj ověření"
+
+msgid "grid.action.deleteReviewerSuggestion"
+msgstr "Smazat návrh recenzenta"
+
+msgid "grid.user.logInAs"
+msgstr "Přihlásit se jako"
+
+msgid "grid.user.disableReasonDescription"
+msgstr ""
+"Upozorňujeme, že jakmile je uživatel zakázán, nebude možné jej přidat do "
+"žádné role, dokud nebude opět povolen."
+
+msgid "grid.action.addReviewerSuggestion"
+msgstr "Přidat návrh recenzenta"
+
+msgid "grid.action.deleteReviewerSuggestion.confirmationMessage"
+msgstr "Opravdu chcete tento návrh odstranit? Tuto akci nelze vzít zpět."
+
+msgid "grid.user.remove"
+msgstr "Odstranit uživatele"
+
+msgid "grid.user.enableReasonDescription"
+msgstr ""
+"Jakmile bude uživatel povolen, získá přístup k webu a vy ho budete moci "
+"podle potřeby pozvat do rolí."
+
+msgid "grid.user.userRoles.masthead"
+msgstr "Zobrazení na titulní straně"

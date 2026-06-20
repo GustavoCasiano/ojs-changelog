@@ -26,42 +26,40 @@ use PKP\file\TemporaryFileManager;
 
 class EditLibraryFileForm extends LibraryFileForm
 {
-    /** @var LibraryFile the file being edited, or null for new */
-    public $libraryFile;
-
-    /** @var int the id of the context this library file is attached to */
-    public $contextId;
+    /** The file being edited, or null for new */
+    public ?LibraryFile $libraryFile;
 
     /**
      * Constructor.
      *
-     * @param int $contextId
      * @param int $fileId optional
      */
-    public function __construct($contextId, $fileId)
+    public function __construct(int $contextId, $fileId)
     {
         parent::__construct('controllers/grid/settings/library/form/editFileForm.tpl', $contextId);
         $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /** @var LibraryFileDAO $libraryFileDao */
         $this->libraryFile = $libraryFileDao->getById($fileId);
 
         if (!$this->libraryFile || $this->libraryFile->getContextId() != $this->contextId) {
-            fatalError('Invalid library file!');
+            throw new \Exception('Invalid library file!');
         }
     }
 
     /**
      * Assign form data to user-submitted data.
+     *
      * @see Form::readInputData()
      */
-    function readInputData() {
-        $this->readUserVars(array('temporaryFileId'));
-        return parent::readInputData();
+    public function readInputData(): void
+    {
+        $this->readUserVars(['temporaryFileId']);
+        parent::readInputData();
     }
 
     /**
      * Initialize form data from current settings.
      */
-    public function initData()
+    public function initData(): void
     {
         $this->_data = [
             'libraryFileName' => $this->libraryFile->getName(null), // Localized
@@ -80,13 +78,13 @@ class EditLibraryFileForm extends LibraryFileForm
         $userId = Application::get()->getRequest()->getUser()->getId();
 
         // Fetch the temporary file storing the uploaded library file
-        $temporaryFileDao = DAORegistry::getDAO('TemporaryFileDAO'); /* @var $temporaryFileDao TemporaryFileDAO */
+        $temporaryFileDao = DAORegistry::getDAO('TemporaryFileDAO'); /* @var \PKP\file\TemporaryFileDAO $temporaryFileDao*/
         $temporaryFile = $temporaryFileDao->getTemporaryFile(
             $this->getData('temporaryFileId'),
             $userId
         );
         if ($temporaryFile) {
-            $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /* @var $libraryFileDao LibraryFileDAO */
+            $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /* @var LibraryFileDAO $libraryFileDao */
             $libraryFileManager = new LibraryFileManager($this->contextId);
 
             // Convert the temporary file to a library file and store

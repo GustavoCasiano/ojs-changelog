@@ -15,14 +15,12 @@ namespace PKP\publication;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\file\PublicFileManager;
 use APP\publication\DAO;
 use APP\publication\Publication;
 use APP\submission\Submission;
 use Illuminate\Support\Enumerable;
-use Illuminate\Support\LazyCollection;
 use PKP\context\Context;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
@@ -31,6 +29,7 @@ use PKP\file\TemporaryFileManager;
 use PKP\log\event\PKPSubmissionEventLogEntry;
 use PKP\observers\events\PublicationPublished;
 use PKP\observers\events\PublicationUnpublished;
+use PKP\orcid\OrcidManager;
 use PKP\plugins\Hook;
 use PKP\security\Validation;
 use PKP\services\PKPSchemaService;
@@ -92,10 +91,10 @@ abstract class Repository
      * Get an instance of the map class for mapping
      * publications to their schema
      *
-     * @param LazyCollection<int,UserGroup> $userGroups
+     * @param Enumerable<int,UserGroup> $userGroups
      * @param Genre[] $genres
      */
-    public function getSchemaMap(Submission $submission, LazyCollection $userGroups, array $genres): maps\Schema
+    public function getSchemaMap(Submission $submission, Enumerable $userGroups, array $genres): maps\Schema
     {
         return app('maps')->withExtensions(
             $this->schemaMap,
@@ -128,11 +127,13 @@ abstract class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Publication::validate [[&$errors, $publication, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate(?Publication $publication, array $props, Submission $submission, Context $context): array
     {
-        $allowedLocales = $context->getSupportedSubmissionLocales();
-        $primaryLocale = $submission->getLocale();
+        $primaryLocale = $submission->getData('locale');
+        $allowedLocales = $submission->getpublicationLanguages($context->getSupportedSubmissionMetadataLocales());
 
         $errors = [];
 
@@ -164,6 +165,7 @@ abstract class Repository
                 }
             });
         }
+
 
         // A title must be provided if the submission is not still in progress
         if (!$submission->getData('submissionProgress')) {
@@ -243,8 +245,10 @@ abstract class Repository
      * wants to enforce particular publishing requirements, such as
      * requiring certain metadata or other information.
      *
-     * @param array $allowedLocales The context's supported submission locales
+     * @param array $allowedLocales The context's supported submission metadata locales
      * @param string $primaryLocale The submission's primary locale
+     *
+     * @hook Publication::validatePublish [[&$errors, $publication, $submission, $allowedLocales, $primaryLocale]]
      */
     public function validatePublish(Publication $publication, Submission $submission, array $allowedLocales, string $primaryLocale): array
     {
@@ -258,6 +262,21 @@ abstract class Repository
         // Don't allow a publication to be published before passing the review stage
         if ($submission->getData('stageId') <= WORKFLOW_STAGE_ID_EXTERNAL_REVIEW) {
             $errors['reviewStage'] = __('publication.required.reviewStage');
+        }
+
+        // Orcid errors
+        if (OrcidManager::isEnabled()) {
+            $orcidIds = [];
+            foreach ($publication->getData('authors') as $author) {
+                $authorOrcid = $author->getData('orcid');
+                if ($authorOrcid and in_array($authorOrcid, $orcidIds)) {
+                    $errors['hasDuplicateOrcids'] = __('orcid.verify.duplicateOrcidAuthor');
+                } elseif ($authorOrcid && !$author->getData('orcidAccessToken')) {
+                    $errors['hasUnauthenticatedOrcid'] = __('orcid.verify.hasUnauthenticatedOrcid');
+                } else {
+                    $orcidIds[] = $authorOrcid;
+                }
+            }
         }
 
         Hook::call('Publication::validatePublish', [&$errors, $publication, $submission, $allowedLocales, $primaryLocale]);
@@ -279,10 +298,10 @@ abstract class Repository
 
             $submissionContext = $this->request->getContext();
             if ($submissionContext->getId() !== $submission->getData('contextId')) {
-                $submissionContext = Services::get('context')->get($submission->getData('contextId'));
+                $submissionContext = app()->get('context')->get($submission->getData('contextId'));
             }
 
-            $supportedLocales = $submissionContext->getSupportedSubmissionLocales();
+            $supportedLocales = $submission->getPublicationLanguages($submissionContext->getSupportedSubmissionMetadataLocales());
             foreach ($supportedLocales as $localeKey) {
                 if (!array_key_exists($localeKey, $publication->getData('coverImage'))) {
                     continue;
@@ -306,6 +325,8 @@ abstract class Repository
      *
      * Makes a copy of an existing publication, without the datePublished,
      * and makes copies of all associated objects.
+     *
+     * @hook Publication::version [[&$newPublication, $publication]]
      */
     public function version(Publication $publication): int
     {
@@ -339,9 +360,20 @@ abstract class Repository
             }
         }
 
-        if (!empty($newPublication->getData('citationsRaw'))) {
+        if (!empty((string) $newPublication->getData('citationsRaw'))) {
             $citationDao = DAORegistry::getDAO('CitationDAO'); /** @var \PKP\citation\CitationDAO $citationDao */
             $citationDao->importCitations($newPublication->getId(), $newPublication->getData('citationsRaw'));
+        }
+
+        $genreDao = DAORegistry::getDAO('GenreDAO'); /** @var \PKP\submission\GenreDAO $genreDao */
+        $genres = $genreDao->getEnabledByContextId($context->getId());
+
+        $jatsFile = Repo::jats()
+            ->getJatsFile($publication->getId(), null, $genres->toArray());
+
+        if (!$jatsFile->isDefaultContent) {
+            Repo::submissionFile()
+                ->versionSubmissionFile($jatsFile->submissionFile, $newPublication);
         }
 
         $newPublication = Repo::publication()->get($newPublication->getId());
@@ -374,10 +406,10 @@ abstract class Repository
         if (array_key_exists('coverImage', $params)) {
             $submissionContext = $this->request->getContext();
             if ($submissionContext->getId() !== $submission->getData('contextId')) {
-                $submissionContext = Services::get('context')->get($submission->getData('contextId'));
+                $submissionContext = app()->get('context')->get($submission->getData('contextId'));
             }
 
-            $supportedLocales = $submissionContext->getSupportedSubmissionLocales();
+            $supportedLocales = $submission->getPublicationLanguages($submissionContext->getSupportedSubmissionMetadataLocales());
             foreach ($supportedLocales as $localeKey) {
                 if (!array_key_exists($localeKey, $params['coverImage'])) {
                     continue;
@@ -421,6 +453,8 @@ abstract class Repository
      * @throws \Exception
      *
      * @see self::setStatusOnPublish()
+     *
+     * @hook Publication::publish::before [[&$newPublication, $publication]]
      */
     public function publish(Publication $publication)
     {
@@ -516,7 +550,7 @@ abstract class Repository
 
         $context = $submission->getData('contextId') === Application::get()->getRequest()->getContext()?->getId()
             ? Application::get()->getRequest()->getContext()
-            : Services::get('context')->get($submission->getData('contextId'));
+            : app()->get('context')->get($submission->getData('contextId'));
 
         event(new PublicationPublished($newPublication, $publication, $submission, $context));
     }
@@ -529,6 +563,8 @@ abstract class Repository
      * publication.
      *
      * This method should be called by self::publish().
+     *
+     * @hook Publication::unpublish::before [[ &$newPublication, $publication ]]
      */
     abstract protected function setStatusOnPublish(Publication $publication);
 
@@ -539,6 +575,8 @@ abstract class Repository
      * as changing the status, logging events, updating the search index, etc.
      *
      * @see self::setStatusOnPublish()
+     *
+     * @hook Publication::unpublish::before [[ &$newPublication, $publication ]]
      */
     public function unpublish(Publication $publication)
     {
@@ -601,7 +639,7 @@ abstract class Repository
 
         $context = $submission->getData('contextId') === Application::get()->getRequest()->getContext()->getId()
             ? Application::get()->getRequest()->getContext()
-            : Services::get('context')->get($submission->getData('contextId'));
+            : app()->get('context')->get($submission->getData('contextId'));
 
         event(new PublicationUnpublished($newPublication, $publication, $submission, $context));
     }
@@ -690,13 +728,13 @@ abstract class Repository
         // Get the submission context
         $submissionContext = $this->request->getContext();
         if ($submissionContext->getId() !== $submission->getData('contextId')) {
-            $submissionContext = Services::get('context')->get($submission->getData('contextId'));
+            $submissionContext = app()->get('context')->get($submission->getData('contextId'));
         }
 
         $temporaryFileManager = new TemporaryFileManager();
         $temporaryFile = $temporaryFileManager->getFile((int) $value['temporaryFileId'], $userId);
         $fileNameBase = join('_', ['submission', $submission->getId(), $publication->getId(), $settingName]); // eg - submission_1_1_coverImage
-        $fileName = Services::get('context')->moveTemporaryFile($submissionContext, $temporaryFile, $fileNameBase, $userId, $localeKey);
+        $fileName = app()->get('context')->moveTemporaryFile($submissionContext, $temporaryFile, $fileNameBase, $userId, $localeKey);
 
         if ($fileName) {
             if ($isImage) {
@@ -726,6 +764,23 @@ abstract class Repository
             'datePublished.date_format' => __('publication.datePublished.errorFormat'),
             'urlPath.regex' => __('validator.alpha_dash_period'),
         ];
+    }
+
+    /**
+     * Assign categories to a publication.
+     *
+     * @param int[] $categoryIds
+     */
+    public function assignCategoriesToPublication(int $publicationId, array $categoryIds): void
+    {
+        $records = array_map(fn ($categoryId) => ['publication_id' => $publicationId, 'category_id' => $categoryId], $categoryIds);
+
+        PublicationCategory::upsert($records, ['publication_id', 'category_id']);
+
+        // delete categories that are no longer assigned
+        PublicationCategory::where('publication_id', $publicationId)
+            ->whereNotIn('category_id', $categoryIds)
+            ->delete();
     }
 
     /**

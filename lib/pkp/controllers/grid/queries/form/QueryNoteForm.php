@@ -3,8 +3,8 @@
 /**
  * @file controllers/grid/queries/form/QueryNoteForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2003-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class QueryNoteForm
@@ -17,14 +17,15 @@
 namespace PKP\controllers\grid\queries\form;
 
 use APP\core\Application;
+use APP\facades\Repo;
 use APP\template\TemplateManager;
-use PKP\core\Core;
-use PKP\db\DAORegistry;
 use PKP\form\Form;
+use PKP\form\validation\FormValidator;
+use PKP\form\validation\FormValidatorCSRF;
+use PKP\form\validation\FormValidatorPost;
 use PKP\note\Note;
-use PKP\note\NoteDAO;
 use PKP\query\Query;
-use PKP\query\QueryDAO;
+use PKP\query\QueryParticipant;
 use PKP\user\User;
 
 class QueryNoteForm extends Form
@@ -57,13 +58,12 @@ class QueryNoteForm extends Form
 
         if ($noteId === null) {
             // Create a new (placeholder) note.
-            $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-            $note = $noteDao->newDataObject();
-            $note->setAssocType(Application::ASSOC_TYPE_QUERY);
-            $note->setAssocId($query->getId());
-            $note->setUserId($user->getId());
-            $note->setDateCreated(Core::getCurrentDate());
-            $this->_noteId = $noteDao->insertObject($note);
+            $note = new Note;
+            $note->assocType = Application::ASSOC_TYPE_QUERY;
+            $note->assocId = $query->id;
+            $note->userId = $user->getId();
+            $note->save();
+            $this->_noteId = $note->id;
             $this->_isNew = true;
         } else {
             $this->_noteId = $noteId;
@@ -71,9 +71,9 @@ class QueryNoteForm extends Form
         }
 
         // Validation checks for this form
-        $this->addCheck(new \PKP\form\validation\FormValidator($this, 'comment', 'required', 'submission.queries.messageRequired'));
-        $this->addCheck(new \PKP\form\validation\FormValidatorPost($this));
-        $this->addCheck(new \PKP\form\validation\FormValidatorCSRF($this));
+        $this->addCheck(new FormValidator($this, 'comment', 'required', 'submission.queries.messageRequired'));
+        $this->addCheck(new FormValidatorPost($this));
+        $this->addCheck(new FormValidatorCSRF($this));
     }
 
     //
@@ -122,7 +122,7 @@ class QueryNoteForm extends Form
         $templateMgr->assign([
             'actionArgs' => $this->_actionArgs,
             'noteId' => $this->_noteId,
-            'csrfToken' => $request->getSession()->getCSRFToken(),
+            'csrfToken' => $request->getSession()->token(),
         ]);
         return parent::fetch($request, $template, $display);
     }
@@ -137,29 +137,31 @@ class QueryNoteForm extends Form
         $request = Application::get()->getRequest();
         $user = $request->getUser();
 
-        // Create a new note.
-        $noteDao = DAORegistry::getDAO('NoteDAO'); /** @var NoteDAO $noteDao */
-        $note = $noteDao->getById($this->_noteId);
-        $note->setUserId($request->getUser()->getId());
-        $note->setContents($this->getData('comment'));
-        $noteDao->updateObject($note);
-        $queryDao = DAORegistry::getDAO('QueryDAO'); /** @var QueryDAO $queryDao */
+        $note = Note::find($this->_noteId);
+        $note->userId = $request->getUser()->getId();
+        $note->contents = $this->getData('comment');
+        $note->save();
 
         // Check whether the query needs re-opening
         $query = $this->getQuery();
-        if ($query->getIsClosed()) {
-            $headNote = $query->getHeadNote();
-            if ($user->getId() != $headNote->getUserId()) {
+        if ($query->closed) {
+            $headNote = Repo::note()->getHeadNote($query->id);
+            if ($user->getId() != $headNote->userId) {
                 // Re-open the query.
-                $query->setIsClosed(false);
-                $queryDao = DAORegistry::getDAO('QueryDAO'); /** @var QueryDAO $queryDao */
-                $queryDao->updateObject($query);
+                $query->closed = false;
+                $query->save();
             }
         }
 
         // Always include current user to query participants
-        if (!in_array($user->getId(), $queryDao->getParticipantIds($query->getId()))) {
-            $queryDao->insertParticipant($query->getId(), $user->getId());
+        $participantIds = QueryParticipant::withQueryId($query->id)
+            ->pluck('user_id')
+            ->all();
+        if (!in_array($user->getId(), $participantIds)) {
+            QueryParticipant::create([
+                'queryId' => $query->id,
+                'userId' => $user->getId()
+            ]);
         }
 
         parent::execute(...$functionArgs);

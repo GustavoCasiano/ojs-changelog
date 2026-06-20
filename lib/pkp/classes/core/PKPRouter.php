@@ -74,12 +74,11 @@ abstract class PKPRouter
     // only via their respective getters/setters
     //
     protected Application $_application;
-    protected Dispatcher $_dispatcher;
+    protected ?Dispatcher $_dispatcher = null;
     protected ?string $_contextPath = null;
     public ?Context $_context = null;
     public ?PKPHandler $_handler = null;
-    /** @var string */
-    public $_indexUrl;
+    public string $_indexUrl;
 
     /**
      * Constructor
@@ -105,9 +104,17 @@ abstract class PKPRouter
     }
 
     /**
+     * get the current context
+     */
+    public function getCurrentContext(): ?Context
+    {
+        return $this->_context;
+    }
+
+    /**
      * get the dispatcher
      */
-    public function getDispatcher(): \PKP\core\Dispatcher
+    public function getDispatcher(): ?Dispatcher
     {
         return $this->_dispatcher;
     }
@@ -115,7 +122,7 @@ abstract class PKPRouter
     /**
      * set the dispatcher
      */
-    public function setDispatcher(\PKP\core\Dispatcher $dispatcher)
+    public function setDispatcher(Dispatcher $dispatcher)
     {
         $this->_dispatcher = $dispatcher;
     }
@@ -156,6 +163,8 @@ abstract class PKPRouter
 
     /**
      * A generic method to return a context path (e.g. a Press or a Journal path)
+     *
+     * @hook Router::getRequestedContextPath [[&$this->_contextPath]]
      */
     public function getRequestedContextPath(PKPRequest $request): string
     {
@@ -171,19 +180,17 @@ abstract class PKPRouter
     /**
      * A Generic call to a context defining object (e.g. a Journal, Press, or Server)
      *
-     * @param PKPRequest $request the request to be routed
      * @param bool $forceReload (optional) Reset a context even if it's already been loaded
-     *
-     * @return Context
      */
-    public function getContext($request, $forceReload = false)
+    public function getContext(PKPRequest $request, bool $forceReload = false): ?Context
     {
         if ($forceReload || !isset($this->_context)) {
             // Retrieve the requested context path (this validates the path)
             $path = $this->getRequestedContextPath($request);
 
             // Resolve the path to the context
-            if ($path === 'index' || $path === '' || $path === Application::CONTEXT_ID_ALL) {
+            /** @deprecated 3.5 The usage of "_" as a site context has been deprecated */
+            if (in_array($path, [Application::SITE_CONTEXT_PATH, '', '_'])) {
                 $this->_context = null;
             } else {
                 // FIXME: Can't just use Application::get()->getContextDAO() without test breakage
@@ -195,7 +202,7 @@ abstract class PKPRouter
 
                 // If the context couldn't be retrieved, it's a 404 error.
                 if (!$this->_context) {
-                    $this->getDispatcher()?->handle404();
+                    throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
                 }
             }
         }
@@ -206,11 +213,9 @@ abstract class PKPRouter
     /**
      * Get the URL to the index script.
      *
-     * @param PKPRequest $request the request to be routed
-     *
-     * @return string
+     * @hook Router::getIndexUrl [[&$this->_indexUrl]]
      */
-    public function getIndexUrl($request)
+    public function getIndexUrl(PKPRequest $request): string
     {
         if (!isset($this->_indexUrl)) {
             if ($request->isRestfulUrlsEnabled()) {
@@ -230,58 +235,50 @@ abstract class PKPRouter
     //
     /**
      * Determine the filename to use for a local cache file.
-     *
-     * @param PKPRequest $request
-     *
-     * @return string
      */
-    public function getCacheFilename($request)
+    public function getCacheFilename(PKPRequest $request): string
     {
         throw new Exception('Unimplemented');
     }
 
     /**
      * Routes a given request to a handler operation
-     *
-     * @param PKPRequest $request
      */
-    abstract public function route($request);
+    abstract public function route(PKPRequest $request);
 
     /**
      * Build a handler request URL into PKPApplication.
      *
      * @param PKPRequest $request the request to be routed
-     * @param mixed $newContext Optional contextual paths
-     * @param string $handler Optional name of the handler to invoke
-     * @param string $op Optional name of operation to invoke
-     * @param mixed $path Optional string or array of args to pass to handler
-     * @param array $params Optional set of name => value pairs to pass as user parameters
-     * @param string $anchor Optional name of anchor to add to URL
-     * @param bool $escape Whether or not to escape ampersands, square brackets, etc. for this URL; default false.
+     * @param $newContext Optional contextual paths
+     * @param $handler Optional name of the handler to invoke
+     * @param $op Optional name of operation to invoke
+     * @param $path Optional array of args to pass to handler
+     * @param $params Optional set of name => value pairs to pass as user parameters
+     * @param $anchor Optional name of anchor to add to URL
+     * @param $escape Whether or not to escape ampersands, square brackets, etc. for this URL; default false.
      *
      * @return string the URL
      */
     abstract public function url(
         PKPRequest $request,
         ?string $newContext = null,
-        $handler = null,
-        $op = null,
-        $path = null,
-        $params = null,
-        $anchor = null,
-        $escape = false
-    );
+        ?string $handler = null,
+        ?string $op = null,
+        ?array $path = null,
+        ?array $params = null,
+        ?string $anchor = null,
+        bool $escape = false
+    ): string;
 
     /**
      * Handle an authorization failure.
      *
-     * @param PKPRequest $request
-     * @param string $authorizationMessage a translation key with the authorization
-     *  failure message.
+     * @param $authorizationMessage a translation key with the authorization failure message.
      */
     abstract public function handleAuthorizationFailure(
-        $request,
-        $authorizationMessage,
+        PKPRequest $request,
+        string $authorizationMessage,
         array $messageParams = []
     );
 
@@ -297,14 +294,10 @@ abstract class PKPRouter
      * 3) initialization
      * 4) execution
      * 5) client response
-     *
-     * @param callable|array $serviceEndpoint the handler operation
-     * @param PKPRequest $request
-     * @param array $args
-     * @param bool $validate whether or not to execute the
-     *  validation step.
+     * @param array{0:PKPHandler,1:string} $serviceEndpoint
+     * @param bool $validate whether or not to execute the validation step.
      */
-    public function _authorizeInitializeAndCallRequest(&$serviceEndpoint, $request, &$args, $validate = true)
+    public function _authorizeInitializeAndCallRequest(callable|array $serviceEndpoint, PKPRequest $request, array $args, bool $validate = true): void
     {
         $dispatcher = $this->getDispatcher();
 
@@ -312,7 +305,7 @@ abstract class PKPRouter
         // actually being callable, e.g. a component has been named
         // that does not exist and that no plugin has registered.
         if (!is_callable($serviceEndpoint)) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         // Pass the dispatcher to the handler.
@@ -324,7 +317,7 @@ abstract class PKPRouter
         if ($serviceEndpoint[0]->authorize($request, $args, $roleAssignments)) {
             // Execute class-wide data integrity checks.
             if ($validate) {
-                $serviceEndpoint[0]->validate($request, $args);
+                $serviceEndpoint[0]->validate(null, $request);
             }
 
             // Let the handler initialize itself.
@@ -347,6 +340,9 @@ abstract class PKPRouter
             $result = $this->handleAuthorizationFailure($request, $authorizationMessage);
         }
 
+        // sent out the cookie as header
+        Application::get()->getRequest()->getSessionGuard()->sendCookies();
+
         // Return the result of the operation to the client.
         if (is_string($result)) {
             echo $result;
@@ -366,14 +362,11 @@ abstract class PKPRouter
      * in the config file using the 'base_url[context]' syntax in the
      * config file's 'general' section.
      *
-     * @param PKPRequest $request the request to be routed
-     * @param mixed $newContext (optional) context that differs from
-     *  the current request's context
+     * @param $newContext Context path (defaulting to the current request's context)
      *
-     * @return array An array consisting of the base url as the first
-     *  entry and the context as the remaining entries.
+     * @return array An array consisting of the base url and context.
      */
-    public function _urlGetBaseAndContext($request, ?string $newContext = null)
+    public function _urlGetBaseAndContext(PKPRequest $request, ?string $newContext = null): array
     {
         if (isset($newContext)) {
             // A new context has been set so use it.
@@ -382,28 +375,25 @@ abstract class PKPRouter
             // No new context has been set so determine
             // the current request's context
             $contextObject = $this->getContext($request);
-            $contextValue = $contextObject?->getPath() ?? 'index';
+            $contextValue = $contextObject?->getPath() ?? Application::SITE_CONTEXT_PATH;
         }
 
         // Check whether the base URL is overridden.
         if ($overriddenBaseUrl = Config::getVar('general', "base_url[{$contextValue}]")) {
-            return [$overriddenBaseUrl, []];
+            return [$overriddenBaseUrl, null];
         }
-        return [$this->getIndexUrl($request), [$contextValue]];
+        return [$this->getIndexUrl($request), $contextValue];
     }
 
     /**
      * Build the additional parameters part of the URL.
      *
-     * @param PKPRequest $request the request to be routed
-     * @param array $params (optional) the parameter list to be
-     *  transformed to a url part.
-     * @param bool $escape (optional) Whether or not to escape structural elements
+     * @param $params The parameter list to be transformed to a url part.
+     * @param $escape Whether or not to escape structural elements
      *
-     * @return array the encoded parameters or an empty array
-     *  if no parameters were given.
+     * @return array The encoded parameters or an empty array if no parameters were given.
      */
-    public function _urlGetAdditionalParameters($request, $params = null, $escape = true)
+    public function _urlGetAdditionalParameters(PKPRequest $request, ?array $params = null, bool $escape = true): array
     {
         $additionalParameters = [];
         if (!empty($params)) {
@@ -425,15 +415,13 @@ abstract class PKPRouter
     /**
      * Creates a valid URL from parts.
      *
-     * @param string $baseUrl the protocol, domain and initial path/parameters, no anchors allowed here
-     * @param array $pathInfoArray strings to be concatenated as path info
-     * @param array $queryParametersArray strings to be concatenated as query string
-     * @param ?string $anchor an additional anchor
-     * @param bool $escape whether to escape ampersands
-     *
-     * @return string the URL
+     * @param $baseUrl the protocol, domain and initial path/parameters, no anchors allowed here
+     * @param $pathInfoArray strings to be concatenated as path info
+     * @param $queryParametersArray strings to be concatenated as query string
+     * @param $anchor an additional anchor
+     * @param $escape whether to escape ampersands
      */
-    public function _urlFromParts(string $baseUrl, array $pathInfoArray = [], array $queryParametersArray = [], ?string $anchor = '', bool $escape = false)
+    public function _urlFromParts(string $baseUrl, array $pathInfoArray = [], array $queryParametersArray = [], ?string $anchor = '', bool $escape = false): string
     {
         // Parse the base url
         $baseUrlParts = parse_url($baseUrl);

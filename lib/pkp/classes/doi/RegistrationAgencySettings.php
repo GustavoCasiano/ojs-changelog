@@ -16,7 +16,6 @@
 
 namespace PKP\doi;
 
-use APP\core\Services;
 use APP\plugins\IDoiRegistrationAgency;
 use Illuminate\Validation\Validator;
 use PKP\components\forms\Field;
@@ -34,13 +33,13 @@ abstract class RegistrationAgencySettings
     public function __construct(IDoiRegistrationAgency $agencyPlugin)
     {
         $this->agencyPlugin = $agencyPlugin;
-        Hook::add('Schema::get::' . $this::class, [$this, 'addToSchema']);
+        Hook::add('Schema::get::' . $this::class, $this->addToSchema(...));
     }
 
     public function validate(array $props): array
     {
         /** @var PKPSchemaService $schemaService */
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
 
         $validator = ValidatorFactory::make(
             $props,

@@ -18,25 +18,24 @@ namespace PKP\security;
 
 use APP\core\Application;
 use APP\facades\Repo;
+use APP\submission\Submission;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use PKP\config\Config;
 use PKP\core\Core;
-use PKP\core\PKPString;
+use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
-use PKP\session\SessionDAO;
-use PKP\session\SessionManager;
 use PKP\site\Site;
 use PKP\site\SiteDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\user\User;
-use PKP\validation\ValidatorFactory;
+use PKP\userGroup\UserGroup;
 
 class Validation
 {
     public const ADMINISTRATION_PROHIBITED = 0;
     public const ADMINISTRATION_PARTIAL = 1;
     public const ADMINISTRATION_FULL = 2;
-
-    public const AUTH_KEY_USERNAME = 1;
-    public const AUTH_KEY_EMAIL = 2;
 
     /**
      * Authenticate user credentials and mark the user as logged in in the current session.
@@ -51,37 +50,15 @@ class Validation
     public static function login($username, $password, &$reason, $remember = false)
     {
         $reason = null;
-        $authKey = static::AUTH_KEY_USERNAME;
-
-        if (ValidatorFactory::make(['email' => $username], ['email' => 'email'])->passes()) {
-            $user = Repo::user()->getByEmail($username, true);
-            $authKey = static::AUTH_KEY_EMAIL;
-        } else {
-            $user = Repo::user()->getByUsername($username, true);
-        }
-        
-        if (!isset($user)) {
-            // User does not exist
-            return false;
-        }
 
         $request = Application::get()->getRequest();
         if (!$request->checkCSRF()) {
             return false; // Failed CSRF check
         }
 
-        // Validate against user database
-        $rehash = null;
-        if (!self::verifyPassword($username, $password, $user->getPassword(), $rehash)) {
-            return false;
-        }
-
-        if (!empty($rehash)) {
-            // update to new hashing algorithm
-            $user->setPassword($rehash);
-        }
-
-        return self::registerUserSession($user, $reason, $remember, $authKey);
+        return Auth::attempt(['username' => $username, 'password' => $password], $remember)
+            ? static::registerUserSession(Auth::user(), $reason)
+            : false;
     }
 
     /**
@@ -117,20 +94,17 @@ class Validation
      * @param User      $user       user to register in the session
      * @param string    $reason     reference to string to receive the reason an account
      *                              was disabled; null otherwise
-     * @param bool      $remember   remember a user's session past the current browser session
-     * @param int       $authKey    const value of AUTH_KEY_* define auth key(email/username)
      *
      * @return mixed                User or boolean the User associated with the login credentials,
      *                              or false if the credentials are invalid
      */
-    public static function registerUserSession($user, &$reason, $remember = false, $authKey = self::AUTH_KEY_USERNAME)
+    public static function registerUserSession($user, &$reason)
     {
         if (!$user instanceof User) {
             return false;
         }
 
-        if ($user->getDisabled()) {
-            // The user has been disabled.
+        if ($user->getDisabled()) { // The user has been disabled.
             $reason = $user->getDisabledReason();
             if ($reason === null) {
                 $reason = '';
@@ -138,26 +112,8 @@ class Validation
             return false;
         }
 
-        // The user is valid, mark user as logged in in current session
-        $sessionManager = SessionManager::getManager();
-
-        // Regenerate session ID first
-        $sessionManager->regenerateSessionId();
-
-        $session = $sessionManager->getUserSession();
-        $session->setSessionVar('userId', $user->getId());
-        $session->setUserId($user->getId());
-        $session->setSessionVar('username', $user->getUsername());
-        if ($authKey === static::AUTH_KEY_EMAIL) {
-            $session->setSessionVar('email', $user->getEmail());
-        }
-        $session->getCSRFToken(); // Force generation (see issue #2417)
-        $session->setRemember($remember);
-
-        if ($remember && Config::getVar('general', 'session_lifetime') > 0) {
-            // Update session expiration time
-            $sessionManager->updateSessionLifetime(time() + Config::getVar('general', 'session_lifetime') * 86400);
-        }
+        $request = Application::get()->getRequest();
+        $request->getSessionGuard()->setUserDataToSession($user)->updateSession($user->getId());
 
         $user->setDateLastLogin(Core::getCurrentDate());
         Repo::user()->edit($user);
@@ -172,19 +128,18 @@ class Validation
      */
     public static function logout()
     {
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-        $session->unsetSessionVar('userId');
-        $session->unsetSessionVar('signedInAs');
-        $session->setUserId(null);
+        $request = Application::get()->getRequest();
+        $session = $request->getSession();
+        $user = Auth::user(); /** @var \PKP\user\User $user */
 
-        if ($session->getRemember()) {
-            $session->setRemember(0);
-            $sessionManager->updateSessionLifetime(0);
-        }
+        Auth::logout();
+        $session->invalidate();
+        $session->regenerateToken();
 
-        $sessionDao = DAORegistry::getDAO('SessionDAO'); /** @var SessionDAO $sessionDao */
-        $sessionDao->updateObject($session);
+        $session->put('username', $user->getUsername());
+        $session->put('email', $user->getEmail());
+
+        $request->getSessionGuard()->updateSession(null);
 
         return true;
     }
@@ -249,23 +204,13 @@ class Validation
      *
      * @return bool
      */
-    public static function isAuthorized($roleId, $contextId = 0)
+    public static function isAuthorized($roleId, ?int $contextId = Application::SITE_CONTEXT_ID)
     {
         if (!self::isLoggedIn()) {
             return false;
         }
 
-        if ($contextId === -1) {
-            // Get context ID from request
-            $request = Application::get()->getRequest();
-            $context = $request->getContext();
-            $contextId = $context == null ? 0 : $context->getId();
-        }
-
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-        $user = $session->getUser();
-
+        $user = Auth::user(); /** @var \PKP\user\User $user */
         $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
         return $roleDao->userHasRole($contextId, $user->getId(), $roleId);
     }
@@ -302,7 +247,8 @@ class Validation
                     return md5($valueToEncrypt);
             }
         } else {
-            return password_hash($password, PASSWORD_BCRYPT);
+            // Use cost 12 to match Laravel's BcryptHasher default, see pkp/pkp-lib#11933
+            return password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
         }
     }
 
@@ -402,29 +348,25 @@ class Validation
     {
         $name = $givenName;
         if (!empty($familyName)) {
-            $initial = PKPString::substr($givenName, 0, 1);
+            $initial = Str::substr($givenName, 0, 1);
             $name = $initial . $familyName;
         }
 
-        $suggestion = PKPString::regexp_replace('/[^a-zA-Z0-9_-]/', '', \Stringy\Stringy::create($name)->toAscii()->toLowerCase());
-        for ($i = ''; Repo::user()->getByUsername($suggestion . $i, true); $i++);
-        return $suggestion . $i;
+        $suggestion = Str::of($name)->ascii()->lower()->replaceMatches('/[^a-zA-Z0-9_-]/', '');
+        $suffix = '';
+        $i = 0;
+        while (Repo::user()->getByUsername($suggestion . $suffix, true)) {
+            $suffix = (string) ++$i;
+        }
+        return $suggestion . $suffix;
     }
 
     /**
      * Check if the user is logged in.
-     *
-     * @return bool
      */
-    public static function isLoggedIn()
+    public static function isLoggedIn(): bool
     {
-        if (!SessionManager::hasSession()) {
-            return false;
-        }
-
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-        return !!$session->getUserId();
+        return (bool) Application::get()->getRequest()->getSessionGuard()->getUserId();
     }
 
     /**
@@ -432,14 +374,7 @@ class Validation
      */
     public static function loggedInAs(): ?int
     {
-        if (!SessionManager::hasSession()) {
-            return null;
-        }
-        $sessionManager = SessionManager::getManager();
-        $session = $sessionManager->getUserSession();
-        $userId = $session->getSessionVar('signedInAs');
-
-        return $userId ? (int) $userId : null;
+        return Application::get()->getRequest()->getSession()->get('signedInAs') ?: null;
     }
 
     /**
@@ -475,42 +410,76 @@ class Validation
      */
     public static function canAdminister($administeredUserId, $administratorUserId)
     {
-        $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
-
         // You can administer yourself
         if ($administeredUserId == $administratorUserId) {
             return true;
         }
 
-        // You cannot administer administrators
-        if ($roleDao->userHasRole(\PKP\core\PKPApplication::CONTEXT_SITE, $administeredUserId, Role::ROLE_ID_SITE_ADMIN)) {
+        $siteContextId = \PKP\core\PKPApplication::SITE_CONTEXT_ID;
+
+        // check if administered user is site admin
+        $isAdministeredUserSiteAdmin = UserGroup::query()
+            ->withContextIds($siteContextId)
+            ->withRoleIds(Role::ROLE_ID_SITE_ADMIN)
+            ->whereHas('userUserGroups', function ($query) use ($administeredUserId) {
+                $query->withUserId($administeredUserId)
+                    ->withActive();
+            })
+            ->exists();
+
+        if ($isAdministeredUserSiteAdmin) {
             return false;
         }
 
-        // Otherwise, administrators can administer everyone
-        if ($roleDao->userHasRole(\PKP\core\PKPApplication::CONTEXT_SITE, $administratorUserId, Role::ROLE_ID_SITE_ADMIN)) {
+        // check if administrator user is site admin
+        $isAdministratorUserSiteAdmin = UserGroup::query()
+            ->withContextIds($siteContextId)
+            ->withRoleIds(Role::ROLE_ID_SITE_ADMIN)
+            ->whereHas('userUserGroups', function ($query) use ($administratorUserId) {
+                $query->withUserId($administratorUserId)
+                    ->withActive();
+            })
+            ->exists();
+
+        if ($isAdministratorUserSiteAdmin) {
             return true;
         }
 
-        // Check for administered user group assignments in other contexts
-        // that the administrator user doesn't have a manager role in.
-        $userGroups = Repo::userGroup()->userUserGroups($administeredUserId);
-        foreach ($userGroups as $userGroup) {
-            if ($userGroup->getContextId() != \PKP\core\PKPApplication::CONTEXT_SITE && !$roleDao->userHasRole($userGroup->getContextId(), $administratorUserId, Role::ROLE_ID_MANAGER)) {
-                // Found an assignment: disqualified.
-                return false;
-            }
+        // Get contexts where administered user has roles
+        $administeredUserContexts = UserGroup::query()
+            ->whereHas('userUserGroups', function ($query) use ($administeredUserId) {
+                $query->withUserId($administeredUserId)
+                    ->withActive();
+            })
+            ->get()
+            ->map(fn ($userGroup) => $userGroup->contextId)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // get contexts where administrator user has manager role
+        $administratorManagerContexts = UserGroup::query()
+            ->withRoleIds(Role::ROLE_ID_MANAGER)
+            ->whereHas('userUserGroups', function ($query) use ($administratorUserId) {
+                $query->withUserId($administratorUserId)
+                    ->withActive();
+            })
+            ->get()
+            ->map(fn ($userGroup) => $userGroup->contextId)
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // check for conflicting contexts
+        $conflictingContexts = array_diff($administeredUserContexts, $administratorManagerContexts);
+
+        if (!empty($conflictingContexts)) {
+            // found conflicting contexts: disqualified
+            return false;
         }
 
         // Make sure the administering user has a manager role somewhere
-        $foundManagerRole = false;
-        $roles = $roleDao->getByUserId($administratorUserId);
-        foreach ($roles as $role) {
-            if ($role->getRoleId() == Role::ROLE_ID_MANAGER) {
-                $foundManagerRole = true;
-            }
-        }
-        if (!$foundManagerRole) {
+        if (empty($administratorManagerContexts)) {
             return false;
         }
 
@@ -527,76 +496,144 @@ class Validation
      *
      * @return int The authorized administration level
      */
-    public static function getAdministrationLevel(int $administeredUserId, int $administratorUserId, ?int $contextId = null): int
-    {
-        // You can administer yourself
-        if ($administeredUserId == $administratorUserId) {
+    public static function getAdministrationLevel(
+        int $administeredUserId,
+        int $administratorUserId,
+        ?int $contextId = null
+    ): int {
+
+        if ($administeredUserId === $administratorUserId) {
             return self::ADMINISTRATION_FULL;
         }
 
-        $filteredSiteAdminUserGroups = Repo::userGroup()
-            ->getCollector()
-            ->filterByContextIds([\PKP\core\PKPApplication::CONTEXT_SITE])
-            ->filterByRoleIds([Role::ROLE_ID_SITE_ADMIN]);
+        $siteContextId = PKPApplication::SITE_CONTEXT_ID;
 
-        // You cannot administer administrators
-        if ($filteredSiteAdminUserGroups->filterByUserIds([$administeredUserId])->getCount() > 0) {
+        // single query to fetch user groups assigned to either user
+        $allUserGroups = UserGroup::query()
+            ->withWhereHas('userUserGroups', function ($query) use ($administratorUserId, $administeredUserId) {
+                $query->withUserIds([$administratorUserId, $administeredUserId])
+                    ->withActive();
+            })
+            ->get();
+
+        $administratorMap = [];
+        $administeredMap = [];
+
+        foreach ($allUserGroups as $userGroup) {
+            $roleId = $userGroup->roleId;
+            $userGroupContextId = $userGroup->contextId ?? PKPApplication::SITE_CONTEXT_ID;
+
+            // then each user assignment row
+            foreach ($userGroup->userUserGroups as $uug) {
+                if ($uug->userId === $administratorUserId) {
+                    $administratorMap[$userGroupContextId][] = $roleId;
+                } elseif ($uug->userId === $administeredUserId) {
+                    $administeredMap[$userGroupContextId][] = $roleId;
+                }
+            }
+        }
+
+        if (
+            isset($administeredMap[$siteContextId]) &&
+            in_array(Role::ROLE_ID_SITE_ADMIN, $administeredMap[$siteContextId], true)
+        ) {
             return self::ADMINISTRATION_PROHIBITED;
         }
 
-        // Otherwise, administrators can administer everyone
-        if ($filteredSiteAdminUserGroups->filterByUserIds([$administratorUserId])->getCount() > 0) {
+        // if administrator user is site admin => FULL
+        if (
+            isset($administratorMap[$siteContextId]) &&
+            in_array(Role::ROLE_ID_SITE_ADMIN, $administratorMap[$siteContextId], true)
+        ) {
             return self::ADMINISTRATION_FULL;
         }
 
-        // Make sure the administering user has a manager role somewhere
-        $roleManagerCount = Repo::userGroup()
-            ->getCollector()
-            ->filterByUserIds([$administratorUserId])
-            ->filterByRoleIds([Role::ROLE_ID_MANAGER])
-            ->getCount();
+        // gather manager contexts for the administrator
+        $administratorManagerContexts = [];
+        foreach ($administratorMap as $ctx => $roles) {
+            if (in_array(Role::ROLE_ID_MANAGER, $roles, true)) {
+                $administratorManagerContexts[] = $ctx;
+            }
+        }
 
-        if ($roleManagerCount <= 0) {
+        if (empty($administratorManagerContexts)) {
             return self::ADMINISTRATION_PROHIBITED;
         }
 
-        $administeredUserAssignedGroupIds = Repo::userGroup()
-            ->getCollector()
-            ->filterByUserIds([$administeredUserId])
-            ->getMany()
-            ->map(fn ($userGroup) => $userGroup->getContextId())
-            ->sort()
-            ->toArray();
-
-        $administratorUserAssignedGroupIds = Repo::userGroup()
-            ->getCollector()
-            ->filterByUserIds([$administratorUserId])
-            ->filterByRoleIds([Role::ROLE_ID_MANAGER])
-            ->getMany()
-            ->map(fn ($userGroup) => $userGroup->getContextId())
-            ->sort()
-            ->toArray();
-
-        // Check for administered user group assignments in other contexts
-        // that the administrator user doesn't have a manager role in.
-        if (collect($administeredUserAssignedGroupIds)->diff($administratorUserAssignedGroupIds)->count() > 0) {
-            // Found an assignment: disqualified.
-            // But also determine if a partial administrate is allowed
-            // if the Administrator User is a Journal Manager in the current context
-            if ($contextId !== null &&
-                Repo::userGroup()
-                    ->getCollector()
-                    ->filterByContextIds([$contextId])
-                    ->filterByUserIds([$administratorUserId])
-                    ->filterByRoleIds([Role::ROLE_ID_MANAGER])
-                    ->getCount()) {
+        $administeredUserContexts = array_keys($administeredMap);
+        $conflictingContexts = array_diff($administeredUserContexts, $administratorManagerContexts);
+        if (!empty($conflictingContexts)) {
+            if ($contextId !== null && in_array($contextId, $administratorManagerContexts, true)) {
                 return self::ADMINISTRATION_PARTIAL;
             }
             return self::ADMINISTRATION_PROHIBITED;
         }
 
-        // There were no conflicting roles. Permit administration.
         return self::ADMINISTRATION_FULL;
+    }
+
+    /**
+     * Determine if the current user can "Log In As" the target user.
+     *
+     * By default, we do a cross-journal check (contextId = null)
+     * to enforce "Log In As" only in a single journal context, pass $contextId.
+     */
+    public static function canUserLoginAs(
+        int $targetUserId,
+        int $currentUserId,
+        ?int $contextId = null
+    ): bool {
+        // prevent self-login
+        if ($targetUserId === $currentUserId) {
+            return false;
+        }
+        return self::getAdministrationLevel($targetUserId, $currentUserId, $contextId) === self::ADMINISTRATION_FULL;
+    }
+
+    /**
+     * Check if the user can edit another user stage assignment in the participants grid
+     *
+     * @return bool
+     */
+    public static function canEditParticipant(User $user, Submission $submission, StageAssignment $stageAssignment): bool
+    {
+        // Admins and managers always can edit stage participants
+        if ($user->hasRole([Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER], $submission->getData('contextId'))) {
+            return true;
+        }
+
+        /**
+         * Check user's assignments within given submission and stage
+         */
+
+        $stageAssignments = StageAssignment::with('userGroup')
+            ->withSubmissionIds([$submission->getId()])
+            ->withStageIds([$stageAssignment->stageId])
+            ->withUserId($user->getId())
+            ->get();
+
+        if ($stageAssignments->isEmpty()) {
+            return false;
+        }
+
+        $isEditor = $stageAssignments->contains(fn (StageAssignment $stageAssignment) => $stageAssignment->userGroup->roleId == Role::ROLE_ID_SUB_EDITOR);
+
+        if (!$isEditor) {
+            return false;
+        }
+
+        // Don't allow to edit own assignments
+        if ($user->getId() === $stageAssignment->userId) {
+            return false;
+        }
+
+        // Editors aren't allowed to edit managers' assignments
+        $editableUser = Repo::user()->getCollector()->filterByUserIds([$stageAssignment->getUserId()])->getMany()->first();
+        if ($editableUser->hasRole([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SITE_ADMIN], $submission->getData('contextId'))) {
+            return false;
+        }
+
+        return true;
     }
 }
 

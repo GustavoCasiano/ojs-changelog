@@ -21,12 +21,9 @@
 		{rdelim});
 	{rdelim});
 </script>
-
+<div class="semantic-defaults">
 <form class="pkp_form" id="notificationSettingsForm" method="post" action="{url op="saveNotificationSettings"}" enctype="multipart/form-data">
 	<p>{translate key="notification.settingsDescription"}</p>
-
-	{* Help Link *}
-	{help file="user-profile" class="pkp_help_tab"}
 
 	{csrf}
 
@@ -58,7 +55,7 @@
 		{/foreach}
 
 		<p>
-			{capture assign="privacyUrl"}{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
+			{capture assign="privacyUrl"}{url router=PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
 			{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 		</p>
 
@@ -66,3 +63,4 @@
 		{fbvFormButtons hideCancel=true submitText="common.save"}
 	{/fbvFormArea}
 </form>
+</div>

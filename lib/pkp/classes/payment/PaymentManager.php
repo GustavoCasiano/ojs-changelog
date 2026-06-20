@@ -19,7 +19,6 @@
 
 namespace PKP\payment;
 
-use Exception;
 use PKP\context\Context;
 use PKP\db\DAORegistry;
 
@@ -125,8 +124,4 @@ abstract class PaymentManager
      * @return bool success/failure
      */
     abstract public function fulfillQueuedPayment($request, $queuedPayment);
-}
-
-if (!PKP_STRICT_MODE) {
-    class_alias('\PKP\payment\PaymentManager', '\PaymentManager');
 }

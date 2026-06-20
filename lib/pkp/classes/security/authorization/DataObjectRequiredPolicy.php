@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/security/authorization/DataObjectRequiredPolicy.php
  *
@@ -16,6 +17,7 @@
 namespace PKP\security\authorization;
 
 use Exception;
+use PKP\core\PKPBaseController;
 use PKP\core\PKPRequest;
 
 class DataObjectRequiredPolicy extends AuthorizationPolicy
@@ -79,7 +81,7 @@ class DataObjectRequiredPolicy extends AuthorizationPolicy
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         // Check if the object is required for the requested Op. (No operations means check for all.)
         if (is_array($this->_operations) && !in_array($this->_request->getRequestedOp(), $this->_operations)) {
@@ -136,8 +138,8 @@ class DataObjectRequiredPolicy extends AuthorizationPolicy
 
             case $router instanceof \PKP\core\APIRouter:
                 if ($this->_parameterName !== null) {
-                    $handler = $router->getHandler();
-                    return $handler->getParameter($this->_parameterName);
+                    $routeController = PKPBaseController::getRouteController();
+                    return $routeController->getParameter($this->_parameterName);
                 }
                 break;
 

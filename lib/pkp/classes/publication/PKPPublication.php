@@ -23,6 +23,7 @@ use APP\facades\Repo;
 use PKP\core\Core;
 use PKP\core\PKPString;
 use PKP\facades\Locale;
+use PKP\services\PKPSchemaService;
 use PKP\userGroup\UserGroup;
 
 class PKPPublication extends \PKP\core\DataObject
@@ -188,23 +189,24 @@ class PKPPublication extends \PKP\core\DataObject
         }
 
         if ($includeInBrowseOnly) {
-            $authors = $authors->filter(function ($author, $key) {
-                return $author->getData('includeInBrowse');
-            });
+            $authors = $authors->filter(fn ($author) => $author->getData('includeInBrowse'));
+        }
+
+        // create a mapping of user group ids to user groups for quick lookup
+        $userGroupMap = [];
+        foreach ($userGroups as $userGroup) {
+            $userGroupMap[$userGroup->id] = $userGroup;
         }
 
         $str = '';
         $lastUserGroupId = null;
         foreach ($authors as $author) {
+            $currentUserGroupId = $author->getUserGroupId();
             if (!empty($str)) {
-                if ($lastUserGroupId != $author->getData('userGroupId')) {
-                    foreach ($userGroups as $userGroup) {
-                        if ($lastUserGroupId === $userGroup->getId()) {
-                            if ($userGroup->getData('showTitle')) {
-                                $str .= ' (' . $userGroup->getLocalizedData('name') . ')';
-                            }
-                            break;
-                        }
+                if ($lastUserGroupId !== $currentUserGroupId) {
+                    $lastUserGroup = $userGroupMap[$lastUserGroupId] ?? null;
+                    if ($lastUserGroup && $lastUserGroup->showTitle) {
+                        $str .= ' (' . $lastUserGroup->getLocalizedData('name') . ')';
                     }
                     $str .= __('common.semicolonListSeparator');
                 } else {
@@ -212,18 +214,14 @@ class PKPPublication extends \PKP\core\DataObject
                 }
             }
             $str .= $author->getFullName();
-            $lastUserGroupId = $author->getUserGroupId();
+            $lastUserGroupId = $currentUserGroupId;
         }
 
         // If there needs to be a trailing user group title, add it
         if (isset($author)) {
-            foreach ($userGroups as $userGroup) {
-                if ($author->getData('userGroupId') === $userGroup->getId()) {
-                    if ($userGroup->getData('showTitle')) {
-                        $str .= ' (' . $userGroup->getLocalizedData('name') . ')';
-                    }
-                    break;
-                }
+            $lastUserGroup = $userGroupMap[$author->getUserGroupId()] ?? null;
+            if ($lastUserGroup && $lastUserGroup->showTitle) {
+                $str .= ' (' . $lastUserGroup->getLocalizedData('name') . ')';
             }
         }
 
@@ -357,19 +355,17 @@ class PKPPublication extends \PKP\core\DataObject
         $pageArray = [];
         foreach ($ranges as $range) {
             // hyphens (or double-hyphens) indicate range spans
-            $pageArray[] = array_map('trim', explode('-', str_replace(['--', '–'], '-', $range), 2));
+            $pageArray[] = array_map(trim(...), explode('-', str_replace(['--', '–'], '-', $range), 2));
         }
         return $pageArray;
     }
 
     /**
      * Is the license for copyright on this publication a Creative Commons license?
-     *
-     * @return bool
      */
-    public function isCCLicense()
+    public function isCCLicense(): bool
     {
-        return preg_match('/creativecommons\.org/i', $this->getData('licenseUrl'));
+        return $this->getData('licenseUrl') ? preg_match('/creativecommons\.org/i', $this->getData('licenseUrl')) : false;
     }
 
     /**
@@ -431,6 +427,42 @@ class PKPPublication extends \PKP\core\DataObject
         } else {
             $this->setData('pub-id::' . $pubIdType, $pubId);
         }
+    }
+
+    /**
+     * Get metadata language names
+     */
+    public function getLanguageNames(): array
+    {
+        return Locale::getSubmissionLocaleDisplayNames($this->getLanguages());
+    }
+
+    /**
+     * Get languages from locale, metadata, and authors' props.
+     * Include optional additional languages.
+     *
+     * Publication: locale, multilingual metadata props
+     * Authors: multilingual props
+     */
+    public function getLanguages(?array ...$additionalLocales): array
+    {
+        $getMProps = fn (string $schema): array => app()->get('schema')->getMultilingualProps($schema);
+        $metadataprops = $getMProps(PKPSchemaService::SCHEMA_PUBLICATION);
+        $authorProps = $getMProps(PKPSchemaService::SCHEMA_AUTHOR);
+
+        $getlocales = fn (array $props, object $item): array => array_map(fn (string $prop): array => array_keys($item->getData($prop) ?? []), $props);
+        $metadataLocales = $getlocales($metadataprops, $this);
+        $authorsLocales = $this->getData('authors')?->map(fn (Author $author): array => $getlocales($authorProps, $author)) ?? [];
+
+        return collect([$this->getData('locale')])
+            ->concat($metadataLocales)
+            ->concat($authorsLocales)
+            ->concat($additionalLocales)
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
     }
 }
 if (!PKP_STRICT_MODE) {

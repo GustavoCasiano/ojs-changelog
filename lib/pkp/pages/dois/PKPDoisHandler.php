@@ -53,7 +53,7 @@ abstract class PKPDoisHandler extends Handler
      */
     public function authorize($request, &$args, $roleAssignments)
     {
-        $this->addPolicy(new \PKP\security\authorization\ContextRequiredPolicy($request, $roleAssignments));
+        $this->addPolicy(new \PKP\security\authorization\ContextRequiredPolicy($request));
 
         // DOIs must be enabled to access DOI management page
         $this->addPolicy(new DoisEnabledPolicy($request->getContext()));
@@ -72,6 +72,8 @@ abstract class PKPDoisHandler extends Handler
      *
      * @param array $args
      * @param PKPRequest $request
+     *
+     * @hook DoisHandler::setListPanelArgs [[&$commonArgs]]
      */
     public function index($args, $request)
     {
@@ -113,7 +115,6 @@ abstract class PKPDoisHandler extends Handler
         $templateMgr->setState(['components' => $stateComponents]);
 
         $templateMgr->assign($this->getTemplateVariables($enabledDoiTypes));
-
         $templateMgr->display('management/dois.tpl');
     }
 

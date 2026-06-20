@@ -49,6 +49,7 @@
 		"categoryIds": {
 			"type": "array",
 			"apiSummary": true,
+			"readOnly": true,
 			"items": {
 				"type": "integer"
 			}
@@ -64,6 +65,7 @@
 		"citationsRaw": {
 			"type": "string",
 			"description": "Optional metadata that contains references for works cited in this submission as raw text.",
+			"readOnly": true,
 			"validation": [
 				"nullable"
 			]
@@ -141,7 +143,24 @@
 				"nullable"
 			],
 			"items": {
-				"type": "string"
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					},
+					"identifier": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					}
+				}
 			}
 		},
 		"doiObject": {
@@ -179,18 +198,24 @@
 				"nullable"
 			],
 			"items": {
-				"type": "string"
-			}
-		},
-		"languages": {
-			"type": "array",
-			"description": "Optional metadata that identifies the submission's primary language.",
-			"multilingual": true,
-			"validation": [
-				"nullable"
-			],
-			"items": {
-				"type": "string"
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					},
+					"identifier": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					}
+				}
 			}
 		},
 		"lastModified": {
@@ -266,7 +291,24 @@
 				"nullable"
 			],
 			"items": {
-				"type": "string"
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					},
+					"identifier": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					}
+				}
 			}
 		},
 		"submissionId": {
@@ -291,7 +333,24 @@
 				"nullable"
 			],
 			"items": {
-				"type": "string"
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					},
+					"identifier": {
+						"type": "string",
+						"validation": [
+							"nullable"
+						]
+					}
+				}
 			}
 		},
 		"status": {

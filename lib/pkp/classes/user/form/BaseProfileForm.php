@@ -19,7 +19,7 @@ namespace PKP\user\form;
 use APP\core\Application;
 use APP\facades\Repo;
 use PKP\form\Form;
-use PKP\session\SessionManager;
+use PKP\invitation\invitations\changeProfileEmail\ChangeProfileEmailInvite;
 use PKP\user\User;
 
 abstract class BaseProfileForm extends Form
@@ -60,18 +60,29 @@ abstract class BaseProfileForm extends Form
         parent::execute(...$functionArgs);
 
         $request = Application::get()->getRequest();
-        $user = $request->getUser();
+        $user = $request->getUser(); // TODO:: ?? Why not $this->getUser()
         Repo::user()->edit($user);
 
         if ($functionArgs['emailUpdated'] ?? false) {
-            $sessionManager = SessionManager::getManager();
-            $session = $sessionManager->getUserSession();
+            $sessionGuard = Application::get()->getRequest()->getSessionGuard();
+            $sessionGuard->setUserDataToSession($user)->updateSession($user->getId());
+            $sessionGuard->invalidateOtherSessions($user->getId(), $request->getSession()->getId());
 
-            if ($session->getSessionVar('email')) {
-                $session->setSessionVar('email', $user->getEmail());
+            $invite = new ChangeProfileEmailInvite();
+
+            $invite->initialize($user->getId());
+
+            $invite->getPayload()->newEmail = $functionArgs['emailUpdated'];
+
+            $inviteResult = false;
+            $updateResult = $invite->updatePayload();
+            if ($updateResult) {
+                $inviteResult = $invite->invite();
             }
 
-            $sessionManager->invalidateSessions($user->getId(), $sessionManager->getUserSession()->getId());
+            if (!$inviteResult) {
+                throw new \Exception('Invitation could be send');
+            }
         }
     }
 }

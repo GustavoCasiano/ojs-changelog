@@ -16,7 +16,6 @@
 namespace APP\plugins\generic\crossref;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\issue\Issue;
 use APP\plugins\generic\crossref\classes\CrossrefSettings;
@@ -98,24 +97,20 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
      */
     private function _pluginInitialization()
     {
-        Hook::add('DoiSettingsForm::setEnabledRegistrationAgencies', [$this, 'addAsRegistrationAgencyOption']);
-        Hook::add('DoiSetupSettingsForm::getObjectTypes', [$this, 'addAllowedObjectTypes']);
-        Hook::add('Context::validate', [$this, 'validateAllowedPubObjectTypes']);
-        Hook::add('Schema::get::doi', [$this, 'addToSchema']);
+        Hook::add('DoiSettingsForm::setEnabledRegistrationAgencies', $this->addAsRegistrationAgencyOption(...));
+        Hook::add('DoiSetupSettingsForm::getObjectTypes', $this->addAllowedObjectTypes(...));
+        Hook::add('Context::validate', $this->validateAllowedPubObjectTypes(...));
+        Hook::add('Schema::get::doi', $this->addToSchema(...));
 
-        Hook::add('Doi::markRegistered', [$this, 'editMarkRegisteredParams']);
-        Hook::add('DoiListPanel::setConfig', [$this, 'addRegistrationAgencyName']);
+        Hook::add('Doi::markRegistered', $this->editMarkRegisteredParams(...));
+        Hook::add('DoiListPanel::setConfig', $this->addRegistrationAgencyName(...));
     }
 
     /**
      * Add properties for Crossref to the DOI entity for storage in the database.
      *
      * @param string $hookName `Schema::get::doi`
-     * @param array $args [
-     *
-     *      @option stdClass $schema
-     * ]
-     *
+     * @param array{schema: object{properties: array<string, object>}} $args
      */
     public function addToSchema(string $hookName, array $args): bool
     {
@@ -142,10 +137,7 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
      * Includes plugin in list of configurable registration agencies for DOI depositing functionality
      *
      * @param string $hookName DoiSettingsForm::setEnabledRegistrationAgencies
-     * @param array $args [
-     *
-     *      @option $enabledRegistrationAgencies array
-     * ]
+     * @param array{Collection<int,IDoiRegistrationAgency>} $args [Enabled registration agencies]
      */
     public function addAsRegistrationAgencyOption($hookName, $args)
     {
@@ -159,10 +151,7 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
      * DOI was registered.
      *
      * @param string $hookName DoiListPanel::setConfig
-     * @param array $args [
-     *
-     *      @option $config array
-     * ]
+     * @param array{array<string, mixed>} $args [Configuration]
      */
     public function addRegistrationAgencyName(string $hookName, array $args): bool
     {
@@ -176,10 +165,7 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
      * Adds self to "allowed" list of pub object types that can be assigned DOIs for this registration agency.
      *
      * @param string $hookName DoiSetupSettingsForm::getObjectTypes
-     * @param array $args [
-     *
-     *      @option array &$objectTypeOptions
-     * ]
+     * @param array{array<array<string, mixed>>} $args [Object type options]
      */
     public function addAllowedObjectTypes(string $hookName, array $args): bool
     {
@@ -216,7 +202,7 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
         }
 
         /** @var ContextService $contextService */
-        $contextService = Services::get('context');
+        $contextService = app()->get('context');
         $context = $contextService->get($contextId);
         $enabledRegistrationAgency = $context->getConfiguredDoiAgency();
         if (!$enabledRegistrationAgency instanceof $this) {
@@ -241,7 +227,7 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
         $settingsObject = $this->getSettingsObject();
 
         /** @var PKPSchemaService $schemaService */
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $requiredProps = $schemaService->getRequiredProps($settingsObject::class);
 
         foreach ($requiredProps as $requiredProp) {

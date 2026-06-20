@@ -28,6 +28,8 @@ class PKPStatsEditorialService
      * @param array $args See self::getQueryBuilder()
      *
      * @return array
+     *
+     * @hook EditorialStats::overview [[&$overview, $args]]
      */
     public function getOverview($args = [])
     {
@@ -196,6 +198,8 @@ class PKPStatsEditorialService
      * @param array $args See self::getQueryBuilder(). No date range supported
      *
      * @return array
+     *
+     * @hook EditorialStats::averages [[&$averages, $args]]
      */
     public function getAverages($args = [])
     {
@@ -496,7 +500,9 @@ class PKPStatsEditorialService
     /**
      * Get a QueryBuilder object with the passed args
      *
-     * @param array{dateStart:string,dateEnd:string,contextIds:array|int,sectionIds:array|int $args
+     * @param array{dateStart:string,dateEnd:string,contextIds:array|int,sectionIds:array|int} $args
+     *
+     * @hook Stats::editorial::queryBuilder [[&$qb, $args]]
      */
     protected function getQueryBuilder($args = [])
     {

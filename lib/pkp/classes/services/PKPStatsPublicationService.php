@@ -72,6 +72,8 @@ abstract class PKPStatsPublicationService
 
     /**
      * Get a count of all submissions with stats that match the request arguments
+     *
+     * @hook StatsPublication::getCount::queryBuilder [[&$metricsQB, $args]]
      */
     public function getCount(array $args): int
     {
@@ -92,6 +94,8 @@ abstract class PKPStatsPublicationService
 
     /**
      * Get the submissions with total stats that match the request arguments
+     *
+     * @hook StatsPublication::getTotals::queryBuilder [[&$metricsQB, $args]]
      */
     public function getTotals(array $args): array
     {
@@ -117,6 +121,8 @@ abstract class PKPStatsPublicationService
     /**
      * Get metrics by type (abstract, pdf, html, other) for a submission
      * Assumes that the submission ID is provided in parameters
+     *
+     * @hook StatsPublication::getTotalsByType::queryBuilder [[&$metricsQB, $args]]
      */
     public function getTotalsByType(int $submissionId, int $contextId, ?string $dateStart, ?string $dateEnd): array
     {
@@ -139,23 +145,23 @@ abstract class PKPStatsPublicationService
         $metricsByType = $metricsQB->get()->toArray();
 
         $abstractViews = $pdfViews = $htmlViews = $otherViews = $suppFileViews = 0;
-        $abstractRecord = array_filter($metricsByType, [$this, 'filterRecordAbstract']);
+        $abstractRecord = array_filter($metricsByType, $this->filterRecordAbstract(...));
         if (!empty($abstractRecord)) {
             $abstractViews = (int) current($abstractRecord)->metric;
         }
-        $pdfRecord = array_filter($metricsByType, [$this, 'filterRecordPdf']);
+        $pdfRecord = array_filter($metricsByType, $this->filterRecordPdf(...));
         if (!empty($pdfRecord)) {
             $pdfViews = (int) current($pdfRecord)->metric;
         }
-        $htmlRecord = array_filter($metricsByType, [$this, 'filterRecordHtml']);
+        $htmlRecord = array_filter($metricsByType, $this->filterRecordHtml(...));
         if (!empty($htmlRecord)) {
             $htmlViews = (int) current($htmlRecord)->metric;
         }
-        $otherRecord = array_filter($metricsByType, [$this, 'filterRecordOther']);
+        $otherRecord = array_filter($metricsByType, $this->filterRecordOther(...));
         if (!empty($otherRecord)) {
             $otherViews = (int) current($otherRecord)->metric;
         }
-        $suppFileRecord = array_filter($metricsByType, [$this, 'filterRecordSuppFile']);
+        $suppFileRecord = array_filter($metricsByType, $this->filterRecordSuppFile(...));
         if (!empty($suppFileRecord)) {
             $suppFileViews = (int) current($suppFileRecord)->metric;
         }
@@ -171,6 +177,8 @@ abstract class PKPStatsPublicationService
 
     /**
      * Get a count of all submission files with stats that match the request arguments
+     *
+     * @hook StatsPublication::getFilesCount::queryBuilder [[&$metricsQB, $args]]
      */
     public function getFilesCount(array $args): int
     {
@@ -194,6 +202,8 @@ abstract class PKPStatsPublicationService
 
     /**
      * Get the submission files with total stats that match the request arguments
+     *
+     * @hook StatsPublication::getFilesTotals::queryBuilder [[&$metricsQB, $args]]
      */
     public function getFilesTotals(array $args): array
     {
@@ -224,10 +234,8 @@ abstract class PKPStatsPublicationService
         return [
             'dateStart' => PKPStatisticsHelper::STATISTICS_EARLIEST_DATE,
             'dateEnd' => date('Y-m-d', strtotime('yesterday')),
-
-            // Require a context to be specified to prevent unwanted data leakage
-            // if someone forgets to specify the context.
-            'contextIds' => [\PKP\core\PKPApplication::CONTEXT_ID_NONE],
+            // Require a context to be specified to prevent unwanted data leakage if someone forgets to specify the context.
+            'contextIds' => [],
         ];
     }
 
@@ -240,6 +248,8 @@ abstract class PKPStatsPublicationService
 
     /**
      * Get a QueryBuilder object with the passed args
+     *
+     * @hook StatsPublication::queryBuilder [[&$statsQB, $args]]
      */
     public function getQueryBuilder(array $args = []): StatsPublicationQueryBuilder
     {

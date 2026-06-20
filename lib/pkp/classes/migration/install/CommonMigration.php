@@ -15,6 +15,7 @@
 namespace PKP\migration\install;
 
 use APP\core\Application;
+use Exception;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -47,8 +48,11 @@ class CommonMigration extends \PKP\migration\Migration
         Schema::create('site', function (Blueprint $table) {
             $table->comment('A singleton table describing basic information about the site.');
             $table->bigIncrements('site_id');
-            $table->bigInteger('redirect')->default(0)->comment('If not 0, redirect to the specified journal/conference/... site.');
-            $table->string('primary_locale', 14)->comment('Primary locale for the site.');
+            $table->bigInteger('redirect_context_id')->nullable()->comment('If not null, redirect to the specified journal/conference/... site.');
+            $contextDao = Application::getContextDAO();
+            $table->foreign('redirect_context_id')->references($contextDao->primaryKeyColumn)->on($contextDao->tableName)->nullOnDelete();
+            $table->index(['redirect_context_id'], 'site_context_id');
+            $table->string('primary_locale', 28)->comment('Primary locale for the site.');
             $table->smallInteger('min_password_length')->default(6);
             $table->string('installed_locales', 1024)->default('en')->comment('Locales for which support has been installed.');
             $table->string('supported_locales', 1024)->comment('Locales supported by the site (for hosted journals/conferences/...).')->nullable();
@@ -60,7 +64,7 @@ class CommonMigration extends \PKP\migration\Migration
             $table->comment('More data about the site, including localized properties such as its name.');
             $table->bigIncrements('site_setting_id');
             $table->string('setting_name', 255);
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->mediumText('setting_value')->nullable();
             $table->unique(['setting_name', 'locale'], 'site_settings_unique');
         });
@@ -88,10 +92,12 @@ class CommonMigration extends \PKP\migration\Migration
             $table->smallInteger('disabled')->default(0);
             $table->text('disabled_reason')->nullable();
             $table->smallInteger('inline_help')->nullable();
+            $table->rememberToken();
         });
 
         switch (DB::getDriverName()) {
             case 'mysql':
+            case 'mariadb':
                 Schema::table('users', function (Blueprint $table) {
                     $table->unique(['username'], 'users_username');
                     $table->unique(['email'], 'users_email');
@@ -101,6 +107,7 @@ class CommonMigration extends \PKP\migration\Migration
                 DB::unprepared('CREATE UNIQUE INDEX users_username on users (LOWER(username));');
                 DB::unprepared('CREATE UNIQUE INDEX users_email on users (LOWER(email));');
                 break;
+            default: throw new Exception('Unexpected database driver!');
         }
 
         Schema::create('user_settings', function (Blueprint $table) {
@@ -111,46 +118,12 @@ class CommonMigration extends \PKP\migration\Migration
             $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
             $table->index(['user_id'], 'user_settings_user_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
 
             $table->unique(['user_id', 'locale', 'setting_name'], 'user_settings_unique');
             $table->index(['setting_name', 'locale'], 'user_settings_locale_setting_name_index');
-        });
-
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->comment('Session data for logged-in users.');
-            $table->string('session_id', 128);
-
-            $table->bigInteger('user_id')->nullable();
-            $table->foreign('user_id', 'sessions_user_id')->references('user_id')->on('users')->onDelete('cascade');
-            $table->index(['user_id'], 'sessions_user_id');
-
-            $table->string('ip_address', 39);
-            $table->string('user_agent', 255)->nullable();
-            $table->bigInteger('created')->default(0);
-            $table->bigInteger('last_used')->default(0);
-            $table->smallInteger('remember')->default(0);
-            $table->text('data');
-            $table->string('domain', 255)->nullable();
-
-            $table->unique(['session_id'], 'sessions_pkey');
-        });
-
-        Schema::create('access_keys', function (Blueprint $table) {
-            $table->comment('Access keys are used to provide pseudo-login functionality for security-minimal tasks. Passkeys can be emailed directly to users, who can use them for a limited time in lieu of standard username and password.');
-            $table->bigInteger('access_key_id')->autoIncrement();
-            $table->string('context', 40);
-            $table->string('key_hash', 40);
-
-            $table->bigInteger('user_id');
-            $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
-            $table->index(['user_id'], 'access_keys_user_id');
-
-            $table->bigInteger('assoc_id')->nullable();
-            $table->datetime('expiry_date');
-            $table->index(['key_hash', 'user_id', 'context'], 'access_keys_hash');
         });
 
         Schema::create('notifications', function (Blueprint $table) {
@@ -186,7 +159,7 @@ class CommonMigration extends \PKP\migration\Migration
             $table->foreign('notification_id')->references('notification_id')->on('notifications')->onDelete('cascade');
             $table->index(['notification_id'], 'notification_settings_notification_id');
 
-            $table->string('locale', 14)->nullable();
+            $table->string('locale', 28)->nullable();
             $table->string('setting_name', 64);
             $table->mediumText('setting_value');
             $table->string('setting_type', 6)->comment('(bool|int|float|string|object)');
@@ -203,10 +176,10 @@ class CommonMigration extends \PKP\migration\Migration
             $table->foreign('user_id')->references('user_id')->on('users')->onDelete('cascade');
             $table->index(['user_id'], 'notification_subscription_settings_user_id');
 
-            $table->bigInteger('context')->nullable();
+            $table->bigInteger('context_id')->nullable();
             $contextDao = Application::getContextDAO();
-            $table->foreign('context')->references($contextDao->primaryKeyColumn)->on($contextDao->tableName)->onDelete('cascade');
-            $table->index(['context'], 'notification_subscription_settings_context');
+            $table->foreign('context_id')->references($contextDao->primaryKeyColumn)->on($contextDao->tableName)->onDelete('cascade');
+            $table->index(['context_id'], 'notification_subscription_settings_context');
 
             $table->string('setting_type', 6)->comment('(bool|int|float|string|object)');
         });
@@ -215,7 +188,7 @@ class CommonMigration extends \PKP\migration\Migration
             $table->comment('Default email templates created for every installed locale.');
             $table->bigIncrements('email_templates_default_data_id');
             $table->string('email_key', 255)->comment('Unique identifier for this email.');
-            $table->string('locale', 14)->default('en');
+            $table->string('locale', 28)->default('en');
             $table->string('name', 255);
             $table->string('subject', 255);
             $table->text('body')->nullable();
@@ -245,7 +218,7 @@ class CommonMigration extends \PKP\migration\Migration
             $table->foreign('email_id', 'email_templates_settings_email_id')->references('email_id')->on('email_templates')->onDelete('cascade');
             $table->index(['email_id'], 'email_templates_settings_email_id');
 
-            $table->string('locale', 14)->default('');
+            $table->string('locale', 28)->default('');
             $table->string('setting_name', 255);
             $table->mediumText('setting_value')->nullable();
 
@@ -268,7 +241,9 @@ class CommonMigration extends \PKP\migration\Migration
             $table->comment('More data about plugins, including localized properties. This table is frequently used to store plugin-specific configuration.');
             $table->bigIncrements('plugin_setting_id');
             $table->string('plugin_name', 80);
-            $table->bigInteger('context_id');
+            $table->bigInteger('context_id')->nullable();
+            $table->foreign('context_id', 'plugin_settings_context_id')->references(Application::getContextDAO()->primaryKeyColumn)->on(Application::getContextDAO()->tableName)->onDelete('cascade');
+            $table->index(['context_id'], 'plugin_settings_context_id');
             $table->string('setting_name', 80);
             $table->mediumText('setting_value')->nullable();
             $table->string('setting_type', 6)->comment('(bool|int|float|string|object)');
@@ -291,8 +266,6 @@ class CommonMigration extends \PKP\migration\Migration
         Schema::drop('notification_subscription_settings');
         Schema::drop('notification_settings');
         Schema::drop('notifications');
-        Schema::drop('access_keys');
-        Schema::drop('sessions');
         Schema::drop('user_settings');
         Schema::drop('users');
         Schema::drop('site_settings');

@@ -3,8 +3,8 @@
 /**
  * @file plugins/importexport/doaj/filter/DOAJJsonFilter.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class DOAJJsonFilter
@@ -21,9 +21,7 @@ use APP\facades\Repo;
 use APP\plugins\importexport\doaj\DOAJExportDeployment;
 use APP\plugins\importexport\doaj\DOAJExportPlugin;
 use PKP\core\PKPString;
-use PKP\db\DAORegistry;
 use PKP\plugins\importexport\PKPImportExportFilter;
-use PKP\submission\SubmissionKeywordDAO;
 
 class DOAJJsonFilter extends PKPImportExportFilter
 {
@@ -148,7 +146,7 @@ class DOAJJsonFilter extends PKPImportExportFilter
         $request = Application::get()->getRequest();
         $article['bibjson']['link'] = [];
         $article['bibjson']['link'][] = [
-            'url' => $request->url($context->getPath(), 'article', 'view', $pubObject->getId()),
+            'url' => $request->getDispatcher()->url($request, Application::ROUTE_PAGE, $context->getPath(), 'article', 'view', [$pubObject->getId()], urlLocaleForPage: ''),
             'type' => 'fulltext',
             'content_type' => 'html'
         ];
@@ -159,12 +157,12 @@ class DOAJJsonFilter extends PKPImportExportFilter
 
             foreach ($articleAuthors as $articleAuthor) {
                 $author = ['name' => $articleAuthor->getFullName(false, false, $publicationLocale)];
-                $affiliation = $articleAuthor->getAffiliation($publicationLocale);
-                if (!empty($affiliation)) {
-                    $author['affiliation'] = $affiliation;
+                $affiliations = $articleAuthor->getLocalizedAffiliationNamesAsString($publicationLocale);
+                if (!empty($affiliations)) {
+                    $author['affiliations'] = $affiliations;
                 }
-                if ($orcid = $articleAuthor->getData('orcid')) {
-                    $author['orcid_id'] = $orcid;
+                if ($articleAuthor->getData('orcid') && $articleAuthor->getData('orcidIsVerified')) {
+                    $author['orcid_id'] = $articleAuthor->getData('orcid');
                 }
                 $article['bibjson']['author'][] = $author;
             }
@@ -175,10 +173,16 @@ class DOAJJsonFilter extends PKPImportExportFilter
         if (!empty($abstract)) {
             $article['bibjson']['abstract'] = PKPString::html2text($abstract);
         }
+
         // Keywords
-        /** @var SubmissionKeywordDAO */
-        $dao = DAORegistry::getDAO('SubmissionKeywordDAO');
-        $keywords = $dao->getKeywords($publication->getId(), [$publicationLocale]);
+        $keywords = collect($publication->getData('keywords') ?? [])
+            ->map(
+                fn (array $items): array => collect($items)
+                    ->pluck('name')
+                    ->all()
+            )
+            ->all();
+
         $allowedNoOfKeywords = array_slice($keywords[$publicationLocale] ?? [], 0, 6);
         if (!empty($keywords[$publicationLocale])) {
             $article['bibjson']['keywords'] = $allowedNoOfKeywords;

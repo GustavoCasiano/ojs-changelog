@@ -20,6 +20,8 @@
  *
  *   $countryRequired: Whether or not the country select is a required field
  *   $extraContentSectionUnfolded: Whether or not the extra content section is unfolded by default
+ *
+ * @hook Common::UserDetails::AdditionalItems []
  *}
 
 {fbvFormArea id="userDetails"}
@@ -109,7 +111,6 @@
 			{if !$disablePhoneSection}
 				{fbvElement type="tel" label="user.phone" name="phone" id="phone" value=$phone maxlength="24" inline=true size=$fbvStyles.size.SMALL}
 			{/if}
-			{fbvElement type="text" label="user.orcid" name="orcid" id="orcid" value=$orcid maxlength="46" inline=true size=$fbvStyles.size.SMALL}
 		{/fbvFormSection}
 
 		{if !$disableLocaleSection && count($availableLocales) > 1}

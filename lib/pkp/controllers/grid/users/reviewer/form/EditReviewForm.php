@@ -19,7 +19,6 @@ namespace PKP\controllers\grid\users\reviewer\form;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
@@ -27,14 +26,12 @@ use Illuminate\Support\Facades\Mail;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
 use PKP\form\Form;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\EditReviewNotify;
+use PKP\notification\Notification;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
-use PKP\notification\PKPNotification;
 use PKP\reviewForm\ReviewFormDAO;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 use PKP\submission\ReviewFilesDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
@@ -58,13 +55,25 @@ class EditReviewForm extends Form
 
         $reviewRoundDao = DAORegistry::getDAO('ReviewRoundDAO'); /** @var ReviewRoundDAO $reviewRoundDao */
         $this->_reviewRound = $reviewRoundDao->getById($reviewAssignment->getReviewRoundId());
-        assert(is_a($this->_reviewRound, 'ReviewRound'));
+        assert($this->_reviewRound instanceof ReviewRound);
 
         parent::__construct('controllers/grid/users/reviewer/form/editReviewForm.tpl');
 
         // Validation checks for this form
         $this->addCheck(new \PKP\form\validation\FormValidator($this, 'responseDueDate', 'required', 'editor.review.errorAddingReviewer'));
         $this->addCheck(new \PKP\form\validation\FormValidator($this, 'reviewDueDate', 'required', 'editor.review.errorAddingReviewer'));
+
+        $this->addCheck(
+            new \PKP\form\validation\FormValidatorDateCompare(
+                $this,
+                'reviewDueDate',
+                \Carbon\Carbon::parse(Application::get()->getRequest()->getUserVar('responseDueDate')),
+                \PKP\validation\enums\DateComparisonRule::GREATER_OR_EQUAL,
+                'optional',
+                'editor.review.errorAddingReviewer.dateValidationFailed'
+            )
+        );
+
         $this->addCheck(new \PKP\form\validation\FormValidatorPost($this));
         $this->addCheck(new \PKP\form\validation\FormValidatorCSRF($this));
     }
@@ -92,7 +101,6 @@ class EditReviewForm extends Form
     public function fetch($request, $template = null, $display = false)
     {
         $templateMgr = TemplateManager::getManager($request);
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
         $context = $request->getContext();
 
         if (!$this->_reviewAssignment->getDateCompleted()) {
@@ -114,7 +122,7 @@ class EditReviewForm extends Form
             'submissionId' => $this->_reviewAssignment->getSubmissionId(),
             'reviewAssignmentId' => $this->_reviewAssignment->getId(),
             'reviewMethod' => $this->_reviewAssignment->getReviewMethod(),
-            'reviewMethods' => $reviewAssignmentDao->getReviewMethodsTranslationKeys(),
+            'reviewMethods' => Repo::reviewAssignment()->getReviewMethodsTranslationKeys(),
         ]);
         return parent::fetch($request, $template, $display);
     }
@@ -165,8 +173,11 @@ class EditReviewForm extends Form
             }
         }
 
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignment = $reviewAssignmentDao->getReviewAssignment($this->_reviewRound->getId(), $this->_reviewAssignment->getReviewerId());
+        $reviewAssignment = Repo::reviewAssignment()->getCollector()
+            ->filterByReviewRoundIds([$this->_reviewRound->getId()])
+            ->filterByReviewerIds([$this->_reviewAssignment->getReviewerId()])
+            ->getMany()
+            ->first();
 
         // Send notification to reviewer if details have changed.
         if (strtotime($reviewAssignment->getDateDue()) != strtotime($this->getData('reviewDueDate')) || strtotime($reviewAssignment->getDateResponseDue()) != strtotime($this->getData('responseDueDate')) || $reviewAssignment->getReviewMethod() != $this->getData('reviewMethod')) {
@@ -175,9 +186,8 @@ class EditReviewForm extends Form
             $context = $request->getContext();
 
             $notification = $notificationManager->createNotification(
-                $request,
                 $reviewAssignment->getReviewerId(),
-                PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT_UPDATED,
+                Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT_UPDATED,
                 $context->getId(),
                 PKPApplication::ASSOC_TYPE_REVIEW_ASSIGNMENT,
                 $reviewAssignment->getId(),
@@ -189,7 +199,7 @@ class EditReviewForm extends Form
             /** @var NotificationSubscriptionSettingsDAO */
             $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO');
             if ($notification && !in_array(
-                PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT_UPDATED,
+                Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT_UPDATED,
                 $notificationSubscriptionSettingsDao->getNotificationSubscriptionSettings(
                     NotificationSubscriptionSettingsDAO::BLOCKED_EMAIL_NOTIFICATION_KEY,
                     $reviewer->getId(),
@@ -216,26 +226,25 @@ class EditReviewForm extends Form
                     ->allowUnsubscribe($notification);
 
                 Mail::send($mailable);
-
-                /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_EDIT_NOTIFY_REVIEWER, $mailable, $this->submission, $request->getUser());
+                Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_EDIT_NOTIFY_REVIEWER, $mailable, $this->submission, $request->getUser());
             }
         }
 
-        $reviewAssignment->setDateDue($this->getData('reviewDueDate'));
-        $reviewAssignment->setDateResponseDue($this->getData('responseDueDate'));
-        $reviewAssignment->setReviewMethod($this->getData('reviewMethod'));
+        $reviewNewParams = [
+            'dateDue' => $this->getData('reviewDueDate'),
+            'dateResponseDue' => $this->getData('responseDueDate'),
+            'reviewMethod' => $this->getData('reviewMethod'),
+        ];
 
         if (!$reviewAssignment->getDateCompleted()) {
             // Ensure that the review form ID is valid, if specified
             $reviewFormId = (int) $this->getData('reviewFormId');
             $reviewFormDao = DAORegistry::getDAO('ReviewFormDAO'); /** @var ReviewFormDAO $reviewFormDao */
             $reviewForm = $reviewFormDao->getById($reviewFormId, Application::getContextAssocType(), $context->getId());
-            $reviewAssignment->setReviewFormId($reviewForm ? $reviewFormId : null);
+            $reviewNewParams['reviewFormId'] = $reviewForm ? $reviewFormId : null;
         }
 
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, $reviewNewParams);
         parent::execute(...$functionArgs);
     }
 }

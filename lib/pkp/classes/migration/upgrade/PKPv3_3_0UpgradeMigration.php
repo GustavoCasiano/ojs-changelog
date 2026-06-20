@@ -14,7 +14,6 @@
 
 namespace PKP\migration\upgrade;
 
-use APP\core\Services;
 use APP\facades\Repo;
 use Exception;
 use Illuminate\Database\PostgresConnection;
@@ -101,13 +100,13 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
 
         // pkp/pkp-lib#6301: Indexes may be missing that affect search performance.
         // (These are added for 3.2.1-2 so may or may not be present for this upgrade code.)
-        $schemaManager = DB::getDoctrineSchemaManager();
-        if (!in_array('submissions_publication_id', array_keys($schemaManager->listTableIndexes('submissions')))) {
+        if (!Schema::hasIndex('submissions', 'submissions_publication_id')) {
             Schema::table('submissions', function (Blueprint $table) {
                 $table->index(['submission_id'], 'submissions_publication_id');
             });
         }
-        if (!in_array('submission_search_object_submission', array_keys($schemaManager->listTableIndexes('submission_search_objects')))) {
+
+        if (!Schema::hasIndex('submission_search_objects', 'submission_search_object_submission')) {
             Schema::table('submission_search_objects', function (Blueprint $table) {
                 $table->index(['submission_id'], 'submission_search_object_submission');
             });
@@ -412,7 +411,7 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
                 'sf.original_file_name',
                 'rrf.review_round_id'
             ]);
-        $fileService = Services::get('file');
+        $fileService = app()->get('file');
         $lastFileId = null;
         $lastReviewRoundId = null;
         $lastInsertedFileId = DB::table('submission_files')->max('file_id');
@@ -446,7 +445,7 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
                 $row->revision,
                 $row->file_stage,
                 date('Ymd', strtotime($row->date_uploaded)),
-                strtolower_codesafe($fileManager->parseFileExtension($row->original_file_name))
+                strtolower($fileManager->parseFileExtension($row->original_file_name))
             );
             $path = sprintf(
                 '%s/%s/%s',
@@ -609,8 +608,7 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
             $table->primary('submission_file_id');
         });
         //  pkp/pkp-lib#5804
-        $schemaManager = DB::getDoctrineSchemaManager();
-        if (!in_array('submission_files_stage_assoc', array_keys($schemaManager->listTableIndexes('submission_files')))) {
+        if (!Schema::hasIndex('submission_files', 'submission_files_stage_assoc')) {
             Schema::table('submission_files', function (Blueprint $table) {
                 $table->index(['file_stage', 'assoc_type', 'assoc_id'], 'submission_files_stage_assoc');
             });
@@ -732,7 +730,7 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
             $updateBlocks = false;
             $blocks = unserialize($row->setting_value);
             foreach ($blocks as $key => $block) {
-                $newBlock = strtolower_codesafe($block);
+                $newBlock = strtolower($block);
                 if ($block !== $newBlock) {
                     $blocks[$key] = $newBlock;
                     $updateBlocks = true;
@@ -803,7 +801,7 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
         }
 
         // Convert settings where only setting_type column is available
-        $tables = DB::getDoctrineSchemaManager()->listTableNames();
+        $tables = collect(Schema::getTables())->pluck('name')->toArray();
         foreach ($tables as $tableName) {
             if (substr($tableName, -9) !== '_settings' || in_array($tableName, $processedTables)) {
                 continue;
@@ -877,18 +875,10 @@ abstract class PKPv3_3_0UpgradeMigration extends \PKP\migration\Migration
         $newValue = json_encode($oldValue, JSON_UNESCAPED_UNICODE); // don't convert utf-8 characters to unicode escaped code
 
         // Ensure ID fields are included on the filter to avoid updating similar rows
-        $tableDetails = DB::connection()->getDoctrineSchemaManager()->listTableDetails($tableName);
-        $primaryKeys = [];
-        try {
-            $primaryKeys = $tableDetails->getPrimaryKeyColumns();
-        } catch (Exception $e) {
-            foreach ($tableDetails->getIndexes() as $index) {
-                if ($index->isPrimary() || $index->isUnique()) {
-                    $primaryKeys = $index->getColumns();
-                    break;
-                }
-            }
-        }
+        $primaryKeys = collect(Schema::getIndexes($tableName))
+            ->filter(fn($index) => $index['primary'] || $index['unique'])
+            ->flatMap(fn($index) => $index['columns'])
+            ->toArray();
 
         if (!count($primaryKeys)) {
             foreach (array_keys(get_object_vars($row)) as $column) {

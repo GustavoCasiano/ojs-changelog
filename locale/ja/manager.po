@@ -383,12 +383,6 @@ msgstr "このセクションのアブストラクトの単語数の制限（制
 msgid "manager.setup"
 msgstr "ジャーナル設定"
 
-msgid "manager.setup.masthead"
-msgstr "マストヘッド"
-
-msgid "manager.setup.editorialTeam"
-msgstr "編集委員会"
-
 msgid "manager.setup.homepageContent"
 msgstr "ジャーナルのホームページのコンテンツ"
 
@@ -749,14 +743,6 @@ msgstr "ジャーナルのリストに使用できる、ジャーナルの小さ
 msgid "manager.setup.contextTitle"
 msgstr "ジャーナルタイトル"
 
-msgid "manager.setup.keyInfo"
-msgstr "重要な情報"
-
-msgid "manager.setup.keyInfo.description"
-msgstr ""
-"ジャーナルの簡単な説明と、エディター、マネージング・ディレクター、その他の編"
-"集チームのメンバーを記入してください。"
-
 msgid "manager.setup.labelName"
 msgstr "ラベル名"
 
@@ -794,12 +780,6 @@ msgstr ""
 "\"{$lockssUrl}\" target=\"_blank\">発行者マニフェスト</a>ページを介して可能に"
 "します。"
 
-msgid "manager.setup.lockssLicenseDescription"
-msgstr ""
-"LOCKSSライセンスは、「ジャーナルについて」に掲載されます：<a href=\"http://"
-"www.lockss.org/community/publishers-titles-gln/\" target=\"_blank\">LOCKSS ラ"
-"イセンス</a>をご覧下さい"
-
 msgid "manager.setup.lockssLicenseLabel"
 msgstr "LOCKSS ライセンスの説明"
 
@@ -818,11 +798,6 @@ msgstr ""
 "CLOCKSSを有効にして、CLOCKSSの<a href=\"{$clockssUrl}\" target=\"_blank"
 "\">Publisher マニフェスト</a>ページ経由で参加図書館からジャーナルコンテンツを"
 "保存・配信する。"
-
-msgid "manager.setup.clockssLicenseDescription"
-msgstr ""
-"CLOCKSSライセンスは「ジャーナルについて」に掲載されます。<a href=\"http://"
-"clockss.org/\" target=\"_blank\">CLOCKSS ライセンス</a>"
 
 msgid "manager.setup.clockssLicenseLabel"
 msgstr "CLOCKSS ライセンスの説明"

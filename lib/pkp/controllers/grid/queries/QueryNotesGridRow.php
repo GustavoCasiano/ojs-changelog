@@ -16,6 +16,7 @@
 
 namespace PKP\controllers\grid\queries;
 
+use APP\facades\Repo;
 use PKP\controllers\grid\GridRow;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\RemoteActionConfirmationModal;
@@ -62,9 +63,9 @@ class QueryNotesGridRow extends GridRow
         parent::initialize($request, $template);
 
         // Is this a new row or an existing row?
-        $rowId = $this->getId();
-        $headNote = $this->getQuery()->getHeadNote();
-        if (!empty($rowId) && is_numeric($rowId) && (!$headNote || $headNote->getId() != $rowId)) {
+        $rowId = abs($this->getId());
+        $headNote = Repo::note()->getHeadNote($this->getQuery()->id);
+        if ($rowId > 0 && $headNote?->id != $rowId) {
             // Only add row actions if this is an existing row
             $router = $request->getRouter();
             $actionArgs = array_merge(
@@ -82,7 +83,7 @@ class QueryNotesGridRow extends GridRow
                             __('common.confirmDelete'),
                             __('grid.action.delete'),
                             $router->url($request, null, null, 'deleteNote', null, $actionArgs),
-                            'modal_delete'
+                            'negative'
                         ),
                         __('grid.action.delete'),
                         'delete'

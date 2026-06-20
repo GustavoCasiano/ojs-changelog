@@ -18,7 +18,6 @@ namespace PKP\pages\stats;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\template\TemplateManager;
@@ -76,7 +75,7 @@ class PKPStatsHandler extends Handler
         $context = $request->getContext();
 
         if (!$context) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $templateMgr = TemplateManager::getManager($request);
@@ -89,9 +88,9 @@ class PKPStatsHandler extends Handler
             'contextIds' => [$context->getId()],
         ];
 
-        $totals = Services::get('editorialStats')->getOverview($args);
-        $averages = Services::get('editorialStats')->getAverages($args);
-        $dateRangeTotals = Services::get('editorialStats')->getOverview(
+        $totals = app()->get('editorialStats')->getOverview($args);
+        $averages = app()->get('editorialStats')->getAverages($args);
+        $dateRangeTotals = app()->get('editorialStats')->getOverview(
             array_merge(
                 $args,
                 [
@@ -157,7 +156,7 @@ class PKPStatsHandler extends Handler
         foreach (Application::getApplicationStages() as $stageId) {
             $activeByStage[] = [
                 'name' => __(Application::getWorkflowStageName($stageId)),
-                'count' => Services::get('editorialStats')->countActiveByStages($stageId, $args),
+                'count' => app()->get('editorialStats')->countActiveByStages($stageId, $args),
                 'color' => Application::getWorkflowStageColor($stageId),
             ];
         }
@@ -213,10 +212,6 @@ class PKPStatsHandler extends Handler
             ]
         );
 
-        $templateMgr->setLocaleKeys([
-            'stats.descriptionForStat',
-            'stats.countWithYearlyAverage',
-        ]);
         $templateMgr->setState($statsComponent->getConfig());
         $templateMgr->assign([
             'pageComponent' => 'StatsEditorialPage',
@@ -238,7 +233,7 @@ class PKPStatsHandler extends Handler
         $context = $request->getContext();
 
         if (!$context) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $templateMgr = TemplateManager::getManager($request);
@@ -248,13 +243,27 @@ class PKPStatsHandler extends Handler
         $dateEnd = date('Y-m-d', strtotime('yesterday'));
         $count = 30;
 
-        $timeline = Services::get('publicationStats')->getTimeline(PKPStatisticsHelper::STATISTICS_DIMENSION_DAY, [
+        $timeline = app()->get('publicationStats')->getTimeline(PKPStatisticsHelper::STATISTICS_DIMENSION_DAY, [
             'assocTypes' => [Application::ASSOC_TYPE_SUBMISSION],
             'contextIds' => [$context->getId()],
             'count' => $count,
             'dateStart' => $dateStart,
             'dateEnd' => $dateEnd,
         ]);
+
+        $geoAPIEndPoint = null;
+        $geoStatsSetting = $context->getEnableGeoUsageStats($request->getSite());
+        switch ($geoStatsSetting) {
+            case PKPStatisticsHelper::STATISTICS_SETTING_COUNTRY:
+                $geoAPIEndPoint = 'countries';
+                break;
+            case PKPStatisticsHelper::STATISTICS_SETTING_REGION:
+                $geoAPIEndPoint = 'regions';
+                break;
+            case PKPStatisticsHelper::STATISTICS_SETTING_CITY:
+                $geoAPIEndPoint = 'cities';
+                break;
+        }
 
         $statsComponent = new \PKP\components\PKPStatsPublicationPage(
             $dispatcher->url($request, PKPApplication::ROUTE_API, $context->getPath(), 'stats/publications'),
@@ -327,28 +336,16 @@ class PKPStatsHandler extends Handler
                 ],
                 'orderBy' => 'total',
                 'orderDirection' => true,
+                'geoReportType' => $geoAPIEndPoint
+
             ]
         );
 
-        $geoAPIEndPoint = null;
-        $geoStatsSetting = $context->getEnableGeoUsageStats($request->getSite());
-        switch ($geoStatsSetting) {
-            case PKPStatisticsHelper::STATISTICS_SETTING_COUNTRY:
-                $geoAPIEndPoint = 'countries';
-                break;
-            case PKPStatisticsHelper::STATISTICS_SETTING_REGION:
-                $geoAPIEndPoint = 'regions';
-                break;
-            case PKPStatisticsHelper::STATISTICS_SETTING_CITY:
-                $geoAPIEndPoint = 'cities';
-                break;
-        }
         $templateMgr->setState($statsComponent->getConfig());
         $templateMgr->assign([
             'pageComponent' => 'StatsPublicationsPage',
             'pageTitle' => __('stats.publicationStats'),
             'pageWidth' => TemplateManager::PAGE_WIDTH_WIDE,
-            'geoReportType' => $geoAPIEndPoint
         ]);
 
         $templateMgr->display('stats/publications.tpl');
@@ -366,7 +363,7 @@ class PKPStatsHandler extends Handler
         $context = $request->getContext();
 
         if (!$context) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $templateMgr = TemplateManager::getManager($request);
@@ -375,7 +372,7 @@ class PKPStatsHandler extends Handler
         $dateStart = date('Y-m-d', strtotime('-31 days'));
         $dateEnd = date('Y-m-d', strtotime('yesterday'));
 
-        $timeline = Services::get('contextStats')->getTimeline(PKPStatisticsHelper::STATISTICS_DIMENSION_DAY, [
+        $timeline = app()->get('contextStats')->getTimeline(PKPStatisticsHelper::STATISTICS_DIMENSION_DAY, [
             'dateStart' => $dateStart,
             'dateEnd' => $dateEnd,
             'contextIds' => [$context->getId()]
@@ -463,13 +460,15 @@ class PKPStatsHandler extends Handler
         $lastDate = CounterR5Report::getLastDate();
 
         $templateMgr->setState([
-            'components' => [
+            'pageInitConfig' => [
                 $counterReportsListPanel->id => $counterReportsListPanel->getConfig(),
+                'usageNotPossible' => $lastDate <= $earliestDate,
             ],
         ]);
         $templateMgr->assign([
-            'pageComponent' => 'CounterReportsPage',
-            'usagePossible' => $lastDate > $earliestDate,
+            'pageComponent' => 'Page',
+            'pageTitle' => __('manager.statistics.counterR5Reports'),
+            'pageWidth' => TemplateManager::PAGE_WIDTH_FULL,
         ]);
         $templateMgr->display('stats/counterReports.tpl');
     }
@@ -484,7 +483,7 @@ class PKPStatsHandler extends Handler
         $context = $request->getContext();
 
         if (!$context) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         // The POST handler is here merely to serve a redirection URL to the Vue component
@@ -552,7 +551,7 @@ class PKPStatsHandler extends Handler
         $context = $request->getContext();
 
         if (!$context) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $templateMgr = TemplateManager::getManager($request);
@@ -582,7 +581,7 @@ class PKPStatsHandler extends Handler
         $reportPlugins = PluginRegistry::loadCategory('reports');
 
         if ($pluginName == '' || !isset($reportPlugins[$pluginName])) {
-            $request->redirect(null, null, 'stats', 'reports');
+            $request->redirect(null, null, 'stats', ['reports']);
         }
 
         $plugin = $reportPlugins[$pluginName];

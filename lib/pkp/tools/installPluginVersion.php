@@ -74,7 +74,7 @@ class InstallPluginVersionTool extends \PKP\cliTool\CommandLineTool
         $pluginPath = dirname($this->_descriptor);
         if (file_exists($wrapperName = "{$pluginPath}/index.php")) {
             // Old-style (non-FQCN) plugin class name
-            $plugin = include("{$pluginPath}/index.php");
+            $plugin = include($wrapperName);
         } else {
             // Expect a wrapper-less plugin in a namespace.
             $fqcn = '\\APP\\' . strtr($pluginVersion->getProductType(), '.', '\\') . '\\' . $pluginVersion->getProduct() . '\\' . $pluginVersion->getProductClassName();
@@ -97,9 +97,6 @@ class InstallPluginVersionTool extends \PKP\cliTool\CommandLineTool
         }
         if ($plugin->getInstallEmailTemplatesFile()) {
             $plugin->installEmailTemplates('Installer::postInstall', $param);
-        }
-        if ($plugin->getInstallEmailTemplateDataFile()) {
-            $plugin->installEmailTemplateData('Installer::postInstall', $param);
         }
         $plugin->installFilters('Installer::postInstall', $param);
         return $result;

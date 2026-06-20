@@ -251,7 +251,7 @@ Must run under user with enough privilegies to read access apache log files.\n"
 
         $filteredFilePath = $filePath . '_tmp';
         $callback = fn (Context $context): string => $context->getPath();
-        $escapedContextPaths = implode('/|/', array_map('escapeshellarg', array_map($callback, $this->contextsByPath)));
+        $escapedContextPaths = implode('/|/', array_map(escapeshellarg(...), array_map($callback, $this->contextsByPath)));
         $output = null;
         $returnValue = 0;
         exec(escapeshellarg(self::EGREP_PATH) . " -i '" . $escapedContextPaths . "' " . escapeshellarg($filePath) . ' > ' . escapeshellarg($filteredFilePath), $output, $returnValue);
@@ -382,7 +382,7 @@ Must run under user with enough privilegies to read access apache log files.\n"
                     Application::ASSOC_TYPE_ISSUE_GALLEY => [
                         'issue/download', 'issue/viewFile']
                 ];
-                $pageAndOp[Application::getContextAssocType()][] = 'index';
+                $pageAndOp[Application::getContextAssocType()][] = Application::SITE_CONTEXT_PATH;
                 break;
             case 'omp':
                 $pageAndOp = $pageAndOp + [
@@ -402,7 +402,7 @@ Must run under user with enough privilegies to read access apache log files.\n"
                     Application::ASSOC_TYPE_SUBMISSION => [
                         'preprint/view']
                 ];
-                $pageAndOp[Application::getContextAssocType()][] = 'index';
+                $pageAndOp[Application::getContextAssocType()][] = Application::SITE_CONTEXT_PATH;
                 break;
             default:
                 throw new Exception('Unrecognized application name.');

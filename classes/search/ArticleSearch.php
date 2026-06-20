@@ -21,14 +21,13 @@ namespace APP\search;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\issue\IssueAction;
 use PKP\db\DAORegistry;
-use PKP\facades\Locale;
 use PKP\plugins\Hook;
 use PKP\search\SubmissionSearch;
 use PKP\submission\PKPSubmission;
+use PKP\userGroup\UserGroup;
 
 class ArticleSearch extends SubmissionSearch
 {
@@ -71,14 +70,14 @@ class ArticleSearch extends SubmissionSearch
                 $filter['dateStart'] = $oneMonthAgo;
                 $filter['dateEnd'] = $today;
             }
-            $rawReport = Services::get('publicationStats')->getTotals($filter);
+            $rawReport = app()->get('publicationStats')->getTotals($filter);
             foreach ($rawReport as $row) {
                 $unorderedResults[$row->submission_id]['metric'] = $row->metric;
             }
         }
 
         $i = 0; // Used to prevent ties from clobbering each other
-        $authorUserGroups = Repo::userGroup()->getCollector()->filterByRoleIds([\PKP\security\Role::ROLE_ID_AUTHOR])->getMany();
+        $authorUserGroups = UserGroup::withRoleIds([\PKP\security\Role::ROLE_ID_AUTHOR])->get();
         foreach ($unorderedResults as $submissionId => $data) {
             // Exclude unwanted IDs.
             if (in_array($submissionId, $exclude)) {
@@ -200,7 +199,7 @@ class ArticleSearch extends SubmissionSearch
                 $context = $contextDao->getById($searchFilters['searchJournal']);
             } elseif (array_key_exists('journalTitle', $request->getUserVars())) {
                 $contexts = $contextDao->getAll(true);
-                while ($context = $contexts->next()) {
+                while ($context = $contexts->next()) { /** @var \PKP\context\Context $context */
                     if (in_array(
                         $request->getUserVar('journalTitle'),
                         (array) $context->getName(null)
@@ -318,6 +317,8 @@ class ArticleSearch extends SubmissionSearch
      *
      * @return null|array An array of string keywords or null
      * if some kind of error occurred.
+     *
+     * @hook ArticleSearch::getSimilarityTerms [[$submissionId, &$searchTerms]]
      */
     public function getSimilarityTerms($submissionId)
     {
@@ -332,10 +333,16 @@ class ArticleSearch extends SubmissionSearch
             $article = Repo::submission()->get($submissionId);
             if ($article->getData('status') === PKPSubmission::STATUS_PUBLISHED) {
                 // Retrieve keywords (if any).
-                $submissionSubjectDao = DAORegistry::getDAO('SubmissionKeywordDAO'); /** @var \PKP\submission\SubmissionKeywordDAO $submissionSubjectDao */
-                $allSearchTerms = array_filter($submissionSubjectDao->getKeywords($article->getCurrentPublication()->getId(), [Locale::getLocale(), $article->getLocale(), Locale::getPrimaryLocale()]));
+                $allSearchTerms = collect($article->getCurrentPublication()->getData('keywords'))
+                    ->map(
+                        fn (array $items): array => collect($items)
+                            ->pluck('name')
+                            ->all()
+                    )
+                    ->all();
+
                 foreach ($allSearchTerms as $locale => $localeSearchTerms) {
-                    $searchTerms += $localeSearchTerms;
+                    $searchTerms = array_merge($searchTerms, $localeSearchTerms);
                 }
             }
         }
@@ -360,6 +367,8 @@ class ArticleSearch extends SubmissionSearch
 
     /**
      * See SubmissionSearch::getResultSetOrderingOptions()
+     *
+     * @hook SubmissionSearch::getResultSetOrderingOptions [[$context, &$resultSetOrderingOptions]]
      */
     public function getResultSetOrderingOptions($request)
     {

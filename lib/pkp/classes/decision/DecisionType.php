@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/decision/DecisionType.php
  *
@@ -17,7 +18,6 @@ use APP\core\Application;
 use APP\core\Request;
 use APP\decision\Decision;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use Exception;
@@ -30,11 +30,10 @@ use PKP\db\DAORegistry;
 use PKP\file\TemporaryFileManager;
 use PKP\mail\EmailData;
 use PKP\mail\Mailable;
-use PKP\notification\NotificationDAO;
+use PKP\notification\Notification;
 use PKP\security\Role;
 use PKP\services\PKPSchemaService;
 use PKP\stageAssignment\StageAssignment;
-use PKP\stageAssignment\StageAssignmentDAO;
 use PKP\submission\GenreDAO;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
@@ -138,7 +137,7 @@ abstract class DecisionType
             $context->getPath(),
             'decision',
             'record',
-            $submission->getId(),
+            [$submission->getId()],
             $args
         );
     }
@@ -259,15 +258,13 @@ abstract class DecisionType
      */
     protected function getAssignedAuthorIds(Submission $submission): array
     {
-        $userIds = [];
-        /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-        $result = $stageAssignmentDao->getBySubmissionAndRoleIds($submission->getId(), [Role::ROLE_ID_AUTHOR], $this->getStageId());
-        /** @var StageAssignment $stageAssignment */
-        while ($stageAssignment = $result->next()) {
-            $userIds[] = (int) $stageAssignment->getUserId();
-        }
-        return $userIds;
+        // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+        return StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->withStageIds([$this->getStageId()])
+            ->get()
+            ->pluck('user_id')
+            ->all();
     }
 
     /**
@@ -520,19 +517,13 @@ abstract class DecisionType
         );
 
         // Create review round status notification
-        /** @var NotificationDAO $notificationDao */
-        $notificationDao = DAORegistry::getDAO('NotificationDAO');
-        $notificationFactory = $notificationDao->getByAssoc(
-            Application::ASSOC_TYPE_REVIEW_ROUND,
-            $reviewRound->getId(),
-            null,
-            Notification::NOTIFICATION_TYPE_REVIEW_ROUND_STATUS,
-            $submission->getData('contextId')
-        );
-        if (!$notificationFactory->next()) {
+        $count = Notification::withAssoc(Application::ASSOC_TYPE_REVIEW_ROUND, $reviewRound->getId())
+            ->withType(Notification::NOTIFICATION_TYPE_REVIEW_ROUND_STATUS)
+            ->withContextId($submission->getData('contextId'))
+            ->count();
+        if ($count == 0) {
             $notificationMgr = new NotificationManager();
             $notificationMgr->createNotification(
-                Application::get()->getRequest(),
                 null,
                 Notification::NOTIFICATION_TYPE_REVIEW_ROUND_STATUS,
                 $submission->getData('contextId'),
@@ -549,6 +540,6 @@ abstract class DecisionType
     {
         /** @var GenreDAO $genreDao */
         $genreDao = DAORegistry::getDAO('GenreDAO');
-        return $genreDao->getByContextId($contextId)->toArray();
+        return $genreDao->getByContextId($contextId)->toAssociativeArray();
     }
 }

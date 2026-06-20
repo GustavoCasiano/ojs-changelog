@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @defgroup pages_submissions Submissions editorial page
  */
@@ -16,9 +17,9 @@
  *
  */
 
+
 switch ($op) {
     case 'index':
     case 'tasks':
-        define('HANDLER_CLASS', 'PKP\pages\dashboard\DashboardHandler');
-        break;
+        return new PKP\pages\dashboard\DashboardHandler();
 }

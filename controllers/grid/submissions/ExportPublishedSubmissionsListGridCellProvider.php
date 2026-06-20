@@ -84,7 +84,7 @@ class ExportPublishedSubmissionsListGridCellProvider extends DataObjectGridCellP
                     )
                 ];
             case 'issue':
-                $contextId = $submission->getContextId();
+                $contextId = $submission->getData('contextId');
                 $issueId = $submission->getCurrentPublication()->getData('issueId');
                 $issue = Repo::issue()->get($issueId);
                 $issue = $issue->getJournalId() == $contextId ? $issue : null;
@@ -97,7 +97,7 @@ class ExportPublishedSubmissionsListGridCellProvider extends DataObjectGridCellP
                             'edit',
                             new AjaxModal(
                                 $dispatcher->url($request, PKPApplication::ROUTE_COMPONENT, null, 'grid.issues.BackIssueGridHandler', 'editIssue', null, ['issueId' => $issue->getId()]),
-                                __('plugins.importexport.common.settings.DOIPluginSettings')
+                                __('plugins.importexport.common.settings.DOIPluginSettings'),
                             ),
                             $issue->getIssueIdentification(),
                             null

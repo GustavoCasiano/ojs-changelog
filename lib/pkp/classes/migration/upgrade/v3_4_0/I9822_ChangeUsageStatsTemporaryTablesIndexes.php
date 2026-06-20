@@ -26,31 +26,27 @@ class I9822_ChangeUsageStatsTemporaryTablesIndexes extends Migration
      */
     public function up(): void
     {
-        $sm = Schema::getConnection()->getDoctrineSchemaManager();
-        Schema::table('usage_stats_total_temporary_records', function (Blueprint $table) use ($sm) {
-            $indexesFound = $sm->listTableIndexes('usage_stats_total_temporary_records');
-            if (array_key_exists('ust_load_id_context_id_ip', $indexesFound)) {
+        Schema::table('usage_stats_total_temporary_records', function (Blueprint $table) {
+            if (Schema::hasIndex('usage_stats_total_temporary_records', 'ust_load_id_context_id_ip')) {
                 $table->dropIndex('ust_load_id_context_id_ip');
             }
-            if (!array_key_exists('ust_load_id_context_id_ip_ua_url', $indexesFound)) {
+            if (!Schema::hasIndex('usage_stats_total_temporary_records', 'ust_load_id_context_id_ip_ua_url')) {
                 $table->index(['load_id', 'context_id', 'ip', 'user_agent', 'canonical_url'], 'ust_load_id_context_id_ip_ua_url');
             }
         });
-        Schema::table('usage_stats_unique_item_investigations_temporary_records', function (Blueprint $table) use ($sm) {
-            $indexesFound = $sm->listTableIndexes('usage_stats_unique_item_investigations_temporary_records');
-            if (array_key_exists('usii_load_id_context_id_ip', $indexesFound)) {
+        Schema::table('usage_stats_unique_item_investigations_temporary_records', function (Blueprint $table) {
+            if (Schema::hasIndex('usage_stats_unique_item_investigations_temporary_records', 'usii_load_id_context_id_ip')) {
                 $table->dropIndex('usii_load_id_context_id_ip');
             }
-            if (!array_key_exists('usii_load_id_context_id_ip_ua', $indexesFound)) {
+            if (!Schema::hasIndex('usage_stats_unique_item_investigations_temporary_records', 'usii_load_id_context_id_ip_ua')) {
                 $table->index(['load_id', 'context_id', 'ip', 'user_agent'], 'usii_load_id_context_id_ip_ua');
             }
         });
-        Schema::table('usage_stats_unique_item_requests_temporary_records', function (Blueprint $table) use ($sm) {
-            $indexesFound = $sm->listTableIndexes('usage_stats_unique_item_requests_temporary_records');
-            if (array_key_exists('usir_load_id_context_id_ip', $indexesFound)) {
+        Schema::table('usage_stats_unique_item_requests_temporary_records', function (Blueprint $table) {
+            if (Schema::hasIndex('usage_stats_unique_item_requests_temporary_records', 'usir_load_id_context_id_ip')) {
                 $table->dropIndex('usir_load_id_context_id_ip');
             }
-            if (!array_key_exists('usir_load_id_context_id_ip_ua', $indexesFound)) {
+            if (!Schema::hasIndex('usage_stats_unique_item_requests_temporary_records', 'usir_load_id_context_id_ip_ua')) {
                 $table->index(['load_id', 'context_id', 'ip', 'user_agent'], 'usir_load_id_context_id_ip_ua');
             }
         });

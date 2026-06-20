@@ -1,8 +1,8 @@
 # TAKASHI IMAGIRE <imagire@gmail.com>, 2021.
-# Bjorn-Ole Kamm <pkp_trans@b-ok.de>, 2024.
+# Bjorn-Ole Kamm <pkp_trans@b-ok.de>, 2024, 2026.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2024-06-25 07:25+0000\n"
+"PO-Revision-Date: 2026-01-09 01:22+0000\n"
 "Last-Translator: Bjorn-Ole Kamm <pkp_trans@b-ok.de>\n"
 "Language-Team: Japanese <http://translate.pkp.sfu.ca/projects/pkp-lib/"
 "manager/ja/>\n"
@@ -1092,8 +1092,8 @@ msgstr "日付と時間フォーマット"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "日付と時刻のフォーマットを選択してください。カスタムフォーマットの入力には、"
-"特殊な<a href='http://php.net/manual/en/function.strftime.php#refsect1-"
-"function.strftime-parameters'>フォーマット文字</a>が使えます。"
+"特殊な<a href='http://php.net/manual/ja/datetime.format.php#refsect1-"
+"datetime.format-parameters'>フォーマット文字</a>が使えます。"
 
 msgid "manager.setup.dateTime.longDate"
 msgstr "日付"
@@ -1954,23 +1954,6 @@ msgstr "投稿時に著者にキーワードを提案してもらう。"
 msgid "manager.setup.metadata.keywords.require"
 msgstr "投稿を受け付ける前に、著者にキーワードの提案を求める。"
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"言語は、作品の主要言語を言語コード（\"ja\"）と国コード（\"ja_JP\"）で表しま"
-"す。"
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "言語メタデータの有効化"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr "投稿中に著者に投稿言語を要求しない。"
-
-msgid "manager.setup.metadata.languages.request"
-msgstr "投稿時に投稿言語を記入してもらう。"
-
-msgid "manager.setup.metadata.languages.require"
-msgstr "投稿を受け付ける前に、著者に投稿言語の入力を求める。"
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "知的財産権（IPR）、著作権、様々な財産権を含む、投稿物に対して保持されているあ"
@@ -2290,15 +2273,6 @@ msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "このリンクは、「設定」→「ジャーナル」の「ジャーナルについて」に記入した場合に"
 "のみ表示されます。"
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"「設定」→「ジャーナル」の奥付コンテンツを表示するページへのリンクです。"
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"このリンクは、「設定」→「ジャーナル」の「編集チーム」セクションに記入した場合"
-"にのみ表示されます。"
 
 msgid "manager.navigationMenus.submissions.description"
 msgstr "投稿方法を記載したページへのリンクです。"
@@ -3392,5 +3366,24 @@ msgid "manager.setup.competingInterests.requireAuthors"
 msgstr ""
 "投稿する著者に、投稿時に競合する利益（CI）に関する声明を提出するよう求める。"
 
+msgid "manager.setup.masthead"
+msgstr "マストヘッド"
+
 msgid "plugins.importexport.common.validation"
 msgstr "エクスポートや登録の前にXMLを検証します。"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled"
+msgstr "投稿時の査読者候補"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.label"
+msgstr "投稿プロセスにおいて著者が査読者候補を提案できるようにする"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.description"
+msgstr "著者は投稿を完了する前に複数の査読者候補を提案することができ、これにより査読"
+"プロセスの効率化や編集部にとって有益な情報の提供につながります。"
+
+msgid "manager.setup.workflow.reviewerSuggestionsHelp.description"
+msgstr ""
+"以下は、査読者候補の提案ステップにおいて著者に表示されます。著者自身、共著者"
+"、ならびにその他の貢献者について、どのような情報を提供すべきかを簡潔に説明し"
+"てください。"

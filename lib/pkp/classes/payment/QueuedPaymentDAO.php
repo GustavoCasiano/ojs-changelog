@@ -20,9 +20,9 @@
 namespace PKP\payment;
 
 use APP\core\Application;
+use Illuminate\Support\Facades\DB;
 use PKP\core\Core;
-use PKP\db\DAORegistry;
-use PKP\notification\NotificationDAO;
+use PKP\notification\Notification;
 
 class QueuedPaymentDAO extends \PKP\db\DAO
 {
@@ -99,17 +99,14 @@ class QueuedPaymentDAO extends \PKP\db\DAO
 
     /**
      * Delete a queued payment.
-     *
-     * @param int $queuedPaymentId
      */
-    public function deleteById($queuedPaymentId)
+    public function deleteById(int $queuedPaymentId): int
     {
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationDao->deleteByAssoc(Application::ASSOC_TYPE_QUEUED_PAYMENT, $queuedPaymentId);
-        $this->update(
-            'DELETE FROM queued_payments WHERE queued_payment_id = ?',
-            [(int) $queuedPaymentId]
-        );
+        Notification::withAssoc(Application::ASSOC_TYPE_QUEUED_PAYMENT, $queuedPaymentId)
+            ->delete();
+        return DB::table('queued_payments')
+            ->where('queued_payment_id', '=', $queuedPaymentId)
+            ->delete();
     }
 
     /**

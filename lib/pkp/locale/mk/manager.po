@@ -1,8 +1,8 @@
-# Mirko Spiroski <mspiroski@id-press.eu>, 2021, 2023, 2024.
+# Mirko Spiroski <mspiroski@id-press.eu>, 2021, 2023, 2024, 2025, 2026.
 # Emilija Andonoska <emilija-andonoska@hotmail.com>, 2023.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2024-11-16 09:40+0000\n"
+"PO-Revision-Date: 2026-03-01 17:45+0000\n"
 "Last-Translator: Mirko Spiroski <mspiroski@id-press.eu>\n"
 "Language-Team: Macedonian <http://translate.pkp.sfu.ca/projects/pkp-lib/"
 "manager/mk/>\n"
@@ -922,7 +922,7 @@ msgstr ""
 msgid "doi.manager.settings.doiSuffix.description"
 msgstr ""
 "Додаток на ДОИ може да има каква било форма, но мора да биде единствен меѓу "
-"сите објавувачки објекти со ист доделен префикс ДОИ:"
+"сите објавувачки објекти со ист доделен префикс ДОИ."
 
 msgid "doi.manager.settings.doiSuffixDefault"
 msgstr "Стандардно - Автоматски генерира единствен суфикс од осум знаци"
@@ -995,17 +995,23 @@ msgstr "Копирајт изјава"
 
 msgid "manager.setup.copyrightNotice.description"
 msgstr ""
-"Барајте од авторите да се согласат со следното известување за авторски права "
-"како дел од процесот на поднесување."
+"Следново се појавува на страницата <a href=\"{$url}\">поднесувања</a> каде "
+"што авторите ќе дознаат за условите за поднесување. Од авторите ќе се бара "
+"да потврдат дека се согласуваат со известувањето за авторски права пред "
+"нивното поднесување да биде завршено."
 
 msgid "manager.setup.authorGuidelines"
 msgstr "Упатства за авторот"
 
 msgid "manager.setup.authorGuidelines.description"
 msgstr ""
-"Препорачаните упатства вклучуваат библиографски стандарди и стандарди за "
-"форматирање, заедно со примери на вообичаени формати за наведување што се "
-"користат во поднесоците."
+"Следново се појавува на страницата <a href=\"{$url}\">поднесувања</a> каде "
+"што авторите ќе дознаат што мора да направат за да ја подготват својата "
+"работа за поднесување. Дајте упатства за сè што можеби треба да знаат, како "
+"што се библиографските стандарди и стандардите за форматирање, заедно со "
+"примери за вообичаени формати за цитирање што треба да се користат. Можеби "
+"ќе сакате да дадете и детали за претпочитаниот формат и темата на "
+"поднесувањата."
 
 msgid "manager.setup.disableSubmissions"
 msgstr "Оневозможи поднесок"
@@ -1186,8 +1192,8 @@ msgstr "Фирмати за дата и за време"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "Избери посакуван формат за дати и за времиња. Избраниот формат може да се "
-"внесе со користење на специјален <a href='http://php.net/manual/en/function."
-"strftime.php#refsect1-function.strftime-parameters'>формат на карактери</a>."
+"внесе со користење на специјален <a href='http://php.net/manual/en/datetime."
+"format.php#refsect1-datetime.format-parameters'>формат на карактери</a>."
 
 msgid "manager.setup.dateTime.longDate"
 msgstr "Дата"
@@ -2093,28 +2099,6 @@ msgstr ""
 "Барај авторот да предложи клучни зборови пред да биде прифатен нивниот "
 "поднесок."
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"Јазикот укажува на примарен јазик за работа со користење на јазичен код (\"en"
-"\") с опција за дополнителен код на земјата (\"en_US\")."
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "Овозможи метаподатоци за јазик"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr ""
-"За време на поднесувањето, не ги барајте јазиците на поднесокот од авторот."
-
-msgid "manager.setup.metadata.languages.request"
-msgstr ""
-"За време на поднесувањето, прашајте го авторот да ги посочи јазиците на "
-"поднесокот."
-
-msgid "manager.setup.metadata.languages.require"
-msgstr ""
-"Барај авторот да ги внесе јазиците на поднесокот пред да биде прифатен "
-"нивниот поднесок."
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "Задржани се било какви права над поднесокот, што може да вклучува права на "
@@ -2469,16 +2453,6 @@ msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "Овој линк ќе биде прикажан само доколку ја имате пополнето секцијата За "
 "списанието во Поставки > Списание."
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr ""
-"Линк до страницата која ја прикажува Главната содржина во Подесување > "
-"Списание."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Овој линк ќе биде прикажан само доколку ја имате пополнето секцијата "
-"Уреднички тим во Поставки > Списание."
 
 msgid "manager.navigationMenus.submissions.description"
 msgstr "Поврзете се до страницата која ги прикажува упатствата за поднесување."
@@ -2968,6 +2942,7 @@ msgstr "Име на рецензентот"
 
 msgid "emailTemplate.variable.reviewType"
 msgstr ""
+"Опис на стандардниот метод на преглед, како што е двојно анонимен или отворен"
 
 msgid "emailTemplate.variable.reviewType.doubleAnonymous"
 msgstr ""
@@ -3748,6 +3723,9 @@ msgstr ""
 "Потребно е да ги доставите авторите да поднесат изјава за натпреварувачки "
 "интерес (КИ) со нивно поднесување."
 
+msgid "manager.setup.masthead"
+msgstr "Мајстор"
+
 msgid "plugins.importexport.common.validation"
 msgstr "Потврдете го XML пред извозот и регистрацијата."
 
@@ -3827,3 +3805,139 @@ msgstr "Исклучи месечни детали"
 
 msgid "manager.statistics.counterR5Report.settings.endDate"
 msgstr "Датум на комплетирање"
+
+msgid "manager.language.submissionLanguages"
+msgstr "Јазици за поднесување"
+
+msgid "manager.language.submission.form.description"
+msgstr "Изберете јазици за поднесување и метаподатоци."
+
+msgid "manager.language.submission.from.error"
+msgstr "Треба да се избере најмалку една локација."
+
+msgid "manager.setup.reviewOptions.reminders"
+msgstr "Поставете потсетници за рецензија"
+
+msgid "manager.setup.reviewOptions.reminders.description"
+msgstr ""
+"Испратете потсетник по е-пошта пред или потоа за одговор на барањето за "
+"рецензија (ако рецензентот сè уште не одговорил на барањето за рецензија) "
+"или поднесување за рецензија (ако рецензентот сè уште не поднел рецензија)"
+
+msgid "manager.setup.reviewOptions.reminders.response.before"
+msgstr "Одговор на барање рецензија - пред датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.response.after"
+msgstr "Одговор на барањето рецензија - по датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.submit.before"
+msgstr "Поднесување рецензија - пред датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.submit.after"
+msgstr "Поднесување рецензија - по датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.label.before.days"
+msgstr "{$value} дена пред датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.label.after.days"
+msgstr "{$value} дена по датумот на доспевање"
+
+msgid "manager.setup.reviewOptions.reminders.min.label"
+msgstr "Ниедно"
+
+msgid "manager.setup.reviewOptions.reminders.disbale.label"
+msgstr "Нема поставено потсетник"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled"
+msgstr "Предлог на рецензент при поднесување"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.label"
+msgstr ""
+"Дозволете им на авторите да предложат потенцијални рецензенти при процесот "
+"на поднесување"
+
+msgid "notification.defaultLocaleSettingsCannotBeSaved"
+msgstr ""
+"Поставката за јазикот не може да се зачува. Сите опции треба да бидат "
+"овозможени."
+
+msgid "notification.submissionLocales"
+msgstr "Локалните места за поднесување се ажурирани."
+
+msgid "settings.roles.masthead"
+msgstr "Размислете за улогата во листата на мастглави"
+
+msgid "settings.roles.permitSettings"
+msgstr "Дозволете промени во Поставки"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.description"
+msgstr ""
+"Авторот може да предложи неколку потенцијални рецензенти пред да го заврши "
+"поднесувањето, што може да го рационализира процесот на рецензирање и да "
+"обезбеди вреден придонес за уредничкиот тим."
+
+msgid "manager.setup.workflow.reviewerSuggestionsHelp.description"
+msgstr ""
+"Следното им се прикажува на авторите за време на чекорот за предлози на "
+"рецензентот. Обезбедете кратко објаснување за тоа кои информации авторот "
+"треба да ги даде за себе, коавторите и сите други соработници."
+
+msgid "plugins.importexport.common.error.missingAffiliationName"
+msgstr ""
+"Авторот {$authorName} нема име на припадност на јазикот на поднесокот, "
+"{$localeName}. Поднесокот не може да се увезе без оваа информација."
+
+msgid "manager.language.websiteLanguages"
+msgstr "Јазици на веб-страниците"
+
+# fuzzy
+msgid "manager.navigationMenus.items.form.title.required"
+msgstr "Насловот на ставката од менито е задолжителен."
+
+msgid "manager.language.gridAction.addLangauage"
+msgstr "Додај/отстрани јазици"
+
+msgid "manager.setup.editorialMasthead.order.description"
+msgstr "Дефинирајте го редоследот на улогите на јарболот за јавно прикажување."
+
+msgid "manager.language.submissionMetadata"
+msgstr "Метаподатоци"
+
+msgid "manager.setup.editorialMasthead.order.reviewers.description"
+msgstr ""
+"Рецензентите ќе бидат прикажани во стандардизиран формат за да се одржи "
+"униформноста и да се обезбеди лесно откривање во овој дел."
+
+msgid "manager.setup.appearance.editorialMasthead.description"
+msgstr ""
+"Дефинирајте го редоследот на улогите на уредувачките глави за јавно "
+"прикажување."
+
+msgid "manager.navigationMenus.editorialMasthead.description"
+msgstr ""
+"Врска до страница на која се прикажуваат сите активни уредувачки услуги за "
+"мастглави."
+
+msgid "manager.setup.editorialMasthead.editorialHistory.description"
+msgstr ""
+"Ве молиме наведете ја уредувачката историја, вклучувајќи го целосното име, "
+"припадноста и датумите на почеток и крај на секој уредник."
+
+msgid "mailable.changeProfileEmailInvitationNotify.name"
+msgstr "Променете ја поканата за е-пошта"
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission"
+msgstr "Потребни се минимум потврдени рецензии"
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission.description"
+msgstr "Минимален број на потврдени рецензии потребен за поднесување"
+
+msgid "manager.categories.form.removeCoverImageOnDifferentContextNowAllowed"
+msgstr ""
+"Категоријата не постои или припаѓа на друг контекст. Ве молиме осигурајте се "
+"дека работите со точниот контекст и обидете се повторно."
+
+msgid "manager.categories.form.removeCoverImageFileNotFound"
+msgstr ""
+"Не може да се пронајдат сликите од насловната страница и сликичките. Можеби "
+"веќе се избришани. Обидете се повторно да ја вчитате страницата."

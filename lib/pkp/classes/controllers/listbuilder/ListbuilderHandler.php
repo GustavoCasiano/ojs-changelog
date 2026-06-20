@@ -181,7 +181,7 @@ class ListbuilderHandler extends GridHandler
      */
     public function deleteEntry($request, $rowId)
     {
-        fatalError('ABSTRACT METHOD');
+        throw new \Exception('ABSTRACT METHOD');
     }
 
     /**
@@ -214,7 +214,7 @@ class ListbuilderHandler extends GridHandler
      */
     public function insertEntry($request, $newRowId)
     {
-        fatalError('ABSTRACT METHOD');
+        throw new \Exception('ABSTRACT METHOD');
     }
 
     /**
@@ -272,9 +272,9 @@ class ListbuilderHandler extends GridHandler
      * Unpack data to save using an external handler.
      *
      * @param string $data (the json encoded data from the listbuilder itself)
-     * @param array $deletionCallback callback to be used for each deleted element
-     * @param array $insertionCallback callback to be used for each updated element
-     * @param array $updateCallback callback to be used for each updated element
+     * @param callback $deletionCallback callback to be used for each deleted element
+     * @param callback $insertionCallback callback to be used for each updated element
+     * @param callback $updateCallback callback to be used for each updated element
      */
     public static function unpack($request, $data, $deletionCallback, $insertionCallback, $updateCallback)
     {
@@ -356,9 +356,9 @@ class ListbuilderHandler extends GridHandler
         self::unpack(
             $request,
             $data,
-            [$this, 'deleteEntry'],
-            [$this, 'insertEntry'],
-            [$this, 'updateEntry']
+            $this->deleteEntry(...),
+            $this->insertEntry(...),
+            $this->updateEntry(...)
         );
     }
 

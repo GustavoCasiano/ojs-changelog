@@ -18,7 +18,6 @@ namespace PKP\controllers\modals\publish;
 
 use APP\components\forms\publication\PublishForm;
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\handler\Handler;
 use APP\publication\Publication;
@@ -58,9 +57,9 @@ class PublishHandler extends Handler
     /**
      * @copydoc PKPHandler::initialize()
      */
-    public function initialize($request)
+    public function initialize($request, $args = null)
     {
-        parent::initialize($request);
+        parent::initialize($request, $args);
         $this->submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
         $this->publication = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_PUBLICATION);
         $this->setupTemplate($request);
@@ -94,7 +93,7 @@ class PublishHandler extends Handler
 
         $submissionContext = $request->getContext();
         if (!$submissionContext || $submissionContext->getId() !== $this->submission->getData('contextId')) {
-            $submissionContext = Services::get('context')->get($this->submission->getData('contextId'));
+            $submissionContext = app()->get('context')->get($this->submission->getData('contextId'));
         }
 
         $primaryLocale = $submissionContext->getPrimaryLocale();
@@ -107,10 +106,11 @@ class PublishHandler extends Handler
 
         $settingsData = [
             'components' => [
-                FORM_PUBLISH => $publishForm->getConfig(),
+                PublishForm::FORM_PUBLISH => $publishForm->getConfig(),
             ],
         ];
 
+        $templateMgr->registerClass(PublishForm::class, PublishForm::class);
         $templateMgr->assign('publishData', $settingsData);
 
         return $templateMgr->fetchJson('controllers/modals/publish/publish.tpl');

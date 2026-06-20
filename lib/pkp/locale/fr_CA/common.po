@@ -1,14 +1,14 @@
 # Marie-Hélène Vézina [UdeMontréal] <marie-helene.vezina@umontreal.ca>, 2022, 2023.
-# Nicolas Dickner <dickner.nicolas@uqam.ca>, 2023.
-# Pierre Lasou <pierre.lasou@bibl.ulaval.ca>, 2023.
+# Nicolas Dickner <dickner.nicolas@uqam.ca>, 2023, 2025.
+# Pierre Lasou <pierre.lasou@bibl.ulaval.ca>, 2023, 2025.
 # Rodolphe Lemétayer <rlemetayer@protonmail.com>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-10-15T13:36:56-07:00\n"
-"PO-Revision-Date: 2024-06-21 19:39+0000\n"
-"Last-Translator: Rodolphe Lemétayer <rlemetayer@protonmail.com>\n"
+"PO-Revision-Date: 2025-10-17 16:19+0000\n"
+"Last-Translator: Pierre Lasou <pierre.lasou@bibl.ulaval.ca>\n"
 "Language-Team: French (Canada) <http://translate.pkp.sfu.ca/projects/pkp-lib/"
 "common/fr_CA/>\n"
 "Language: fr_CA\n"
@@ -1862,6 +1862,12 @@ msgstr "Date d'échéance de la réponse"
 msgid "reviewer.submission.reviewDueDate"
 msgstr "Date d'échéance de remise de l'évaluation"
 
+msgid "reviewer.submission.acceptedOn"
+msgstr "Date d'acceptation de l'évaluation"
+
+msgid "reviewer.submission.submittedOn"
+msgstr "Date de la soumission de l'évaluation"
+
 msgid "submission.task.responseDueDate"
 msgstr "Date d'échéance de la réponse"
 
@@ -1998,6 +2004,7 @@ msgstr "Statut du cycle {$round}"
 msgid "notification.type.editorialReport"
 msgstr "Résumé du rapport de statistiques."
 
+#, fuzzy
 msgid "notification.type.editorialReport.contents"
 msgstr ""
 "Ceci est un rappel amical pour vous inciter à vérifier la bonne marche de "
@@ -2338,3 +2345,12 @@ msgstr "Auteur-e modifié-e."
 
 #~ msgid "common.captchaField"
 #~ msgstr "Validation"
+
+msgid "navigation.dashboards"
+msgstr "Tableau de bord éditorial"
+
+msgid "about.editorialMasthead.linkToEditorialHistory"
+msgstr "Afficher l'<a href=\"{$url}\">historique éditorial</a>"
+
+msgid "common.assignments"
+msgstr "Affectation"

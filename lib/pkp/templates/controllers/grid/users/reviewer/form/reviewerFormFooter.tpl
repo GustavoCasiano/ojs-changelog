@@ -29,7 +29,7 @@
 		{fbvElement type="checkbox" id="skipEmail" name="skipEmail" label="editor.review.skipEmail"}
 	{/fbvFormSection}
 
-	{fbvFormSection title="editor.review.importantDates"}
+	{fbvFormSection title="editor.review.importantDates" description="editor.review.importantDates.notice"}
 		{fbvElement type="text" id="responseDueDate" name="responseDueDate" label="submission.task.responseDueDate" value=$responseDueDate inline=true size=$fbvStyles.size.MEDIUM class="datepicker"}
 		{fbvElement type="text" id="reviewDueDate" name="reviewDueDate" label="editor.review.reviewDueDate" value=$reviewDueDate inline=true size=$fbvStyles.size.MEDIUM class="datepicker"}
 	{/fbvFormSection}
@@ -38,11 +38,12 @@
 
 	{capture assign="extraContent"}
 		<!-- Available review files -->
-		{capture assign=limitReviewFilesGridUrl}{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.files.review.LimitReviewFilesGridHandler" op="fetchGrid" submissionId=$submissionId stageId=$stageId reviewRoundId=$reviewRoundId escape=false}{/capture}
+		{capture assign=limitReviewFilesGridUrl}{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.files.review.LimitReviewFilesGridHandler" op="fetchGrid" submissionId=$submissionId stageId=$stageId reviewRoundId=$reviewRoundId escape=false}{/capture}
 		{load_url_in_div id="limitReviewFilesGrid" url=$limitReviewFilesGridUrl}
 	{/capture}
 	<div id="filesAccordian" class="section">
 		{include file="controllers/extrasOnDemand.tpl"
+			parentContainer="div#filesAccordian"
 			id="filesAccordianController"
 			widgetWrapper="#filesAccordian"
 			moreDetailsText="editor.submissionReview.restrictFiles"

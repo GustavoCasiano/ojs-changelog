@@ -40,9 +40,9 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
     {
         if (parent::register($category, $path, $mainContextId)) {
             if ($this->getEnabled()) {
-                Hook::add('ArticleHandler::view::galley', [$this, 'articleCallback']);
-                Hook::add('IssueHandler::view::galley', [$this, 'issueCallback']);
-                Hook::add('ArticleHandler::download', [$this, 'articleDownloadCallback'], Hook::SEQUENCE_LATE);
+                Hook::add('ArticleHandler::view::galley', $this->articleCallback(...));
+                Hook::add('IssueHandler::view::galley', $this->issueCallback(...));
+                Hook::add('ArticleHandler::download', $this->articleDownloadCallback(...), Hook::SEQUENCE_LATE);
             }
             return true;
         }
@@ -108,7 +108,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
                 'galleyFile' => $galley->getFile(),
                 'issue' => $issue,
                 'article' => $submission,
-                'bestId' => $submission->getBestId(),
+                'bestId' => $galleyPublication->getData('urlPath') ?? $submission->getId(),
                 'isLatestPublication' => $submission->getData('currentPublicationId') === $galley->getData('publicationId'),
                 'galleyPublication' => $galleyPublication,
                 'galley' => $galley,
@@ -163,7 +163,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
     private function _getJQueryUrl($request)
     {
         $min = Config::getVar('general', 'enable_minified') ? '.min' : '';
-        return $request->getBaseUrl() . '/lib/pkp/lib/vendor/components/jquery/jquery' . $min . '.js';
+        return $request->getBaseUrl() . '/js/build/jquery/jquery' . $min . '.js';
     }
 
     /**
@@ -265,7 +265,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
                 $params['inline'] = 'true';
             }
 
-            $fileUrl = $request->url(null, 'article', 'download', [$referredArticle->getBestId(), 'version', $galley->getData('publicationId'), $galley->getBestGalleyId(), $embeddableFile->getId(), $embeddableFile->getLocalizedData('name')], $params);
+            $fileUrl = $request->url(null, 'article', 'download', [$referredPublication->getData('urlPath') ?? $referredArticle->getId(), 'version', $galley->getData('publicationId'), $galley->getBestGalleyId(), $embeddableFile->getId(), $embeddableFile->getLocalizedData('name')], $params);
             $pattern = preg_quote(rawurlencode($embeddableFile->getLocalizedData('name')), '/');
             $contents = preg_replace(
                 $pattern = '/([Ss][Rr][Cc]|[Hh][Rr][Ee][Ff]|[Dd][Aa][Tt][Aa])\s*=\s*"([^"]*' . $pattern . ')"/',
@@ -280,7 +280,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
         // Perform replacement for ojs://... URLs
         $contents = preg_replace_callback(
             '/(<[^<>]*")[Oo][Jj][Ss]:\/\/([^"]+)("[^<>]*>)/',
-            [$this, '_handleOjsUrl'],
+            $this->_handleOjsUrl(...),
             $contents
         );
         if ($contents === null) {
@@ -319,7 +319,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
         }
         $urlParts = explode('/', $url);
         if (isset($urlParts[0])) {
-            switch (strtolower_codesafe($urlParts[0])) {
+            switch (strtolower($urlParts[0])) {
                 case 'journal':
                     $url = $request->url(
                         $urlParts[1] ?? $request->getRouter()->getRequestedContextPath($request),
@@ -336,7 +336,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
                             null,
                             'article',
                             'view',
-                            $urlParts[1],
+                            [$urlParts[1]],
                             null,
                             $anchor
                         );
@@ -348,7 +348,7 @@ class LensGalleyPlugin extends \PKP\plugins\GenericPlugin
                             null,
                             'issue',
                             'view',
-                            $urlParts[1],
+                            [$urlParts[1]],
                             null,
                             $anchor
                         );

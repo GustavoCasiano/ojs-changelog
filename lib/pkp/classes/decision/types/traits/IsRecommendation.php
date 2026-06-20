@@ -2,8 +2,8 @@
 /**
  * @file classes/decision/types/traits/IsRecommendation.php
  *
- * Copyright (c) 2014-2022 Simon Fraser University
- * Copyright (c) 2000-2022 John Willinsky
+ * Copyright (c) 2014-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class decision
@@ -14,7 +14,6 @@
 namespace PKP\decision\types\traits;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\decision\Decision;
 use APP\facades\Repo;
 use APP\submission\Submission;
@@ -32,7 +31,9 @@ use PKP\mail\EmailData;
 use PKP\mail\Mailable;
 use PKP\mail\mailables\RecommendationNotifyEditors;
 use PKP\note\Note;
-use PKP\query\QueryDAO;
+use PKP\query\Query;
+use PKP\security\Role;
+use PKP\stageAssignment\StageAssignment;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submissionFile\SubmissionFile;
 use PKP\user\User;
@@ -116,20 +117,22 @@ trait IsRecommendation
      */
     protected function addRecommendationQuery(EmailData $email, Submission $submission, User $editor, Context $context): void
     {
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var \StageAssignmentDAO $stageAssignmentDao */
         $queryParticipantIds = [];
-        $editorsStageAssignments = $stageAssignmentDao->getEditorsAssignedToStage($submission->getId(), $this->getStageId());
+        // Replaces StageAssignmentDAO::getEditorsAssignedToStage
+        $editorsStageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withStageIds([$this->getStageId()])
+            ->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+            ->get();
+
         foreach ($editorsStageAssignments as $editorsStageAssignment) {
-            if (!$editorsStageAssignment->getRecommendOnly()) {
-                if (!in_array($editorsStageAssignment->getUserId(), $queryParticipantIds)) {
-                    $queryParticipantIds[] = $editorsStageAssignment->getUserId();
+            if (!$editorsStageAssignment->recommendOnly) {
+                if (!in_array($editorsStageAssignment->userId, $queryParticipantIds)) {
+                    $queryParticipantIds[] = $editorsStageAssignment->userId;
                 }
             }
         }
 
-        /** @var QueryDAO $queryDao */
-        $queryDao = DAORegistry::getDAO('QueryDAO');
-        $queryId = $queryDao->addQuery(
+        $queryId = Repo::query()->addQuery(
             $submission->getId(),
             $this->getStageId(),
             $email->subject,
@@ -140,8 +143,8 @@ trait IsRecommendation
             false
         );
 
-        $query = $queryDao->getById($queryId);
-        $note = $query->getHeadNote();
+        $query = Query::find($queryId);
+        $note = Repo::note()->getHeadNote($query->id);
         $mailable = new Mailable();
         foreach ($email->attachments as $attachment) {
             if (isset($attachment[Mailable::ATTACHMENT_TEMPORARY_FILE])) {
@@ -168,7 +171,7 @@ trait IsRecommendation
                 $newSubmissionFile->setData('fileStage', SubmissionFile::SUBMISSION_FILE_QUERY);
                 $newSubmissionFile->setData('sourceSubmissionFileId', $submissionFile->getId());
                 $newSubmissionFile->setData('assocType', Application::ASSOC_TYPE_NOTE);
-                $newSubmissionFile->setData('assocId', $note->getId());
+                $newSubmissionFile->setData('assocId', $note->id);
                 Repo::submissionFile()->add($newSubmissionFile);
                 $mailable->attachSubmissionFile($newSubmissionFile->getId(), $newSubmissionFile->getLocalizedData('name'));
             } elseif (isset($attachment[Mailable::ATTACHMENT_LIBRARY_FILE])) {
@@ -202,7 +205,7 @@ trait IsRecommendation
     {
         $extension = pathinfo($filename, PATHINFO_EXTENSION);
         $submissionDir = Repo::submissionFile()->getSubmissionDir($context->getId(), $submission->getId());
-        $fileId = Services::get('file')->add(
+        $fileId = app()->get('file')->add(
             $filepath,
             $submissionDir . '/' . uniqid() . '.' . $extension
         );
@@ -215,7 +218,7 @@ trait IsRecommendation
             'submissionId' => $submission->getId(),
             'uploaderUserId' => $uploader->getId(),
             'assocType' => Application::ASSOC_TYPE_NOTE,
-            'assocId' => $note->getId(),
+            'assocId' => $note->id,
         ]);
         Repo::submissionFile()->add($submissionFile);
     }
@@ -229,7 +232,7 @@ trait IsRecommendation
 
         $mailable
             ->from($editor->getEmail(), $editor->getFullName())
-            ->to($recipients->map(fn(User $recipient) => ['email' => $recipient->getEmail(), 'name' => $recipient->getFullName()])->toArray())
+            ->to($recipients->map(fn (User $recipient) => ['email' => $recipient->getEmail(), 'name' => $recipient->getFullName()])->toArray())
             ->cc($email->cc)
             ->bcc($email->bcc)
             ->subject($email->subject)

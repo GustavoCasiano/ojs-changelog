@@ -15,10 +15,8 @@ namespace PKP\decision;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\decision\Decision;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use Exception;
@@ -29,14 +27,13 @@ use PKP\core\Core;
 use PKP\core\PKPApplication;
 use PKP\db\DAORegistry;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionLog;
+use PKP\notification\Notification;
 use PKP\observers\events\DecisionAdded;
 use PKP\plugins\Hook;
 use PKP\security\Role;
 use PKP\security\Validation;
 use PKP\services\PKPSchemaService;
 use PKP\stageAssignment\StageAssignment;
-use PKP\stageAssignment\StageAssignmentDAO;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\submissionFile\SubmissionFile;
 use PKP\validation\ValidatorFactory;
@@ -110,6 +107,8 @@ abstract class Repository
      * @param Submission $submission The submission for this decision
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Decision::validate [[&$errors, $props]]
      */
     public function validate(array $props, DecisionType $decisionType, Submission $submission, Context $context): array
     {
@@ -157,10 +156,14 @@ abstract class Repository
             // A recommendation can not be made if the submission does not
             // have at least one assigned editor who can make a decision
             if ($this->isRecommendation($decisionType->getDecision())) {
-                /** @var StageAssignmentDAO $stageAssignmentDao  */
-                $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-                $assignedEditorIds = $stageAssignmentDao->getDecidingEditorIds($submission->getId(), $decisionType->getStageId());
-                if (!$assignedEditorIds) {
+                // Replaces StageAssignmentDAO::getDecidingEditorIds
+                $existingAssignedEditors = StageAssignment::withSubmissionIds([$submission->getId()])
+                    ->withStageIds([$decisionType->getStageId()])
+                    ->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+                    ->withRecommendOnly(false)
+                    ->exists();
+
+                if (!$existingAssignedEditors) {
                     $validator->errors()->add('decision', __('editor.submission.workflowDecision.requiredDecidingEditor'));
                 }
             }
@@ -203,6 +206,8 @@ abstract class Repository
 
     /**
      * Record an editorial decision
+     *
+     * @hook Decision::add [[$decision]]
      */
     public function add(Decision $decision): int
     {
@@ -226,7 +231,7 @@ abstract class Repository
         $decision = $this->get($decision->getId());
         $context = Application::get()->getRequest()->getContext();
         if (!$context || $context->getId() !== $submission->getData('contextId')) {
-            $context = Services::get('context')->get($submission->getData('contextId'));
+            $context = app()->get('context')->get($submission->getData('contextId'));
         }
 
         // Log the decision
@@ -416,7 +421,7 @@ abstract class Repository
     /**
      * Update notifications controlled by the NotificationManager
      */
-    protected function updateNotifications(Decision $decision, DecisionType $decisionType, Submission $submission)
+    protected function updateNotifications(Decision $decision, DecisionType $decisionType, Submission $submission): void
     {
         $notificationMgr = new NotificationManager();
 
@@ -426,14 +431,13 @@ abstract class Repository
             array_unshift($notificationTypes, $editorDecisionNotificationType);
         }
 
-        $authorIds = [];
-        /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-        $result = $stageAssignmentDao->getBySubmissionAndRoleIds($submission->getId(), [Role::ROLE_ID_AUTHOR], $decisionType->getStageId());
-        /** @var StageAssignment $stageAssignment */
-        while ($stageAssignment = $result->next()) {
-            $authorIds[] = (int) $stageAssignment->getUserId();
-        }
+        // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+        $authorIds = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->withStageIds([$decisionType->getStageId()])
+            ->get()
+            ->pluck('user_id')
+            ->all();
 
         $notificationMgr->updateNotification(
             Application::get()->getRequest(),

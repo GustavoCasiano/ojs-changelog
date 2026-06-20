@@ -17,6 +17,7 @@
 namespace APP\controllers\grid\pubIds;
 
 use APP\core\Application;
+use APP\issue\Issue;
 use APP\plugins\PubObjectsExportPlugin;
 use PKP\controllers\grid\DataObjectGridCellProvider;
 use PKP\controllers\grid\GridHandler;
@@ -59,7 +60,7 @@ class PubIdExportIssuesListGridCellProvider extends DataObjectGridCellProvider
     {
         $publishedIssue = $row->getData();
         $columnId = $column->getId();
-        assert(is_a($publishedIssue, 'Issue') && !empty($columnId));
+        assert($publishedIssue instanceof Issue && !empty($columnId));
 
         switch ($columnId) {
             case 'identification':
@@ -108,7 +109,7 @@ class PubIdExportIssuesListGridCellProvider extends DataObjectGridCellProvider
     {
         $publishedIssue = $row->getData();
         $columnId = $column->getId();
-        assert(is_a($publishedIssue, 'Issue') && !empty($columnId));
+        assert($publishedIssue instanceof Issue && !empty($columnId));
 
         switch ($columnId) {
             case 'identification':

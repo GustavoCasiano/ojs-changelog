@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/section/Repository.php
  *
@@ -14,7 +15,6 @@
 namespace PKP\section;
 
 use APP\core\Request;
-use APP\core\Services;
 use APP\facades\Repo;
 use APP\section\DAO;
 use APP\section\Section;
@@ -83,11 +83,13 @@ class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Section::validate [[&$errors, $object, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate(?Section $object, array $props, Context $context): array
     {
         $errors = [];
-        $allowedLocales = $context->getSupportedSubmissionLocales();
+        $allowedLocales = $context->getSupportedFormLocales();
         $primaryLocale = $context->getPrimaryLocale();
 
         $validator = ValidatorFactory::make(
@@ -111,7 +113,7 @@ class Repository
         // The contextId must match an existing context
         $validator->after(function ($validator) use ($props) {
             if (isset($props['contextId']) && !$validator->errors()->get('contextId')) {
-                $sectionContext = Services::get('context')->get($props['contextId']);
+                $sectionContext = app()->get('context')->get($props['contextId']);
                 if (!$sectionContext) {
                     $validator->errors()->add('contextId', __('manager.sections.noContext'));
                 }

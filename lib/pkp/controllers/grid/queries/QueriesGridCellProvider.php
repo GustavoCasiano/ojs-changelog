@@ -3,8 +3,8 @@
 /**
  * @file controllers/grid/queries/QueriesGridCellProvider.php
  *
- * Copyright (c) 2016-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2016-2024 Simon Fraser University
+ * Copyright (c) 2000-2024 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class QueriesGridCellProvider
@@ -17,16 +17,20 @@
 namespace PKP\controllers\grid\queries;
 
 use APP\core\Application;
+use APP\facades\Repo;
 use APP\submission\Submission;
+use Illuminate\Database\Eloquent\Model;
 use PKP\controllers\grid\DataObjectGridCellProvider;
 use PKP\controllers\grid\GridColumn;
 use PKP\controllers\grid\GridHandler;
+use PKP\core\DataObject;
+use PKP\core\PKPApplication;
 use PKP\core\PKPString;
+use PKP\facades\Locale;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxAction;
-use PKP\note\NoteDAO;
+use PKP\note\Note;
 use PKP\query\Query;
-use PKP\facades\Locale;
 
 class QueriesGridCellProvider extends DataObjectGridCellProvider
 {
@@ -70,11 +74,13 @@ class QueriesGridCellProvider extends DataObjectGridCellProvider
     {
         $element = $row->getData();
         $columnId = $column->getId();
-        assert($element instanceof \PKP\core\DataObject && !empty($columnId));
+        assert(($element instanceof DataObject || $element instanceof Model) && !empty($columnId));
         /** @var Query $element */
-        $headNote = $element->getHeadNote();
-        $user = $headNote ? $headNote->getUser() : null;
-        $notes = $element->getReplies(null, NoteDAO::NOTE_ORDER_ID, \PKP\db\DAO::SORT_DIRECTION_DESC);
+        $headNote = Repo::note()->getHeadNote($element->id);
+        $user = $headNote?->user;
+        $notes = Note::withAssoc(PKPApplication::ASSOC_TYPE_QUERY, $element->id)
+            ->withSort(Note::NOTE_ORDER_ID)
+            ->lazy();
         $context = Application::get()->getRequest()->getContext();
         $datetimeFormatShort = PKPString::convertStrftimeFormat($context->getLocalizedDateTimeFormatShort());
 
@@ -82,19 +88,19 @@ class QueriesGridCellProvider extends DataObjectGridCellProvider
             case 'replies':
                 return ['label' => max(0, $notes->count() - 1)];
             case 'from':
-                return ['label' => ($user ? $user->getUsername() : '&mdash;') . '<br />' . ($headNote ? (new \Carbon\Carbon($headNote->getDateCreated()))->locale(Locale::getLocale())->translatedFormat($datetimeFormatShort) : '')];
+                return ['label' => ($user?->getUsername() ?? '&mdash;') . '<br />' . $headNote?->dateCreated->format($datetimeFormatShort)];
             case 'lastReply':
                 $latestReply = $notes->first();
-                if ($latestReply && $latestReply->getId() != $headNote->getId()) {
-                    $repliedUser = $latestReply->getUser();
-                    return ['label' => ($repliedUser ? $repliedUser->getUsername() : '&mdash;') . '<br />' . (new \Carbon\Carbon($latestReply->getDateCreated()))->locale(Locale::getLocale())->translatedFormat($datetimeFormatShort)];
+                if ($latestReply && $latestReply->id != $headNote->id) {
+                    $repliedUser = $latestReply->user;
+                    return ['label' => ($repliedUser?->getUsername() ?? '&mdash;') . '<br />' . $latestReply->dateCreated->format($datetimeFormatShort)];
                 } else {
                     return ['label' => '-'];
                 }
                 // no break
             case 'closed':
                 return [
-                    'selected' => $element->getIsClosed(),
+                    'selected' => $element->closed,
                     'disabled' => !$this->_queriesAccessHelper->getCanOpenClose($element),
                 ];
         }
@@ -112,7 +118,7 @@ class QueriesGridCellProvider extends DataObjectGridCellProvider
         switch ($column->getId()) {
             case 'closed':
                 if ($this->_queriesAccessHelper->getCanOpenClose($element)) {
-                    $enabled = !$element->getIsClosed();
+                    $enabled = !$element->closed;
                     if ($enabled) {
                         return [new LinkAction(
                             'close-' . $row->getId(),

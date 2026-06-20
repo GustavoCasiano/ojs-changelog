@@ -23,6 +23,7 @@ use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\plugins\GenericPlugin;
 use PKP\plugins\Hook;
+use PKP\core\PKPPageRouter;
 
 class GoogleAnalyticsPlugin extends GenericPlugin
 {
@@ -39,7 +40,7 @@ class GoogleAnalyticsPlugin extends GenericPlugin
         }
         if ($success && $this->getEnabled($mainContextId)) {
             // Insert Google Analytics page tag to footer
-            Hook::add('TemplateManager::display', [$this, 'registerScript']);
+            Hook::add('TemplateManager::display', $this->registerScript(...));
         }
         return $success;
     }
@@ -91,7 +92,7 @@ class GoogleAnalyticsPlugin extends GenericPlugin
             case 'settings':
                 $context = $request->getContext();
                 $templateMgr = TemplateManager::getManager($request);
-                $templateMgr->registerPlugin('function', 'plugin_url', [$this, 'smartyPluginUrl']);
+                $templateMgr->registerPlugin('function', 'plugin_url', $this->smartyPluginUrl(...));
 
                 $form = new GoogleAnalyticsSettingsForm($this, $context->getId());
 
@@ -123,7 +124,7 @@ class GoogleAnalyticsPlugin extends GenericPlugin
             return false;
         }
         $router = $request->getRouter();
-        if (!is_a($router, 'PKPPageRouter')) {
+        if (!$router instanceof PKPPageRouter) {
             return false;
         }
 

@@ -73,6 +73,8 @@ class GalleyQueryBuilder implements EntityQueryBuilderInterface
 
     /**
      * @copydoc PKP\services\queryBuilders\interfaces\EntityQueryBuilderInterface::getQuery()
+     *
+     * @hook Galley::getMany::queryObject [[&$q, $this]]
      */
     public function getQuery()
     {

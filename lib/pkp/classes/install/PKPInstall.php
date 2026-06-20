@@ -9,8 +9,8 @@
 /**
  * @file classes/install/PKPInstall.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class PKPInstall
@@ -29,11 +29,17 @@
 namespace PKP\install;
 
 use APP\core\Application;
-use APP\core\Services;
 use APP\facades\Repo;
+use DateTime;
+use Exception;
+use Illuminate\Database\MariaDbConnection;
+use Illuminate\Database\MySqlConnection;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Support\Facades\Config as FacadesConfig;
+use Illuminate\Support\Facades\DB;
 use PKP\config\Config;
 use PKP\core\Core;
+use PKP\core\PKPContainer;
 use PKP\core\PKPString;
 use PKP\db\DAORegistry;
 use PKP\facades\Locale;
@@ -43,6 +49,7 @@ use PKP\security\Validation;
 use PKP\services\PKPSchemaService;
 use PKP\site\SiteDAO;
 use PKP\site\Version;
+use PKP\userGroup\UserGroup;
 
 class PKPInstall extends Installer
 {
@@ -78,12 +85,7 @@ class PKPInstall extends Installer
         }
 
         // Map valid config options to Illuminate database drivers
-        $driver = strtolower($this->getParam('databaseDriver'));
-        if (substr($driver, 0, 8) === 'postgres') {
-            $driver = 'pgsql';
-        } else {
-            $driver = 'mysql';
-        }
+        $driver = PKPContainer::getDatabaseDriverName(strtolower($this->getParam('databaseDriver')));
 
         $config = FacadesConfig::get('database');
         $config['default'] = $driver;
@@ -100,9 +102,20 @@ class PKPInstall extends Installer
         ];
         FacadesConfig::set('database', $config);
 
-        return parent::preInstall();
-    }
+        // Need to register the `DatabaseServiceProvider` as when the `SessionServiceProvider`
+        // registers itself in the `\PKP\core\PKPContainer::registerConfiguredProviders`, it
+        // registers an instance of `\Illuminate\Database\ConnectionInterface` which contains the
+        // initial details from the `config.inc.php` rather than what is set through the install form.
+        app()->register(new \Illuminate\Database\DatabaseServiceProvider(app()));
 
+        $result = parent::preInstall();
+
+        if ($this->getParam('timeZone')) {
+            $this->initializeDatabaseTimeZone($this->getParam('timeZone'));
+        }
+
+        return $result;
+    }
 
     //
     // Installer actions
@@ -182,6 +195,7 @@ class PKPInstall extends Installer
         return $this->updateConfig(
             [
                 'general' => [
+                    'app_key' => \PKP\core\PKPAppKey::generate(),
                     'installed' => 'On',
                     'base_url' => $request->getBaseUrl(),
                     'enable_beacon' => $this->getParam('enableBeacon') ? 'On' : 'Off',
@@ -229,27 +243,36 @@ class PKPInstall extends Installer
         $user->setInlineHelp(1);
         Repo::user()->add($user);
 
-        // Create an admin user group
-        $adminUserGroup = Repo::userGroup()->newDataObject();
-        $adminUserGroup->setRoleId(Role::ROLE_ID_SITE_ADMIN);
-        $adminUserGroup->setContextId(\PKP\core\PKPApplication::CONTEXT_ID_NONE);
-        $adminUserGroup->setDefault(true);
+        // Prepare multilingual 'name' and 'namePlural' settings
+        $names = [];
+        $namePlurals = [];
         foreach ($this->installedLocales as $locale) {
-            $name = __('default.groups.name.siteAdmin', [], $locale);
-            $namePlural = __('default.groups.plural.siteAdmin', [], $locale);
-            $adminUserGroup->setData('name', $name, $locale);
-            $adminUserGroup->setData('namePlural', $namePlural, $locale);
+            $names[$locale] = __('default.groups.name.siteAdmin', [], $locale);
+            $namePlurals[$locale] = __('default.groups.plural.siteAdmin', [], $locale);
         }
-        Repo::userGroup()->add($adminUserGroup);
 
-        // Put the installer into this user group
-        Repo::userGroup()->assignUserToGroup($user->getId(), $adminUserGroup->getId());
+        // Create an admin user group
+        $adminUserGroup = new UserGroup([
+            'roleId' => Role::ROLE_ID_SITE_ADMIN,
+            'contextId' => \PKP\core\PKPApplication::SITE_CONTEXT_ID,
+            'isDefault' => true,
+            'permitSettings' => true,
+            'name' => $names,
+            'namePlural' => $namePlurals,
+            'masthead' => 0,
+        ]);
+
+        // Save the UserGroup to the database
+        $adminUserGroup->save();
+
+        // Assign the user to the admin user group
+        Repo::userGroup()->assignUserToGroup($user->getId(), $adminUserGroup->id);
 
         // Add initial site data
-        /** @var SiteDAO */
+        /** @var SiteDAO $siteDao */
         $siteDao = DAORegistry::getDAO('SiteDAO');
         $site = $siteDao->newDataObject();
-        $site->setRedirect(0);
+        $site->setRedirect(null);
         $site->setMinPasswordLength(static::MIN_PASSWORD_LENGTH);
         $site->setPrimaryLocale($siteLocale);
         $site->setInstalledLocales($this->installedLocales);
@@ -260,12 +283,40 @@ class PKPInstall extends Installer
         Repo::emailTemplate()->dao->installEmailTemplates(Repo::emailTemplate()->dao->getMainEmailTemplatesFilename(), $this->installedLocales);
 
         // Install default site settings
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
         $site = $schemaService->setDefaults(PKPSchemaService::SCHEMA_SITE, $site, $site->getSupportedLocales(), $site->getPrimaryLocale());
         $site->setData('contactEmail', $this->getParam('adminEmail'), $site->getPrimaryLocale());
         $siteDao->updateObject($site);
 
         return true;
+    }
+
+    /**
+     * Initialize the database timezone settings during installation
+     *
+     * @param string $timeZone The selected timezone from the installation form
+     */
+    protected function initializeDatabaseTimeZone(string $timeZone): void
+    {
+        try {
+            date_default_timezone_set($timeZone ?: ini_get('date.timezone') ?: 'UTC');
+
+            // Set the current offset for this timezone
+            $offset = (new DateTime())->format('P');
+
+            // Set the timezone based on the database type
+            $statement = match (true) {
+                DB::connection() instanceof MySqlConnection,
+                DB::connection() instanceof MariaDbConnection
+                    => "SET time_zone = '{$offset}'",
+                DB::connection() instanceof PostgresConnection
+                    => "SET TIME ZONE INTERVAL '{$offset}' HOUR TO MINUTE"
+            };
+
+            DB::statement($statement);
+        } catch (Exception $e) {
+            $this->setError(INSTALLER_ERROR_DB, 'Failed to set database timezone: ' . $e->getMessage());
+        }
     }
 }
 

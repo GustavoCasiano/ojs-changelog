@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/security/authorization/internal/DecisionAllowedPolicy.php
  *
@@ -18,11 +19,11 @@ namespace PKP\security\authorization\internal;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use PKP\db\DAORegistry;
 use PKP\security\authorization\AuthorizationPolicy;
 use PKP\security\Role;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\stageAssignment\StageAssignment;
 use PKP\user\User;
+use PKP\userGroup\UserGroup;
 
 class DecisionAllowedPolicy extends AuthorizationPolicy
 {
@@ -41,7 +42,7 @@ class DecisionAllowedPolicy extends AuthorizationPolicy
     /**
      * @see AuthorizationPolicy::effect()
      */
-    public function effect()
+    public function effect(): int
     {
         if (!$this->user) {
             return AuthorizationPolicy::AUTHORIZATION_DENY;
@@ -50,10 +51,13 @@ class DecisionAllowedPolicy extends AuthorizationPolicy
         $submission = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION);
         $decisionType = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_DECISION_TYPE);
 
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO'); /** @var StageAssignmentDAO $stageAssignmentDao */
-        $result = $stageAssignmentDao->getBySubmissionAndUserIdAndStageId($submission->getId(), $this->user->getId(), $submission->getData('stageId'));
-        $stageAssignments = $result->toArray();
-        if (empty($stageAssignments)) {
+        // Replaces StageAssignmentDAO::getBySubmissionAndUserIdAndStageId
+        $stageAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withStageIds([$submission->getData('stageId')])
+            ->withUserId($this->user->getId())
+            ->get();
+
+        if ($stageAssignments->isEmpty()) {
             $userRoles = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_USER_ROLES);
             $canAccessUnassignedSubmission = !empty(array_intersect([Role::ROLE_ID_SITE_ADMIN, Role::ROLE_ID_MANAGER], $userRoles));
             if ($canAccessUnassignedSubmission) {
@@ -65,21 +69,21 @@ class DecisionAllowedPolicy extends AuthorizationPolicy
         } else {
             $isAllowed = false;
             foreach ($stageAssignments as $stageAssignment) {
-                $userGroup = Repo::userGroup()->get($stageAssignment->getUserGroupId());
-                if (!in_array($userGroup->getRoleId(), [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])) {
+                $userGroup = UserGroup::findById($stageAssignment->userGroupId);
+                if ($userGroup && !in_array($userGroup->roleId, [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])) {
                     continue;
                 }
-                if (Repo::decision()->isRecommendation($decisionType->getDecision()) && $stageAssignment->getRecommendOnly()) {
+                if (Repo::decision()->isRecommendation($decisionType->getDecision()) && $stageAssignment->recommendOnly) {
                     $isAllowed = true;
-                } elseif (!$stageAssignment->getRecommendOnly()) {
+                } elseif (!$stageAssignment->recommendOnly) {
                     $isAllowed = true;
                 }
 
                 // Check whether there is a decision that a recommending role can make on the stage the submission is in.
                 $recommendatorsAvailableDecisions = Repo::decision()
                     ->getDecisionTypesMadeByRecommendingUsers($submission->getData('stageId'));
-                
-                // if there is any decision that the recommending role is allowed to make, check if the current decision is within the allowed ones 
+
+                // if there is any decision that the recommending role is allowed to make, check if the current decision is within the allowed ones
                 if (!empty($recommendatorsAvailableDecisions)) {
                     $matches = array_filter($recommendatorsAvailableDecisions, function ($decisionInArray) use ($decisionType) {
                         return $decisionInArray->getDecision() === $decisionType->getDecision();

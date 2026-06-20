@@ -1,9 +1,10 @@
 <?php
+
 /**
  * @file classes/components/form/publication/ContributorForm.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class ContributorForm
@@ -15,48 +16,46 @@
 
 namespace PKP\components\forms\publication;
 
-use APP\facades\Repo;
 use APP\submission\Submission;
+use PKP\components\forms\FieldAffiliations;
 use PKP\components\forms\FieldOptions;
+use PKP\components\forms\FieldOrcid;
 use PKP\components\forms\FieldRichTextarea;
 use PKP\components\forms\FieldSelect;
 use PKP\components\forms\FieldText;
 use PKP\components\forms\FormComponent;
 use PKP\context\Context;
+use PKP\orcid\OrcidManager;
 use PKP\security\Role;
 use PKP\userGroup\UserGroup;
 use Sokil\IsoCodes\IsoCodesFactory;
 
-define('FORM_CONTRIBUTOR', 'contributor');
-
 class ContributorForm extends FormComponent
 {
+    public const FORM_CONTRIBUTOR = 'contributor';
     /** @copydoc FormComponent::$id */
-    public $id = FORM_CONTRIBUTOR;
+    public $id = self::FORM_CONTRIBUTOR;
 
     /** @copydoc FormComponent::$method */
     public $method = 'POST';
 
-    public Submission $submission;
+    public ?Submission $submission;
     public Context $context;
 
-    public function __construct(string $action, array $locales, Submission $submission, Context $context)
+    public function __construct(string $action, array $locales, ?Submission $submission, Context $context)
     {
         $this->action = $action;
         $this->locales = $locales;
         $this->submission = $submission;
         $this->context = $context;
 
-        $authorUserGroupsOptions = Repo::userGroup()
-            ->getCollector()
-            ->filterByRoleIds([Role::ROLE_ID_AUTHOR])
-            ->filterByContextIds([$context->getId()])
-            ->getMany()
+        $authorUserGroupsOptions = UserGroup::withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->withContextIds([$context->getId()])
+            ->get()
             ->map(fn (UserGroup $authorUserGroup) => [
-                'value' => (int) $authorUserGroup->getId(),
-                'label' => $authorUserGroup->getLocalizedName(),
+                'value' => (int) $authorUserGroup->id,
+                'label' => $authorUserGroup->getLocalizedData('name'),
             ]);
-
         $isoCodes = app(IsoCodesFactory::class);
         $countries = [];
         foreach ($isoCodes->getCountries() as $country) {
@@ -94,24 +93,35 @@ class ContributorForm extends FormComponent
             ]))
             ->addField(new FieldText('url', [
                 'label' => __('user.url'),
-            ]))
-            ->addField(new FieldText('orcid', [
-                'label' => __('user.orcid'),
             ]));
-        if ($context->getSetting('requireAuthorCompetingInterests')) $this->addField(new FieldRichTextarea('competingInterests', [
-            'label' => __('author.competingInterests'),
-            'description' => __('author.competingInterests.description'),
+
+        if (OrcidManager::isEnabled()) {
+            $this->addField(new FieldOrcid('orcid', [
+                'label' => __('user.orcid'),
+                'tooltip' => __('orcid.about.orcidExplanation'),
+            ]), [FIELD_POSITION_AFTER, 'url']);
+        }
+
+
+        if ($context->getSetting('requireAuthorCompetingInterests')) {
+            $this->addField(new FieldRichTextarea('competingInterests', [
+                'label' => __('author.competingInterests'),
+                'description' => __('author.competingInterests.description'),
+                'isMultilingual' => true,
+                'isRequired' => true,
+            ]));
+        }
+        $this->addField(new FieldRichTextarea('biography', [
+            'label' => __('user.biography'),
             'isMultilingual' => true,
         ]));
-        $this->addField(new FieldRichTextarea('biography', [
-                'label' => __('user.biography'),
-                'isMultilingual' => true,
-            ]))
-            ->addField(new FieldText('affiliation', [
-                'label' => __('user.affiliation'),
-                'isMultilingual' => true,
-                'size' => 'large',
-            ]));
+
+        $this->addField(new FieldAffiliations('affiliations', [
+            'label' => __('user.affiliations'),
+            'description' => __('user.affiliations.description'),
+            'isMultilingual' => false,
+        ]));
+
 
         if ($authorUserGroupsOptions->count() > 1) {
             $this->addField(new FieldOptions('userGroupId', [

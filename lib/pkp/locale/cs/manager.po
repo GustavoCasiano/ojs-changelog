@@ -1,12 +1,13 @@
-# Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>, 2021, 2022, 2023, 2024.
+# Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>, 2021, 2022, 2023, 2024, 2025.
 # Martin Brändle <martin.braendle@uzh.ch>, 2023.
+# Michal Jelínek <jelinek@synetix.cz>, 2026.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-19T10:49:41+00:00\n"
-"PO-Revision-Date: 2024-11-08 15:32+0000\n"
-"Last-Translator: Jiří Dlouhý <jiri.dlouhy@czp.cuni.cz>\n"
+"PO-Revision-Date: 2026-03-13 01:35+0000\n"
+"Last-Translator: Michal Jelínek <jelinek@synetix.cz>\n"
 "Language-Team: Czech <http://translate.pkp.sfu.ca/projects/pkp-lib/manager/"
 "cs/>\n"
 "Language: cs\n"
@@ -473,7 +474,9 @@ msgid "manager.emails.enable.message"
 msgstr "Chystáte se aktivovat tento email. Chcete tuto akci potvrdit?"
 
 msgid "manager.emails.form.emailKeyRequired"
-msgstr "Pro daný email je vyžadován unikátní emailový klíč."
+msgstr ""
+"Pro daný email je vyžadován unikátní emailový klíč, který nesmí obsahovat "
+"mezery ani speciální znaky."
 
 msgid "manager.emails.form.bodyRequired"
 msgstr "Je vyžadován text zprávy emailu."
@@ -917,9 +920,7 @@ msgstr ""
 "vybraných typů DOI."
 
 msgid "doi.manager.settings.doiSuffix.description"
-msgstr ""
-"Přípona DOI může mít libovolnou podobu, ale musí být jedinečná mezi všemi "
-"publikačními objekty se stejnou přidělenou předponou DOI:"
+msgstr "Vyberte formát, který bude aplikace používat při generování DOI."
 
 msgid "doi.manager.settings.doiSuffixDefault"
 msgstr "Výchozí – Automaticky generuje jedinečnou osmimístnou příponu"
@@ -989,16 +990,22 @@ msgstr "Oznámení o copyrightu"
 
 msgid "manager.setup.copyrightNotice.description"
 msgstr ""
-"Požádejte autory, aby souhlasili s oznámením o autorských právech v rámci "
-"procesu podání."
+"„Následující text se zobrazuje na stránce <a href=\"{$url}\">příspěvků</a>, "
+"kde se autoři seznámí s požadavky pro podání příspěvku. Autoři budou povinni "
+"potvrdit souhlas s oznámením o autorských právech před dokončením svého "
+"příspěvku."
 
 msgid "manager.setup.authorGuidelines"
 msgstr "Pokyny pro autory"
 
 msgid "manager.setup.authorGuidelines.description"
 msgstr ""
-"Doporučené pokyny zahrnují bibliografické a formátovací standardy spolu s "
-"příklady běžných formátů citací, které mají být použity při podání příspěvku."
+"Následující text se zobrazuje na stránce <a href=\"{$url}\">příspěvků</a>, "
+"kde se autoři seznámí s tím, co musí udělat pro přípravu svého rukopisu k "
+"podání. Poskytněte pokyny ke všemu, co by mohli potřebovat vědět, například "
+"bibliografické a formátovací standardy, spolu s příklady běžně používaných "
+"citačních formátů. Můžete také uvést podrobnosti o preferovaném formátu a "
+"tematickém zaměření příspěvků."
 
 msgid "manager.setup.disableSubmissions"
 msgstr "Zakázat příspěvky"
@@ -1177,8 +1184,8 @@ msgstr "Formát data a času"
 msgid "manager.setup.dateTime.description"
 msgstr ""
 "Zvolte preferovaný formát pro datum a čas. Vlastní formát lze zadat pomocí "
-"speciálních <a href=\"https://www.php.net/manual/en/function.strftime."
-"php#refsect1-function.strftime-parameters\"> formátovacích znaků </a>."
+"speciálních <a href=\"https://www.php.net/manual/en/datetime.format."
+"php#refsect1-datetime.format-parameters\"> formátovacích znaků </a>."
 
 msgid "manager.setup.dateTime.longDate"
 msgstr "Datum"
@@ -1200,8 +1207,10 @@ msgstr "Vlastní"
 
 msgid "manager.setup.privacyStatement.description"
 msgstr ""
-"Toto oznámení se objeví autorovi během procesu podání příspěvku a je veřejně "
-"přístupný na stránce \"O časopisu\"."
+"„Toto prohlášení se zobrazí při registraci uživatele, podání příspěvku "
+"autorem a na veřejně dostupné stránce Zásady ochrany osobních údajů. V "
+"některých jurisdikcích jste ze zákona povinni zveřejnit, jak nakládáte s "
+"uživatelskými daty, v těchto zásadách ochrany osobních údajů."
 
 msgid "manager.setup.reviewOptions.defaultReviewResponseTime"
 msgstr "Výchozí termín odpovědi"
@@ -1646,7 +1655,7 @@ msgid "notification.localeUninstalled"
 msgstr "Lokalizace {$locale} byla odinstalovány."
 
 msgid "notification.localeReloaded"
-msgstr "Lokalizace {$locale} byla znovu nahrána."
+msgstr "Lokalizace {$locale} byla znovu nahrána pro {$contextName}."
 
 msgid "notification.localeSettingsSaved"
 msgstr "Nastavení lokalizací bylo uloženo."
@@ -2067,23 +2076,6 @@ msgstr "Požádejte autora, aby při odesílání příspěvku navrhl klíčová
 msgid "manager.setup.metadata.keywords.require"
 msgstr "Před přijetím příspěvku požádejte autora, aby navrhl klíčová slova."
 
-msgid "manager.setup.metadata.languages.description"
-msgstr ""
-"Jazyk označuje primární pracovní jazyk pomocí kódu jazyka (např. „en“) s "
-"volitelným kódem země (např. „en_US“)."
-
-msgid "manager.setup.metadata.languages.enable"
-msgstr "Povolit jazyková metadata"
-
-msgid "manager.setup.metadata.languages.noRequest"
-msgstr "Během odesílání nevyžadujte od autora jazyky příspěvku."
-
-msgid "manager.setup.metadata.languages.request"
-msgstr "Požádejte autora, aby během podání uvedl jazyky příspěvku."
-
-msgid "manager.setup.metadata.languages.require"
-msgstr "Před přijetím požádejte autora, aby zadal jazyky příspěvku."
-
 msgid "manager.setup.metadata.rights.description"
 msgstr ""
 "Jakákoli práva k příspěvku, která mohou zahrnovat práva duševního "
@@ -2415,14 +2407,6 @@ msgid "manager.navigationMenus.about.conditionalWarning"
 msgstr ""
 "Tento odkaz se zobrazí pouze v případě, že jste v sekci Nastavení> Časopis "
 "vyplnili sekci O časopisu."
-
-msgid "manager.navigationMenus.editorialTeam.description"
-msgstr "Odkaz na stránku, která zobrazí obsah hlavičky v Nastavení > Časopis."
-
-msgid "manager.navigationMenus.editorialTeam.conditionalWarning"
-msgstr ""
-"Tento odkaz se zobrazí pouze v případě, že jste vyplnili sekci Redakční tým "
-"v Nastavení > Časopis."
 
 msgid "manager.navigationMenus.submissions.description"
 msgstr "Odkaz na stránku popisující pokyny pro podávání příspěvků."
@@ -2905,8 +2889,7 @@ msgid "emailTemplate.variable.review.name"
 msgstr "Jméno recenzenta"
 
 msgid "emailTemplate.variable.reviewType"
-msgstr ""
-"Popis výchozí metody recenzí, například dvojitá anonymní nebo otevřená."
+msgstr "Popis výchozí metody recenzí, například dvojitá anonymní nebo otevřená"
 
 msgid "emailTemplate.variable.reviewType.doubleAnonymous"
 msgstr ""
@@ -3796,8 +3779,149 @@ msgstr ""
 msgid "manager.statistics.counterR5Report.settings.includeParentDetails"
 msgstr "Zahrnout i nadřazené podrobnosti"
 
+msgid "manager.setup.masthead"
+msgstr "Hlavička"
+
 msgid "plugins.importexport.common.validation"
 msgstr "Validujte XML před exportem a registrací."
 
 msgid "manager.plugins.pluginGallery.installed"
 msgstr "Nainstalovaná verze: {$version}"
+
+msgid "plugins.importexport.common.error.missingAffiliationName"
+msgstr ""
+"Autor {$authorName} nemá název afiliace v jazyce podání, {$localeName}. Bez "
+"této informace nelze podání nahrát."
+
+msgid "manager.navigationMenus.editorialMasthead.description"
+msgstr "Odkaz na stránku zobrazující všechny aktivní redakční služby."
+
+msgid "notification.submissionLocales"
+msgstr "Byly aktualizovány lokalizace příspěvku."
+
+msgid "settings.roles.masthead"
+msgstr "Zvažte roli v seznamu v záhlaví"
+
+msgid "settings.roles.permitSettings"
+msgstr "Dovolte změny v Nastavení"
+
+msgid "manager.setup.appearance.editorialMasthead.description"
+msgstr "Definovat pořadí redakčních rolí v záhlaví pro veřejné zobrazení."
+
+msgid "manager.language.websiteLanguages"
+msgstr "Jazyky webových stránek"
+
+msgid "manager.language.gridAction.addLangauage"
+msgstr "Přidat/odebrat jazyky"
+
+msgid "manager.language.submissionMetadata"
+msgstr "Metadata"
+
+msgid "manager.language.submission.form.description"
+msgstr "Zvolte jazyky příspěvku a metadat."
+
+msgid "manager.language.submission.from.error"
+msgstr "Je třeba vybrat alespoň jednu lokalizaci."
+
+msgid "manager.language.submissionLanguages"
+msgstr "Jazyky příspěvků"
+
+msgid "manager.setup.reviewOptions.numReviewersPerSubmission"
+msgstr "Počet doporučených recenzentů"
+
+msgid "manager.setup.reviewOptions.numReviewersPerSubmission.description"
+msgstr ""
+"Dostatečný počet recenzentů potřebných pro jeden příspěvek, aby bylo možné "
+"vydat doporučení před přijetím rozhodnutí"
+
+msgid "manager.setup.editorialMasthead.order.reviewers.description"
+msgstr ""
+"Recenzenti budou zobrazeni ve standardizovaném formátu, aby byla zachována "
+"jednotnost a zajištěna snadná vyhledatelnost v této sekci."
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled"
+msgstr "Návrh recenzenta při podání příspěvku"
+
+msgid "manager.setup.editorialMasthead.editorialHistory.description"
+msgstr ""
+"Uveďte historii redakce, včetně celého jména, příslušnosti a data začátku a "
+"konce působení každého redaktora."
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.description"
+msgstr ""
+"Autor může navrhnout několik potenciálních recenzentů ještě před dokončením "
+"odeslání, což může zefektivnit proces recenzování a poskytnout cenné podněty "
+"redakčnímu týmu."
+
+msgid "mailable.changeProfileEmailInvitationNotify.name"
+msgstr "Změňte adresu emailové pozvánky"
+
+msgid "notification.defaultLocaleSettingsCannotBeSaved"
+msgstr ""
+"Nastavení jazyka se nepodařilo uložit. Je třeba povolit všechny možnosti."
+
+msgid "manager.setup.editorialMasthead.order.description"
+msgstr "Definujte pořadí rolí v záhlaví pro veřejné zobrazení."
+
+msgid "manager.setup.reviewOptions.reminders"
+msgstr "Nastavení připomenutí pro recenzi"
+
+msgid "manager.setup.reviewOptions.reminders.description"
+msgstr ""
+"Odeslání e-mailové upomínky před nebo po zaslání žádosti o recenzi (pokud "
+"recenzent ještě neodpověděl na žádost o recenzi) nebo po termínu na zaslání "
+"recenze (pokud recenzent ještě recenzi nezaslal)"
+
+msgid "manager.setup.reviewOptions.reminders.response.before"
+msgstr "Odpověď na žádost o recenzi – před termínem"
+
+msgid "manager.setup.reviewOptions.reminders.response.after"
+msgstr "Odpověď na žádost o recenzi – po termínu"
+
+msgid "manager.setup.reviewOptions.reminders.submit.before"
+msgstr "Podání recenze – před termínem"
+
+msgid "manager.setup.reviewOptions.reminders.submit.after"
+msgstr "Podání recenze – po termínu"
+
+msgid "manager.setup.reviewOptions.reminders.label.before.days"
+msgstr "{$value} dnů před termínem"
+
+msgid "manager.setup.reviewOptions.reminders.label.after.days"
+msgstr "{$value} dnů po termínu"
+
+msgid "manager.setup.reviewOptions.reminders.min.label"
+msgstr "Žádný"
+
+msgid "manager.setup.reviewOptions.reminders.disbale.label"
+msgstr "Nebylo nastaveno připomenutí"
+
+msgid "manager.setup.reviewOptions.reviewerSuggestionEnabled.label"
+msgstr ""
+"Umožnit autorům navrhnout potenciální recenzenty při odesílání příspěvků"
+
+msgid "manager.setup.workflow.reviewerSuggestionsHelp.description"
+msgstr ""
+"V kroku návrhů recenzentů se autorům zobrazí následující informace. "
+"Poskytněte stručné vysvětlení, jaké informace by měl autor poskytnout o "
+"sobě, spoluautorech a případných dalších přispěvatelích."
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission.description"
+msgstr "Minimální počet potvrzených recenzí požadovaných pro podání"
+
+msgid "manager.setup.reviewOptions.numReviewsPerSubmission"
+msgstr "Minimální požadovaný počet potvrzených recenzí"
+
+# fuzzy
+msgid "manager.navigationMenus.items.form.title.required"
+msgstr "Název položky nabídky je povinný."
+
+msgid "manager.categories.form.removeCoverImageOnDifferentContextNowAllowed"
+msgstr ""
+"Kategorie neexistuje nebo patří do jiného kontextu. Ujistěte se, že "
+"pracujete se správným kontextem, a zkuste to znovu."
+
+msgid "manager.categories.form.removeCoverImageFileNotFound"
+msgstr ""
+"Nelze najít obrázek na obálku a soubory miniatur. Možná již byly smazány. "
+"Zkuste stránku znovu načíst."

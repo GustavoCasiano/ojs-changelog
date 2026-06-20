@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file CitationStyleLanguageSettingsForm.php
  *
@@ -16,14 +17,14 @@
 namespace APP\plugins\generic\citationStyleLanguage;
 
 use APP\core\Application;
-use APP\facades\Repo;
 use APP\notification\NotificationManager;
 use APP\template\TemplateManager;
 use PKP\form\Form;
 use PKP\form\validation\FormValidatorCSRF;
 use PKP\form\validation\FormValidatorPost;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\security\Role;
+use PKP\userGroup\UserGroup;
 
 class CitationStyleLanguageSettingsForm extends Form
 {
@@ -102,10 +103,11 @@ class CitationStyleLanguageSettingsForm extends Form
         }
 
         $allUserGroups = [];
-        $userGroups = Repo::userGroup()->getByRoleIds([Role::ROLE_ID_AUTHOR], $contextId);
-        $userGroups = $userGroups->toArray();
+        $userGroups = UserGroup::withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->withContextIds([$contextId])
+            ->get();
         foreach ($userGroups as $userGroup) {
-            $allUserGroups[(int) $userGroup->getId()] = $userGroup->getLocalizedName();
+            $allUserGroups[(int) $userGroup->id] = $userGroup->getLocalizedData('name');
         }
         asort($allUserGroups);
 
@@ -156,7 +158,7 @@ class CitationStyleLanguageSettingsForm extends Form
 
         $notificationMgr = new NotificationManager();
         $user = $request->getUser();
-        $notificationMgr->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('common.changesSaved')]);
+        $notificationMgr->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('common.changesSaved')]);
 
         return parent::execute(...$functionArgs);
     }

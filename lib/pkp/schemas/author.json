@@ -8,14 +8,14 @@
 		"userGroupId"
 	],
 	"properties": {
-		"affiliation": {
-			"type": "string",
+		"affiliations": {
+			"type": "array",
 			"description": "The scholarly institution this contributor is employed by or affiliated with.",
-			"multilingual": true,
 			"apiSummary": true,
-			"validation": [
-				"nullable"
-			]
+			"readOnly": true,
+			"items": {
+				"$ref": "#/definitions/Affiliation"
+			}
 		},
 		"biography": {
 			"type": "string",
@@ -28,7 +28,10 @@
 		"competingInterests": {
 			"type": "string",
 			"description": "A declaration of potential competing interests.",
-			"multilingual": "true"
+			"multilingual": "true",
+			"validation": [
+				"nullable"
+			]
 		},
 		"country": {
 			"type": "string",
@@ -79,7 +82,7 @@
 			"default": true,
 			"apiSummary": true
 		},
-		"locale": {
+		"submissionLocale": {
 			"type": "string",
 			"description": "The primary locale of the submission this author is attached to. This locale is used as the fallback when a language is missing from a multilingual property.",
 			"apiSummary": true,
@@ -130,6 +133,81 @@
 			"description": "The name of this contributor's role in the publication, such as 'Author' or 'Translator'.",
 			"apiSummary": true,
 			"readOnly": true
+		},
+		"orcidSandbox": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidAccessToken": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidAccessScope": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidRefreshToken": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidAccessExpiresOn": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidAccessDenied": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidEmailToken": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidIsVerified": {
+			"type": "boolean",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidWorkPutCode": {
+			"type": "string",
+			"apiSummary": true,
+			"validation": [
+				"nullable"
+			]
+		},
+		"orcidVerificationRequested": {
+			"type": "boolean",
+			"apiSummary": false
+		},
+		"orcidDisplayValue": {
+			"type": "string",
+			"apiSummary": true,
+			"readOnly": true,
+			"validation": [
+				"nullable"
+			]
 		}
 	}
 }

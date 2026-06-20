@@ -405,12 +405,6 @@ msgstr ""
 msgid "manager.setup"
 msgstr "Cài đặt tạp chí"
 
-msgid "manager.setup.masthead"
-msgstr "Tiêu đề"
-
-msgid "manager.setup.editorialTeam"
-msgstr "Ban biên tập"
-
 msgid "manager.setup.homepageContent"
 msgstr "Nội dung trang chủ của tạp chí"
 
@@ -781,14 +775,6 @@ msgstr ""
 msgid "manager.setup.contextTitle"
 msgstr "Tên tạp chí"
 
-msgid "manager.setup.keyInfo"
-msgstr "Thông tin quan trọng"
-
-msgid "manager.setup.keyInfo.description"
-msgstr ""
-"Cung cấp một mô tả ngắn về tạp chí của bạn và xác định các biên tập viên, "
-"quản lý và các thành viên khác trong ban biên tập của bạn."
-
 msgid "manager.setup.labelName"
 msgstr "Tên nhãn"
 
@@ -826,12 +812,6 @@ msgstr ""
 "gia thông qua trang LOCKSS <a href=\"{$lockssUrl}\" target=\"_blank"
 "\">Publisher Manifest</a> page."
 
-msgid "manager.setup.lockssLicenseDescription"
-msgstr ""
-"Giấy phép LOCKSS sẽ xuất hiện trong Giới thiệu về Tạp chí trong Lưu trữ <a "
-"href=\"http://www.lockss.org/community/publishers-titles-gln/\" target="
-"\"_blank\">LOCKSS License</a>"
-
 msgid "manager.setup.lockssLicenseLabel"
 msgstr "Mô tả giấy phép LOCKSS"
 
@@ -850,11 +830,6 @@ msgstr ""
 "Kích hoạt CLOCKSS để lưu trữ và phân phối nội dung tạp chí tại các thư viện "
 "tham gia thông qua trang <a href=\"{$clockssUrl}\" target=\"_blank"
 "\">Publisher Manifest</a> của CLOCKSS."
-
-msgid "manager.setup.clockssLicenseDescription"
-msgstr ""
-"Giấy phép CLOCKSS sẽ xuất hiện trong Giới thiệu về Tạp chí trong Lưu trữ: <a "
-"href=\"http://clockss.org/\" target=\"_blank\">CLOCKSS License</a>"
 
 msgid "manager.setup.clockssLicenseLabel"
 msgstr "Mô tả giấy phép CLOCKSS"

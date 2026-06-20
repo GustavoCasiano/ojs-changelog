@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - "master"
-  schedule:
-    - cron: "42 3 * * *"
 
 jobs:
   phpunit:
@@ -20,6 +18,7 @@ jobs:
           - "7.4"
           - "8.0"
           - "8.1"
+          - "8.2"
         dependencies:
           - "highest"
         include:
@@ -28,7 +27,7 @@ jobs:
 
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@v2"
+        uses: "actions/checkout@v4"
         with:
           fetch-depth: 2
 
@@ -36,7 +35,6 @@ jobs:
         uses: "shivammathur/setup-php@v2"
         with:
           php-version: "${{ matrix.php-version }}"
-          coverage: "pcov"
           ini-values: "zend.assertions=1"
 
       - name: "Install dependencies with Composer"
@@ -45,10 +43,4 @@ jobs:
           dependency-versions: "${{ matrix.dependencies }}"
 
       - name: "Run PHPUnit"
-        run: "vendor/bin/phpunit --coverage-clover=coverage.xml"
-
-      - name: "Upload coverage file"
-        uses: "actions/upload-artifact@v2"
-        with:
-          name: "phpunit-${{ matrix.deps }}-${{ matrix.php-version }}.coverage"
-          path: "coverage.xml"
+        run: "vendor/bin/phpunit"

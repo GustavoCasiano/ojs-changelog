@@ -17,6 +17,7 @@
 namespace APP\controllers\grid\issues;
 
 use APP\facades\Repo;
+use APP\issue\Issue;
 use PKP\controllers\grid\GridRow;
 use PKP\core\PKPApplication;
 use PKP\linkAction\LinkAction;
@@ -42,7 +43,7 @@ class IssueGridRow extends GridRow
         $issueId = $this->getId();
         if (!empty($issueId) && is_numeric($issueId)) {
             $issue = $this->getData();
-            assert(is_a($issue, 'Issue'));
+            assert($issue instanceof Issue);
             $router = $request->getRouter();
 
             $this->addAction(
@@ -51,7 +52,7 @@ class IssueGridRow extends GridRow
                     new AjaxModal(
                         $router->url($request, null, null, 'editIssue', null, ['issueId' => $issueId]),
                         __('editor.issues.editIssue', ['issueIdentification' => htmlspecialchars($issue->getIssueIdentification())]),
-                        'modal_edit',
+                        null,
                         true
                     ),
                     __('grid.action.edit'),
@@ -80,7 +81,7 @@ class IssueGridRow extends GridRow
                             __('editor.issues.confirmUnpublish'),
                             __('editor.issues.unpublishIssue'),
                             $router->url($request, null, null, 'unpublishIssue', null, ['issueId' => $issueId]),
-                            'modal_delete'
+                            'negative'
                         ),
                         __('editor.issues.unpublishIssue'),
                         'delete'
@@ -100,7 +101,6 @@ class IssueGridRow extends GridRow
                                 ['issueId' => $issueId]
                             ),
                             __('editor.issues.publishIssue'),
-                            'modal_confirm'
                         ),
                         __('editor.issues.publishIssue'),
                         'advance'
@@ -119,7 +119,7 @@ class IssueGridRow extends GridRow
                             __('editor.issues.confirmSetCurrentIssue'),
                             __('editor.issues.currentIssue'),
                             $router->url($request, null, null, 'setCurrentIssue', null, ['issueId' => $issueId]),
-                            'modal_delete'
+                            'primary'
                         ),
                         __('editor.issues.currentIssue'),
                         'delete'
@@ -135,7 +135,7 @@ class IssueGridRow extends GridRow
                         __('common.confirmDelete'),
                         __('grid.action.delete'),
                         $router->url($request, null, null, 'deleteIssue', null, ['issueId' => $issueId]),
-                        'modal_delete'
+                        'negative'
                     ),
                     __('grid.action.delete'),
                     'delete'

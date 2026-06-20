@@ -13,7 +13,7 @@
 		$('#userRoleForm').pkpHandler('$.pkp.controllers.form.AjaxFormHandler');
 	{rdelim});
 </script>
-<form class="pkp_form" id="userRoleForm" method="post" action="{url router=\PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.user.UserGridHandler" op="updateUserRoles"}">
+<form class="pkp_form" id="userRoleForm" method="post" action="{url router=PKP\core\PKPApplication::ROUTE_COMPONENT component="grid.settings.user.UserGridHandler" op="updateUserRoles"}">
 	{csrf}
 
 	{include file="controllers/notification/inPlaceNotification.tpl" notificationId="userRoleFormNotification"}
@@ -26,6 +26,13 @@
 			{fbvFormSection list=true title="grid.user.userRoles"}
 				{foreach from=$allUserGroups item="userGroup" key="id"}
 					{fbvElement type="checkbox" id="userGroupIds[]" value=$id checked=in_array($id, $assignedUserGroups) label=$userGroup|escape translate=false}
+				{/foreach}
+			{/fbvFormSection}
+		{/fbvFormSection}
+		{fbvFormSection}
+			{fbvFormSection list=true title="grid.user.userRoles.masthead"}
+				{foreach from=$defaultMastheadUserGroups item="mastheadUserGroup" key="id"}
+					{fbvElement type="checkbox" id="mastheadUserGroupIds[]" value=$id checked=!in_array($id, $notOnMastheadUserGroupIds) label=$mastheadUserGroup|escape translate=false}
 				{/foreach}
 			{/fbvFormSection}
 		{/fbvFormSection}

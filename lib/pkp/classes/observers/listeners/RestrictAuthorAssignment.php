@@ -18,12 +18,10 @@ namespace PKP\observers\listeners;
 
 use APP\facades\Repo;
 use Illuminate\Events\Dispatcher;
-use PKP\db\DAORegistry;
-use PKP\db\DAOResultFactory;
 use PKP\observers\events\SubmissionSubmitted;
 use PKP\security\Role;
 use PKP\stageAssignment\StageAssignment;
-use PKP\stageAssignment\StageAssignmentDAO;
+use PKP\userGroup\UserGroup;
 
 class RestrictAuthorAssignment
 {
@@ -37,19 +35,19 @@ class RestrictAuthorAssignment
 
     public function handle(SubmissionSubmitted $event)
     {
-        /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
+        // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+        $stageAssignments = StageAssignment::withSubmissionIds([$event->submission->getId()])
+            ->withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->get();
 
-        $assignments = $stageAssignmentDao->getBySubmissionAndRoleIds($event->submission->getId(), [Role::ROLE_ID_AUTHOR]);
-
-        while ($assignment = $assignments->next()) {
-            /** @var StageAssignment $assignment */
-            $userGroup = Repo::userGroup()->get($assignment->getUserGroupId(), $event->context->getId());
+        foreach ($stageAssignments as $stageAssignment) {
+            $userGroup = UserGroup::findById($stageAssignment->userGroupId, $event->context->getId());
             if (!$userGroup) {
                 continue;
             }
-            $assignment->setCanChangeMetadata($userGroup->getPermitMetadataEdit());
-            $stageAssignmentDao->updateObject($assignment);
+            
+            $stageAssignment->canChangeMetadata = $userGroup->permitMetadataEdit;
+            $stageAssignment->save();
         }
     }
 }

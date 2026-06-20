@@ -15,12 +15,18 @@
  * @uses $numAnnouncementsHomepage int Number of announcements to display on the
  *       homepage
  * @uses $issue Issue Current issue
+ *
+ * @hook Templates::Index::journal []
  *}
 {include file="frontend/components/header.tpl" pageTitleTranslated=$currentJournal->getLocalizedName()}
 
 <div class="page_index_journal">
 
 	{call_hook name="Templates::Index::journal"}
+
+	{if $highlights->count()}
+		{include file="frontend/components/highlights.tpl" highlights=$highlights}
+	{/if}
 
 	{if $activeTheme && !$activeTheme->getOption('useHomepageImageAsHeader') && $homepageImage}
 		<div class="homepage_image">
@@ -47,10 +53,10 @@
 				{translate key="journal.currentIssue"}
 			</h2>
 			<div class="current_issue_title">
-				{$issue->getIssueIdentification()|strip_unsafe_html}
+				{$issue->getIssueIdentification()|escape}
 			</div>
 			{include file="frontend/objects/issue_toc.tpl" heading="h3"}
-			<a href="{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="issue" op="archive"}" class="read_more">
+			<a href="{url router=PKP\core\PKPApplication::ROUTE_PAGE page="issue" op="archive"}" class="read_more">
 				{translate key="journal.viewAllIssues"}
 			</a>
 		</section>

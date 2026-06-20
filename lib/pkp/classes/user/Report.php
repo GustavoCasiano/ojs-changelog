@@ -6,13 +6,11 @@
 /**
  * @file lib/pkp/classes/user/Report.php
  *
- * Copyright (c) 2003-2021 Simon Fraser University
- * Copyright (c) 2003-2021 John Willinsky
+ * Copyright (c) 2003-2025 Simon Fraser University
+ * Copyright (c) 2003-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file LICENSE.
  *
  * @class Report
- *
- * @ingroup lib_pkp_classes_user
  *
  * @brief Generates a CSV report with basic user information given a list of users and an output stream.
  */
@@ -21,7 +19,7 @@ namespace PKP\user;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\facades\Repo;
+use Illuminate\Support\Collection;
 use PKP\facades\Locale;
 use PKP\userGroup\UserGroup;
 
@@ -79,7 +77,10 @@ class Report
             __('common.mailingAddress'),
             __('user.dateRegistered'),
             __('common.updated'),
-            ...array_map(fn (UserGroup $userGroup) => $userGroup->getLocalizedName(), $this->_getUserGroups())
+            ...$this->
+                _getUserGroups()
+                ->map(fn (UserGroup $userGroup): string => $userGroup->getLocalizedData('name'))
+                ->toArray()
         ];
     }
 
@@ -90,11 +91,23 @@ class Report
      */
     private function _getDataRow(User $user): array
     {
-        $userGroups = Repo::userGroup()->userUserGroups($user->getId());
-        $groups = [];
-        foreach ($userGroups as $userGroup) {
-            $groups[$userGroup->getId()] = 0;
-        }
+        // fetch user groups where the user is assigned
+        $userGroups = UserGroup::query()
+            ->whereHas('userUserGroups', function ($query) use ($user) {
+                $query->where('user_id', $user->getId())
+                    ->where(function ($q) {
+                        $q->whereNull('date_end')
+                            ->orWhere('date_end', '>', now());
+                    })
+                    ->where(function ($q) {
+                        $q->whereNull('date_start')
+                            ->orWhere('date_start', '<=', now());
+                    });
+            })
+            ->get();
+
+        // get the IDs of the user's groups
+        $userGroupIds = $userGroups->pluck('user_group_id')->all();
 
         return [
             $user->getId(),
@@ -106,21 +119,26 @@ class Report
             $user->getMailingAddress(),
             $user->getDateRegistered(),
             $user->getLocalizedData('dateProfileUpdated'),
-            ...array_map(fn (UserGroup $userGroup) => __(isset($groups[$userGroup->getId()]) ? 'common.yes' : 'common.no'), $this->_getUserGroups())
+            ...$this
+                ->_getUserGroups()
+                ->map(
+                    fn (UserGroup $userGroup): string => __(
+                        in_array($userGroup->id, $userGroupIds)
+                            ? 'common.yes'
+                            : 'common.no'
+                    )
+                )->toArray()
         ];
     }
 
     /**
      * Retrieves the user groups
-     *
-     * @return UserGroup[]
      */
-    private function _getUserGroups(): array
+    private function _getUserGroups(): Collection
     {
         static $cache;
-        return $cache ??= Repo::userGroup()->getCollector()
-            ->filterByContextIds([$this->_request->getContext()->getId()])
-            ->getMany()
-            ->toArray();
+        return $cache ??= UserGroup::query()
+            ->withContextIds([$this->_request->getContext()->getId()])
+            ->get();
     }
 }

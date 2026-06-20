@@ -54,7 +54,7 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
         if ($success) {
             $eventHooks = $this->getEventHooks();
             foreach ($eventHooks as $hook) {
-                Hook::add($hook, [$this, 'getUsageEvent']);
+                Hook::add($hook, $this->getUsageEvent(...));
             }
         }
 
@@ -147,6 +147,8 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
     //
     /**
      * Get usage event and pass it to the registered plugins, if any.
+     *
+     * @hook UsageEventPlugin::getUsageEvent [$hookName, $usageEvent, ...]
      */
     public function getUsageEvent($hookName, $args)
     {
@@ -195,7 +197,7 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
      * @param string $hookName
      * @param array $args
      *
-     * @return false|?array
+     * @return false|null|array
      */
     protected function buildUsageEvent($hookName, $args)
     {
@@ -251,7 +253,8 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
             null,
             $canonicalUrlPage,
             $canonicalUrlOp,
-            $canonicalUrlParams
+            $canonicalUrlParams,
+            urlLocaleForPage: ''
         );
 
         // Make sure we log the server name and not aliases.
@@ -307,7 +310,7 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
         }
 
         // Service URI.
-        $serviceUri = $router->url($request, $context->getPath());
+        $serviceUri = $router->url($request, $context->getPath(), urlLocaleForPage: '');
 
         // IP and Host.
         $ip = $request->getRemoteAddr();
@@ -331,7 +334,7 @@ abstract class PKPUsageEventPlugin extends GenericPlugin
         if ($user) {
             $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
             $rolesByContext = $roleDao->getByUserIdGroupedByContext($user->getId());
-            foreach ([\PKP\core\PKPApplication::CONTEXT_SITE, $context->getId()] as $workingContext) {
+            foreach ([\PKP\core\PKPApplication::SITE_CONTEXT_ID, $context->getId()] as $workingContext) {
                 if (isset($rolesByContext[$workingContext])) {
                     foreach ($rolesByContext[$workingContext] as $roleId => $role) {
                         $roles[] = $roleId;

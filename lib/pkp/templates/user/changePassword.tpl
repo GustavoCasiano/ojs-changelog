@@ -15,9 +15,6 @@
 </script>
 
 <form class="pkp_form" id="changePasswordForm" method="post" action="{url op="savePassword"}">
-	{* Help Link *}
-	{help file="user-profile" class="pkp_help_tab"}
-
 	{csrf}
 
 	{include file="controllers/notification/inPlaceNotification.tpl" notificationId="changePasswordFormNotification"}
@@ -35,7 +32,7 @@
 		{/fbvFormSection}
 
 		<p>
-			{capture assign="privacyUrl"}{url router=\PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
+			{capture assign="privacyUrl"}{url router=PKP\core\PKPApplication::ROUTE_PAGE page="about" op="privacy"}{/capture}
 			{translate key="user.privacyLink" privacyUrl=$privacyUrl}
 		</p>
 

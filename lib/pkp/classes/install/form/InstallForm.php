@@ -44,7 +44,8 @@ class InstallForm extends MaintenanceForm
         // <driver> => array(<php-module>, <name>)
         'mysqli' => ['mysqli', 'MySQLi'],
         'postgres9' => ['pgsql', 'PostgreSQL'],
-        'mysql' => ['mysql', 'MySQL']
+        'mysql' => ['mysql', 'MySQL'],
+        'mariadb' => ['mysqli', 'MariaDB'],
     ];
 
     /**
@@ -101,6 +102,7 @@ class InstallForm extends MaintenanceForm
         }, ['UTC' => 'UTC']);
 
         $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->registerPlugin('modifier', 'is_writeable', is_writeable(...));
         $languages = array_map(fn (LocaleMetadata $locale) => $locale->getDisplayName($locale->locale, true), Locale::getLocales());
         asort($languages);
         $templateMgr->assign([

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file classes/services/PKPFileService.php
  *
@@ -15,7 +16,6 @@
 
 namespace PKP\services;
 
-use APP\core\Application;
 use Exception;
 use finfo;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +36,8 @@ class PKPFileService
 
     /**
      * Initialize and configure flysystem
+     *
+     * @hook File::adapter [[&$adapter, $this]]
      */
     public function __construct()
     {
@@ -149,18 +151,19 @@ class PKPFileService
      * @param int $fileId File ID
      * @param string $filename Filename to give to the downloaded file
      * @param bool $inline Whether to stream the file to the browser
+     *
+     * @hook File::download [[$file, &$filename, $inline]]
      */
     public function download($fileId, $filename, $inline = false)
     {
         $file = $this->get($fileId);
-        $dispatcher = Application::get()->getRequest()->getDispatcher();
         if (!$file) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         $path = $file->path;
         if (!$this->fs->has($path)) {
-            $dispatcher->handle404();
+            throw new \Symfony\Component\HttpKernel\Exception\NotFoundHttpException();
         }
 
         if (Hook::call('File::download', [$file, &$filename, $inline])) {
@@ -189,6 +192,8 @@ class PKPFileService
      * @param string $filename Source filename to sanitize
      *
      * @return string
+     *
+     * @hook File::formatFilename [[&$newFilename, $path, $filename]]
      */
     public function formatFilename($path, $filename)
     {

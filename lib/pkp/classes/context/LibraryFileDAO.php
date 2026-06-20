@@ -18,6 +18,7 @@
 
 namespace PKP\context;
 
+use Illuminate\Support\Facades\DB;
 use PKP\db\DAOResultFactory;
 use PKP\plugins\Hook;
 
@@ -27,11 +28,10 @@ class LibraryFileDAO extends \PKP\db\DAO
      * Retrieve a library file by ID.
      *
      * @param int $fileId
-     * @param int $contextId optional
      *
      * @return LibraryFile
      */
-    public function getById($fileId, $contextId = null)
+    public function getById($fileId, ?int $contextId = null)
     {
         $params = [(int) $fileId];
         if ($contextId) {
@@ -50,14 +50,13 @@ class LibraryFileDAO extends \PKP\db\DAO
     /**
      * Retrieve all library files for a context.
      *
-     * @param int $contextId
      * @param string $type (optional)
      *
      * @return DAOResultFactory<LibraryFile> LibraryFiles
      */
-    public function getByContextId($contextId, $type = null)
+    public function getByContextId(int $contextId, $type = null)
     {
-        $params = [(int) $contextId];
+        $params = [$contextId];
         if (isset($type)) {
             $params[] = (int) $type;
         }
@@ -75,11 +74,10 @@ class LibraryFileDAO extends \PKP\db\DAO
      * Retrieve all library files for a submission.
      *
      * @param string $type (optional)
-     * @param int $contextId (optional)
      *
      * @return DAOResultFactory<LibraryFile> LibraryFiles
      */
-    public function getBySubmissionId(int $submissionId, $type = null, $contextId = null)
+    public function getBySubmissionId(int $submissionId, $type = null, ?int $contextId = null)
     {
         $params = [(int) $submissionId];
         if (isset($type)) {
@@ -111,10 +109,8 @@ class LibraryFileDAO extends \PKP\db\DAO
 
     /**
      * Get the list of fields for which data is localized.
-     *
-     * @return array
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         return ['name', 'description'];
     }
@@ -139,6 +135,8 @@ class LibraryFileDAO extends \PKP\db\DAO
      * @param array $row
      *
      * @return LibraryFile
+     *
+     * @hook LibraryFileDAO::_fromRow [[&$libraryFile, &$row]]
      */
     public function _fromRow($row)
     {
@@ -249,27 +247,24 @@ class LibraryFileDAO extends \PKP\db\DAO
 
     /**
      * Delete a library file by ID.
-     *
-     * @param int $revision
      */
-    public function deleteById($fileId, $revision = null)
+    public function deleteById(int $fileId): int
     {
-        $this->update('DELETE FROM library_files WHERE file_id = ?', [(int) $fileId]);
-        $this->update('DELETE FROM library_file_settings WHERE file_id = ?', [(int) $fileId]);
+        return DB::table('library_files')
+            ->where('file_id', '=', $fileId)
+            ->delete();
     }
 
     /**
      * Check if a file with this filename already exists
      *
-     * @param int $contextId the context to check in.
-     *
      * @return bool
      */
-    public function filenameExists($contextId, $fileName)
+    public function filenameExists(int $contextId, $fileName)
     {
         $result = $this->retrieve(
             'SELECT COUNT(*) AS row_count FROM library_files WHERE context_id = ? AND file_name = ?',
-            [(int) $contextId, $fileName]
+            [$contextId, $fileName]
         );
         $row = $result->current();
         return $row ? (bool) $row->row_count : false;

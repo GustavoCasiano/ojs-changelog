@@ -35,13 +35,15 @@ use PKP\db\DAORegistry;
 use PKP\identity\Identity;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
+use PKP\security\authorization\CanAccessSettingsPolicy;
 use PKP\security\authorization\ContextAccessPolicy;
 use PKP\security\Role;
 use PKP\security\RoleDAO;
 use PKP\security\Validation;
 use PKP\user\User;
 use PKP\userGroup\UserGroup;
+use PKP\userGroup\relationships\UserUserGroup;
 
 class UserGridHandler extends GridHandler
 {
@@ -73,6 +75,7 @@ class UserGridHandler extends GridHandler
     public function authorize($request, &$args, $roleAssignments)
     {
         $this->addPolicy(new ContextAccessPolicy($request, $roleAssignments));
+        $this->addPolicy(new CanAccessSettingsPolicy());
         return parent::authorize($request, $args, $roleAssignments);
     }
 
@@ -159,9 +162,18 @@ class UserGridHandler extends GridHandler
                     $user = $row->getData();
                     assert($user instanceof User);
                     $contextId = Application::get()->getRequest()->getContext()->getId();
-                    $userGroupsIterator = Repo::userGroup()->userUserGroups($user->getId(), $contextId);
-                    $roles = $userGroupsIterator->map(fn (UserGroup $userGroup) => $userGroup->getLocalizedName())->join(__('common.commaListSeparator'));
-                    return ['label' => $roles];
+
+                    // fetch user groups where the user is assigned in the current context
+                    $userGroups = UserGroup::query()
+                    ->withContextIds($contextId)
+                    ->whereHas('userUserGroups', function ($query) use ($user) {
+                        $query->withUserId($user->getId())
+                              ->withActiveAndActiveInFuture();
+                    })
+                    ->get();
+
+                $roles = $userGroups->map(fn (UserGroup $userGroup) => $userGroup->getLocalizedData('name'))->join(__('common.commaListSeparator'));
+                return ['label' => $roles];
                 }
             }
         );
@@ -239,12 +251,11 @@ class UserGridHandler extends GridHandler
     {
         $context = $request->getContext();
 
-        $userGroups = Repo::userGroup()->getCollector()
-            ->filterByContextIds([$context->getId()])
-            ->getMany();
+        $userGroups = UserGroup::withContextIds([$context->getId()])->get();
+
         $userGroupOptions = ['' => __('grid.user.allRoles')];
         foreach ($userGroups as $userGroup) {
-            $userGroupOptions[$userGroup->getId()] = $userGroup->getLocalizedName();
+            $userGroupOptions[$userGroup->id] = $userGroup->getLocalizedData('name');
         }
 
         $userDao = Repo::user()->dao;
@@ -409,7 +420,7 @@ class UserGridHandler extends GridHandler
                 // Successful edit of an existing user.
                 $notificationManager = new NotificationManager();
                 $user = $request->getUser();
-                $notificationManager->createTrivialNotification($user->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.editedUser')]);
+                $notificationManager->createTrivialNotification($user->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.editedUser')]);
 
                 // Prepare the grid row data.
                 return \PKP\db\DAO::getDataChangedEvent($userId);
@@ -546,21 +557,31 @@ class UserGridHandler extends GridHandler
         // Identify the user Id.
         $userId = $request->getUserVar('rowId');
 
-        if ($userId !== null && Validation::getAdministrationLevel($userId, $user->getId(), $request->getContext()->getId()) === Validation::ADMINISTRATION_PROHIBITED) {
+        if ($userId !== null && Validation::getAdministrationLevel($userId, $user->getId(), $context->getId()) === Validation::ADMINISTRATION_PROHIBITED) {
             // We don't have administrative rights over this user.
             return new JSONMessage(false, __('grid.user.cannotAdminister'));
         }
 
-        // Remove user from all user group assignments for this context.
-        // Check if this user has any user group assignments for this context.
-        $userGroupCount = Repo::userGroup()
-            ->userUserGroups($userId, $context->getId())
+        // Check if this user has any active user group assignments for this context.
+        $activeUserGroupCount = UserGroup::query()
+            ->withContextIds($context->getId())
+            ->whereHas('userUserGroups', function ($query) use ($userId) {
+                $query->withUserId($userId)
+                    ->withActive();
+            })
             ->count();
 
-        if (!$userGroupCount) {
+        if (!$activeUserGroupCount) {
             return new JSONMessage(false, __('grid.user.userNoRoles'));
         } else {
-            Repo::userGroup()->deleteAssignmentsByContextId($context->getId(), $userId);
+            // End all active user group assignments for this context.
+            UserUserGroup::query()
+                ->withUserId($userId)
+                ->withActive()
+                ->whereHas('userGroup', function ($query) use ($context) {
+                    $query->withContextIds($context->getId());
+                })
+                ->update(['date_end' => now()]);
 
             return \PKP\db\DAO::getDataChangedEvent($userId);
         }
@@ -584,7 +605,7 @@ class UserGridHandler extends GridHandler
 
         $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
         if (
-            !$roleDao->userHasRole(\PKP\core\PKPApplication::CONTEXT_SITE, $user->getId(), Role::ROLE_ID_SITE_ADMIN) && !(
+            !$roleDao->userHasRole(\PKP\core\PKPApplication::SITE_CONTEXT_ID, $user->getId(), Role::ROLE_ID_SITE_ADMIN) && !(
                 $context &&
                 $roleDao->userHasRole($context->getId(), $user->getId(), Role::ROLE_ID_MANAGER)
             )
@@ -618,7 +639,7 @@ class UserGridHandler extends GridHandler
 
         $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
         if (
-            !$roleDao->userHasRole(\PKP\core\PKPApplication::CONTEXT_SITE, $user->getId(), Role::ROLE_ID_SITE_ADMIN) && !(
+            !$roleDao->userHasRole(\PKP\core\PKPApplication::SITE_CONTEXT_ID, $user->getId(), Role::ROLE_ID_SITE_ADMIN) && !(
                 $context &&
                 $roleDao->userHasRole($context->getId(), $user->getId(), Role::ROLE_ID_MANAGER)
             )
@@ -665,7 +686,7 @@ class UserGridHandler extends GridHandler
             ]);
             return $json;
 
-        // Otherwise present the grid for selecting the user to merge into
+            // Otherwise present the grid for selecting the user to merge into
         } else {
             $userGrid = new UserGridHandler();
             $userGrid->initialize($request);

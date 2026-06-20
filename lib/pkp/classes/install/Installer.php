@@ -3,8 +3,8 @@
 /**
  * @file classes/install/Installer.php
  *
- * Copyright (c) 2014-2021 Simon Fraser University
- * Copyright (c) 2000-2021 John Willinsky
+ * Copyright (c) 2014-2025 Simon Fraser University
+ * Copyright (c) 2000-2025 John Willinsky
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * @class Installer
@@ -16,36 +16,28 @@
 
 namespace PKP\install;
 
-use adoSchema;
 use APP\core\Application;
-use APP\facades\Repo;
-use APP\file\LibraryFileManager;
 use Exception;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use PKP\cache\CacheManager;
 use PKP\config\Config;
-use PKP\context\Context;
-use PKP\context\LibraryFile;
 use PKP\core\Core;
-use PKP\core\PKPContainer;
 use PKP\core\PKPApplication;
+use PKP\core\PKPContainer;
 use PKP\db\DAORegistry;
-use PKP\db\DAOResultFactory;
 use PKP\db\DBDataXMLParser;
 use PKP\db\XMLDAO;
 use PKP\facades\Locale;
 use PKP\file\FileManager;
 use PKP\filter\FilterHelper;
 use PKP\navigationMenu\NavigationMenuDAO;
-use PKP\notification\PKPNotification;
 use PKP\plugins\Hook;
 use PKP\plugins\PluginRegistry;
-use PKP\security\Role;
 use PKP\site\SiteDAO;
 use PKP\site\Version;
 use PKP\site\VersionCheck;
 use PKP\site\VersionDAO;
+use PKP\task\UpdateIPGeoDB;
+use PKP\task\UpdateRorRegistryDataset;
 use PKP\xml\PKPXMLParser;
 use PKP\xml\XMLNode;
 
@@ -118,6 +110,8 @@ class Installer
      * @param string $descriptor descriptor path
      * @param array $params installer parameters
      * @param bool $isPlugin true iff a plugin is being installed
+     *
+     * @hook Installer::Installer [[$this, &$descriptor, &$params]]
      */
     public function __construct($descriptor, $params = [], $isPlugin = false)
     {
@@ -148,6 +142,8 @@ class Installer
 
     /**
      * Destroy / clean-up after the installer.
+     *
+     * @hook Installer::destroy [[$this]]
      */
     public function destroy()
     {
@@ -158,6 +154,8 @@ class Installer
      * Pre-installation.
      *
      * @return bool
+     *
+     * @hook Installer::preInstall [[$this, &$result]]
      */
     public function preInstall()
     {
@@ -221,6 +219,8 @@ class Installer
      * Post-installation.
      *
      * @return bool
+     *
+     * @hook Installer::postInstall [[$this, &$result]]
      */
     public function postInstall()
     {
@@ -252,6 +252,8 @@ class Installer
      * Parse the installation descriptor XML file.
      *
      * @return bool
+     *
+     * @hook Installer::parseInstaller [[$this, &$result]]
      */
     public function parseInstaller()
     {
@@ -286,6 +288,8 @@ class Installer
      * Execute the installer actions.
      *
      * @return bool
+     *
+     * @hook Installer::executeInstaller [[$this, &$result]]
      */
     public function executeInstaller()
     {
@@ -306,6 +310,8 @@ class Installer
      * Update the version number.
      *
      * @return bool
+     *
+     * @hook Installer::updateVersion [[$this, &$result]]
      */
     public function updateVersion()
     {
@@ -397,30 +403,6 @@ class Installer
     public function executeAction($action)
     {
         switch ($action['type']) {
-            case 'schema':
-                $fileName = $action['file'];
-                $this->log(sprintf('schema: %s', $action['file']));
-
-                require_once('lib/pkp/lib/vendor/adodb/adodb-php/adodb.inc.php');
-                require_once('./lib/pkp/lib/vendor/adodb/adodb-php/adodb-xmlschema.inc.php');
-                $dbconn = ADONewConnection(Config::getVar('database', 'driver'));
-                $port = Config::getVar('database', 'port');
-                $dbconn->Connect(
-                    Config::getVar('database', 'host') . ($port ? ':' . $port : ''),
-                    Config::getVar('database', 'username'),
-                    Config::getVar('database', 'password'),
-                    Config::getVar('database', 'name')
-                );
-                $schemaXMLParser = new adoSchema($dbconn);
-                $dict = $schemaXMLParser->dict;
-                $sql = $schemaXMLParser->parseSchema($fileName);
-                $schemaXMLParser->destroy();
-
-                if ($sql) {
-                    return $this->executeSQL($sql);
-                }
-                $this->setError(self::INSTALLER_ERROR_DB, str_replace('{$file}', $fileName, __('installer.installParseDBFileError')));
-                return false;
             case 'data':
                 $fileName = $action['file'];
                 $condition = $action['attr']['condition'] ?? null;
@@ -511,6 +493,7 @@ class Installer
                 $this->log(sprintf('note: %s', $action['file']));
                 $this->notes[] = join('', file($action['file']));
                 break;
+            default: throw new Exception("Unknown action type {$action['type']}!");
         }
 
         return true;
@@ -563,6 +546,8 @@ class Installer
         if (!$configParser->writeConfig(Config::getConfigFileName())) {
             $this->wroteConfig = false;
         }
+
+        Config::resetData();
 
         return true;
     }
@@ -713,15 +698,10 @@ class Installer
      */
     public function clearDataCache()
     {
-        // Clear the CacheManager's caches
-        $cacheManager = CacheManager::getManager();
-        $cacheManager->flush(null, CACHE_TYPE_FILE);
-        $cacheManager->flush(null, CACHE_TYPE_OBJECT);
-
-        //clear laravel cache
+        // Clear Laravel caches
         $cacheManager = PKPContainer::getInstance()['cache'];
         $cacheManager->store()->flush();
-        
+
         return true;
     }
 
@@ -875,41 +855,6 @@ class Installer
     }
 
     /**
-     * Check to see whether a column exists.
-     * Used in installer XML in conditional checks on <data> nodes.
-     *
-     * @param string $tableName
-     * @param string $columnName
-     *
-     * @return bool
-     */
-    public function columnExists($tableName, $columnName)
-    {
-        $schema = DB::getDoctrineSchemaManager();
-        // Make sure the table exists
-        $tables = $schema->listTableNames();
-        if (!in_array($tableName, $tables)) {
-            return false;
-        }
-
-        return Schema::hasColumn($tableName, $columnName);
-    }
-
-    /**
-     * Check to see whether a table exists.
-     * Used in installer XML in conditional checks on <data> nodes.
-     *
-     * @param string $tableName
-     *
-     * @return bool
-     */
-    public function tableExists($tableName)
-    {
-        $tables = DB::getDoctrineSchemaManager()->listTableNames();
-        return in_array($tableName, $tables);
-    }
-
-    /**
      * Insert or update plugin data in versions
      * and plugin_settings tables.
      *
@@ -982,7 +927,7 @@ class Installer
             $navigationMenuDao->installSettings($context->getId(), 'registry/navigationMenus.xml');
         }
 
-        $navigationMenuDao->installSettings(PKPApplication::CONTEXT_ID_NONE, 'registry/navigationMenus.xml');
+        $navigationMenuDao->installSettings(PKPApplication::SITE_CONTEXT_ID, 'registry/navigationMenus.xml');
 
         return true;
     }
@@ -1003,255 +948,29 @@ class Installer
     }
 
     /**
-     * Migrate site locale settings to a serialized array in the database
+     * Update the tables rors and ror_settings with latest data set dump from Ror.org
      */
-    public function migrateSiteLocales()
+    public function updateRorRegistryDataset(): bool
     {
-        $siteDao = DAORegistry::getDAO('SiteDAO'); /** @var SiteDAO $siteDao */
+        PKPApplication::upgrade();
 
-        $result = $siteDao->retrieve('SELECT installed_locales, supported_locales FROM site');
-
-        $set = $params = [];
-        $row = (array) $result->current();
-        $type = 'array';
-        foreach ($row as $column => $value) {
-            if (!empty($value)) {
-                $set[] = $column . ' = ?';
-                $params[] = $siteDao->convertToDB(explode(':', $value), $type);
-            }
-        }
-        $siteDao->update('UPDATE site SET ' . join(',', $set), $params);
+        $updateRorRegistryDataset = new UpdateRorRegistryDataset();
+        $updateRorRegistryDataset->execute();
 
         return true;
     }
 
     /**
-     * Migrate active sidebar blocks from plugin_settings to journal_settings
-     *
-     * @return bool
+     * Download IPGeoDB
      */
-    public function migrateSidebarBlocks()
+    public function downloadIPGeoDB(): bool
     {
-        $siteDao = DAORegistry::getDAO('SiteDAO'); /** @var SiteDAO $siteDao */
-        $site = $siteDao->getSite();
-
-        $plugins = PluginRegistry::loadCategory('blocks');
-        if (empty($plugins)) {
-            return true;
-        }
-
-        // Sanitize plugin names for use in sql IN().
-        $sanitizedPluginNames = array_map(function ($name) {
-            return "'" . preg_replace('/[^A-Za-z0-9]/', '', $name) . "'";
-        }, array_keys($plugins));
-
-        $pluginSettingsDao = DAORegistry::getDAO('PluginSettingsDAO'); /** @var \PKP\plugins\PluginSettingsDAO $pluginSettingsDao */
-        $result = $pluginSettingsDao->retrieve(
-            'SELECT plugin_name, context_id, setting_value FROM plugin_settings WHERE plugin_name IN (' . join(',', $sanitizedPluginNames) . ') AND setting_name=\'context\';'
-        );
-
-        $sidebarSettings = [];
-        foreach ($result as $row) {
-            if ($row->setting_value != 1) {
-                continue;
-            } // BLOCK_CONTEXT_SIDEBAR
-
-            $seq = $pluginSettingsDao->getSetting($row->context_id, $row->plugin_name, 'seq');
-            if (!isset($sidebarSettings[$row->context_id])) {
-                $sidebarSettings[$row->context_id] = [];
-            }
-            $sidebarSettings[$row->context_id][(int) $seq] = $row->plugin_name;
-        }
-
-        foreach ($sidebarSettings as $contextId => $contextSetting) {
-            // Order by sequence
-            ksort($contextSetting);
-            $contextSetting = array_values($contextSetting);
-            if ($contextId) {
-                $contextDao = Application::getContextDAO();
-                $context = $contextDao->getById($contextId);
-                $context->setData('sidebar', $contextSetting);
-                $contextDao->updateObject($context);
-            } else {
-                $siteDao = DAORegistry::getDAO('SiteDAO'); /** @var SiteDAO $siteDao */
-                $site = $siteDao->getSite();
-                $site->setData('sidebar', $contextSetting);
-                $siteDao->updateObject($site);
-            }
-        }
-
-        $pluginSettingsDao->update('DELETE FROM plugin_settings WHERE plugin_name IN (' . join(',', $sanitizedPluginNames) . ') AND (setting_name=\'context\' OR setting_name=\'seq\');');
-
+        PKPApplication::upgrade();
+        $updateIPGeoDB = new UpdateIPGeoDB();
+        $updateIPGeoDB->execute();
         return true;
     }
 
-    /**
-     * Migrate the metadata settings in the database to use a single row with one
-     * of the new constants
-     */
-    public function migrateMetadataSettings()
-    {
-        $contextDao = Application::getContextDao();
-
-        $metadataSettings = [
-            'coverage',
-            'languages',
-            'rights',
-            'source',
-            'subjects',
-            'type',
-            'disciplines',
-            'keywords',
-            'agencies',
-            'citations',
-        ];
-
-        $result = $contextDao->retrieve('SELECT ' . $contextDao->primaryKeyColumn . ' from ' . $contextDao->tableName);
-        $contextIds = [];
-        foreach ($result as $row) {
-            $row = (array) $row;
-            $contextIds[] = $row[$contextDao->primaryKeyColumn];
-        }
-
-        foreach ($metadataSettings as $metadataSetting) {
-            foreach ($contextIds as $contextId) {
-                $result = $contextDao->retrieve(
-                    'SELECT *
-                    FROM ' . $contextDao->settingsTableName . '
-                    WHERE
-                        ' . $contextDao->primaryKeyColumn . ' = ?
-                        AND (
-                            setting_name = ?
-                            OR setting_name = ?
-                            OR setting_name = ?
-                        )
-                    ',
-                    [
-                        $contextId,
-                        $metadataSetting . 'EnabledWorkflow',
-                        $metadataSetting . 'EnabledSubmission',
-                        $metadataSetting . 'Required',
-                    ]
-                );
-                $value = Context::METADATA_DISABLE;
-                foreach ($result as $row) {
-                    if ($row->setting_name === $metadataSetting . 'Required' && $row->setting_value) {
-                        $value = Context::METADATA_REQUIRE;
-                    } elseif ($row->setting_name === $metadataSetting . 'EnabledSubmission' && $row->setting_value && $value !== Context::METADATA_REQUIRE) {
-                        $value = Context::METADATA_REQUEST;
-                    } elseif ($row->setting_name === $metadataSetting . 'EnabledWorkflow' && $row->setting_value && $value !== Context::METADATA_REQUEST && $value !== Context::METADATA_REQUIRE) {
-                        $value = Context::METADATA_ENABLE;
-                    }
-                }
-
-                if ($value !== Context::METADATA_DISABLE) {
-                    $contextDao->update(
-                        'INSERT INTO ' . $contextDao->settingsTableName . ' (
-                            ' . $contextDao->primaryKeyColumn . ',
-                            locale,
-                            setting_name,
-                            setting_value
-                        ) VALUES (?, ?, ?, ?)',
-                        [
-                            $contextId,
-                            '',
-                            $metadataSetting,
-                            $value,
-                        ]
-                    );
-                }
-
-                $contextDao->update(
-                    'DELETE FROM ' . $contextDao->settingsTableName . ' WHERE
-                        ' . $contextDao->primaryKeyColumn . ' = ?
-                        AND (
-                            setting_name = ?
-                            OR setting_name = ?
-                            OR setting_name = ?
-                        )
-                    ',
-                    [
-                        $contextId,
-                        $metadataSetting . 'EnabledWorkflow',
-                        $metadataSetting . 'EnabledSubmission',
-                        $metadataSetting . 'Required',
-                    ]
-                );
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Set the notification settings for journal managers and subeditors so
-     * that they are opted out of the monthly stats email.
-     */
-    public function setStatsEmailSettings()
-    {
-        $roleIds = [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR];
-
-        $notificationSubscriptionSettingsDao = DAORegistry::getDAO('NotificationSubscriptionSettingsDAO'); /** @var \PKP\notification\NotificationSubscriptionSettingsDAO $notificationSubscriptionSettingsDao */
-        for ($contexts = Application::get()->getContextDAO()->getAll(true); $context = $contexts->next();) {
-            $users = Repo::user()->getCollector()
-                ->filterByContextIds([$context->getId()])
-                ->filterByRoleIds($roleIds)
-                ->getMany();
-
-            foreach ($users as $user) {
-                $notificationSubscriptionSettingsDao->update(
-                    'INSERT INTO notification_subscription_settings
-                        (setting_name, setting_value, user_id, context, setting_type)
-                        VALUES
-                        (?, ?, ?, ?, ?)',
-                    [
-                        'blocked_emailed_notification',
-                        PKPNotification::NOTIFICATION_TYPE_EDITORIAL_REPORT,
-                        $user->getId(),
-                        $context->getId(),
-                        'int'
-                    ]
-                );
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Fix library files, which were mistakenly named server-side using source filenames.
-     * See https://github.com/pkp/pkp-lib/issues/5471
-     *
-     * @return bool
-     */
-    public function fixLibraryFiles()
-    {
-        // Fetch all library files (no method currently in LibraryFileDAO for this)
-        $libraryFileDao = DAORegistry::getDAO('LibraryFileDAO'); /** @var \PKP\context\LibraryFileDAO $libraryFileDao */
-        $result = $libraryFileDao->retrieve('SELECT * FROM library_files');
-        /** @var DAOResultFactory<LibraryFile> */
-        $libraryFiles = new DAOResultFactory($result, $libraryFileDao, '_fromRow', ['id']);
-        $wrongFiles = [];
-        while ($libraryFile = $libraryFiles->next()) {
-            $libraryFileManager = new LibraryFileManager($libraryFile->getContextId());
-            $wrongFilePath = $libraryFileManager->getBasePath() . $libraryFile->getOriginalFileName();
-            $rightFilePath = $libraryFile->getFilePath();
-
-            if (isset($wrongFiles[$wrongFilePath])) {
-                error_log('A potential collision was found between library files ' . $libraryFile->getId() . ' and ' . $wrongFiles[$wrongFilePath]->getId() . '. Please review the database entries and ensure that the associated files are correct.');
-            } else {
-                $wrongFiles[$wrongFilePath] = $libraryFile;
-            }
-
-            // For all files for which the "wrong" filename exists and the "right" filename doesn't,
-            // copy the "wrong" file over to the "right" one. This will leave the "wrong" file in
-            // place, and won't disambiguate cases for which files were clobbered.
-            if (file_exists($wrongFilePath) && !file_exists($rightFilePath)) {
-                $libraryFileManager->copyFile($wrongFilePath, $rightFilePath);
-            }
-        }
-        return true;
-    }
 }
 
 if (!PKP_STRICT_MODE) {

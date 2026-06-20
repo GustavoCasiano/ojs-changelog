@@ -18,9 +18,12 @@
 
 namespace PKP\security;
 
-use APP\facades\Repo;
+use APP\core\Application;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\DB;
+use PKP\core\Core;
 use PKP\db\DAO;
-use PKP\db\DAORegistry;
+use PKP\userGroup\UserGroup;
 
 class RoleDAO extends DAO
 {
@@ -36,46 +39,35 @@ class RoleDAO extends DAO
 
     /**
      * Validation check to see if a user belongs to any group that has a given role
-     *
-     * @param int $contextId
-     * @param int $userId
-     * @param int|array $roleId ROLE_ID_...
-     *
-     * @return bool True iff at least one such role exists
      */
-    public function userHasRole($contextId, $userId, $roleId)
+    public function userHasRole(?int $contextId, int $userId, int|array $roleIds): bool
     {
-        $roleId = is_array($roleId) ? join(',', array_map('intval', $roleId)) : (int) $roleId;
-        $result = $this->retrieve(
-            'SELECT count(*) AS row_count FROM user_groups ug JOIN user_user_groups uug ON ug.user_group_id = uug.user_group_id
-			WHERE ug.context_id = ? AND uug.user_id = ? AND ug.role_id IN (' . $roleId . ')',
-            [(int) $contextId, (int) $userId]
-        );
-        $row = (array) $result->current();
-        return $row && $row['row_count'];
+        return DB::table('user_groups AS ug')
+            ->join('user_user_groups AS uug', 'ug.user_group_id', '=', 'uug.user_group_id')
+            ->where('uug.user_id', (int) $userId)
+            ->whereIn('ug.role_id', is_array($roleIds) ? $roleIds : [$roleIds])
+            ->where(fn (Builder $q) => $q->whereNull('uug.date_start')->orWhere('uug.date_start', '<=', Core::getCurrentDate()))
+            ->where(fn (Builder $q) => $q->whereNull('uug.date_end')->orWhere('uug.date_end', '>', Core::getCurrentDate()))
+            ->whereRaw('COALESCE(ug.context_id, 0) = ?', [(int) $contextId])
+            ->exists();
     }
 
     /**
-     * Return an array of row objects corresponding to the roles a given use has
+     * Return an array of row objects corresponding to the roles a given user has
      *
-     * @param int $userId
-     * @param int $contextId
-     *
-     * @return array of Roles
+     * @return Role[]
      */
-    public function getByUserId($userId, $contextId = null)
+    public function getByUserId(int $userId, ?int $contextId = Application::SITE_CONTEXT_ID_ALL): array
     {
-        $params = [(int) $userId];
-        if ($contextId !== null) {
-            $params[] = (int) $contextId;
-        }
-        $result = $this->retrieve(
-            'SELECT	DISTINCT ug.role_id AS role_id
-			FROM	user_groups ug
-				JOIN user_user_groups uug ON ug.user_group_id = uug.user_group_id
-			WHERE	uug.user_id = ?' . ($contextId !== null ? ' AND ug.context_id = ?' : ''),
-            $params
-        );
+        $result = DB::table('user_groups AS ug')
+            ->join('user_user_groups AS uug', 'ug.user_group_id', '=', 'uug.user_group_id')
+            ->where('uug.user_id', $userId)
+            ->where(fn (Builder $q) => $q->whereNull('uug.date_start')->orWhere('uug.date_start', '<=', Core::getCurrentDate()))
+            ->where(fn (Builder $q) => $q->whereNull('uug.date_end')->orWhere('uug.date_end', '>', Core::getCurrentDate()))
+            ->when($contextId !== Application::SITE_CONTEXT_ID_ALL, fn (Builder $q) => $q->whereRaw('COALESCE(ug.context_id, 0) = ?', [(int) $contextId]))
+            ->distinct()
+            ->select(['ug.role_id AS role_id'])
+            ->get();
 
         $roles = [];
         foreach ($result as $row) {
@@ -90,22 +82,31 @@ class RoleDAO extends DAO
      * Return an array of objects corresponding to the roles a given user has,
      * grouped by context id.
      *
+     * @return array{int: array<int, Role>}
      *
-     * @return array
      */
-    public function getByUserIdGroupedByContext(int $userId)
+    public function getByUserIdGroupedByContext(int $userId): array
     {
-        $roleDao = DAORegistry::getDAO('RoleDAO'); /** @var RoleDAO $roleDao */
-        $userGroups = Repo::userGroup()->userUserGroups($userId);
+        $userGroups = UserGroup::query()
+            ->with('userUserGroups')
+            ->whereHas('userUserGroups', function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->where(function ($q) {
+                        $q->whereNull('date_end')
+                            ->orWhere('date_end', '>', now());
+                    })
+                    ->where(function ($q) {
+                        $q->whereNull('date_start')
+                            ->orWhere('date_start', '<=', now());
+                    });
+            })
+            ->get();
 
         $roles = [];
         foreach ($userGroups as $userGroup) {
-            // The site admin role MUST only be present for context ID 0.
-            if ($userGroup->getContextId() != 0 && $userGroup->getRoleId() == Role::ROLE_ID_SITE_ADMIN) continue;
-
-            $role = $roleDao->newDataObject();
-            $role->setRoleId($userGroup->getRoleId());
-            $roles[$userGroup->getContextId()][$userGroup->getRoleId()] = $role;
+            $role = $this->newDataObject();
+            $role->setRoleId($userGroup->roleId);
+            $roles[(int) $userGroup->contextId][$userGroup->roleId] = $role;
         }
 
         return $roles;
@@ -154,8 +155,7 @@ class RoleDAO extends DAO
      */
     public function getAlwaysActiveStages()
     {
-        $alwaysActiveStages = [Role::ROLE_ID_MANAGER];
-        return $alwaysActiveStages;
+        return [Role::ROLE_ID_MANAGER];
     }
 }
 

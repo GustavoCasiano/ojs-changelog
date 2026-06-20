@@ -54,8 +54,6 @@ class DBDataXMLParser
             return [];
         }
 
-        $allTables = DB::getDoctrineSchemaManager()->listTableNames();
-
         foreach ($tree->getChildren() as $type) {
             switch ($type->getName()) {
                 case 'table':
@@ -133,8 +131,7 @@ class DBDataXMLParser
                                     throw new Exception('dropindex called without table or index');
                                 }
 
-                                $schemaManager = DB::getDoctrineSchemaManager();
-                                if ($child->getAttribute('ifexists') && !in_array($index, array_keys($schemaManager->listTableIndexes($table)))) {
+                                if ($child->getAttribute('ifexists') && !Schema::hasIndex($table, $index)) {
                                     break;
                                 }
                                 $this->sql = array_merge($this->sql, array_column(DB::pretend(function () use ($table, $index) {
@@ -147,7 +144,7 @@ class DBDataXMLParser
                                 // If a "driver" attribute is specified, multiple drivers can be
                                 // specified with a comma separator.
                                 $driver = $child->getAttribute('driver');
-                                if (empty($driver) || in_array(Config::getVar('database', 'driver'), array_map('trim', explode(',', $driver)))) {
+                                if (empty($driver) || in_array(Config::getVar('database', 'driver'), array_map(trim(...), explode(',', $driver)))) {
                                     $this->sql[] = $child->getValue();
                                 }
                                 break;

@@ -1,8 +1,8 @@
 # TAKASHI IMAGIRE <imagire@gmail.com>, 2021.
-# Bjorn-Ole Kamm <pkp_trans@b-ok.de>, 2021, 2024.
+# Bjorn-Ole Kamm <pkp_trans@b-ok.de>, 2021, 2024, 2026.
 msgid ""
 msgstr ""
-"PO-Revision-Date: 2024-06-18 07:16+0000\n"
+"PO-Revision-Date: 2026-01-09 01:22+0000\n"
 "Last-Translator: Bjorn-Ole Kamm <pkp_trans@b-ok.de>\n"
 "Language-Team: Japanese <http://translate.pkp.sfu.ca/projects/pkp-lib/"
 "submission/ja/>\n"
@@ -26,6 +26,7 @@ msgstr ""
 msgid "author.submission.roundStatus.reviewsReady"
 msgstr "新しい査読が提出され、現在は編集者によって検討中です。"
 
+#, fuzzy
 msgid "author.submission.roundStatus.reviewOverdue"
 msgstr ""
 "一人また複数の査読者が期限を過ぎています。 編集チームに通知され、査読が完了し"
@@ -1288,9 +1289,11 @@ msgstr "改訂が要求されました。"
 msgid "editor.submission.roundStatus.revisionsSubmitted"
 msgstr "改訂版が提出されており、決定が必要です。"
 
+#, fuzzy
 msgid "editor.submission.roundStatus.resubmitForReview"
 msgstr "投稿は、別の査読ラウンドのために再提出する必要があります。"
 
+#, fuzzy
 msgid "editor.submission.roundStatus.submissionResubmitted"
 msgstr "投稿は、別の査読ラウンドに再提出されました。"
 
@@ -1312,6 +1315,7 @@ msgstr "査読者の応答待ちです。"
 msgid "editor.submission.roundStatus.reviewsReady"
 msgstr "新しい査読が提出されました。"
 
+#, fuzzy
 msgid "editor.submission.roundStatus.reviewsCompleted"
 msgstr "すべての査読者が応答し、決定が必要です。"
 
@@ -2568,3 +2572,22 @@ msgstr "利益相反"
 
 msgid "author.competingInterests.description"
 msgstr "著者と研究対象との間に利益相反がある場合は、それを開示してください。"
+
+msgid "submission.forReviewerSuggestion"
+msgstr "査読者候補のため"
+
+msgid "submission.reviewerSuggestions"
+msgstr "査読者候補一覧"
+
+msgid "editor.submission.reviewerSuggestions"
+msgstr "著者によって提案された査読者"
+
+msgid "submission.wizard.noReviewerSuggestions"
+msgstr "この投稿については、査読者候補は提案されていません。"
+
+msgid "reviewerSuggestion.suggestionReason"
+msgstr "査読者を候補する理由"
+
+msgid "reviewerSuggestion.suggestionReason.description"
+msgstr "この査読者を推薦する理由と、利益相反の可能性があるかどうかを記載してください"
+"。"

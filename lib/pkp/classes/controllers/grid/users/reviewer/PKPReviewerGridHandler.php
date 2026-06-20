@@ -21,8 +21,10 @@ use APP\core\PageRouter;
 use APP\core\Request;
 use APP\facades\Repo;
 use APP\notification\NotificationManager;
+use APP\orcid\actions\SendReviewToOrcid;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
+use Exception;
 use Illuminate\Support\Facades\Mail;
 use PKP\controllers\grid\GridColumn;
 use PKP\controllers\grid\GridHandler;
@@ -38,7 +40,6 @@ use PKP\core\Core;
 use PKP\core\JSONMessage;
 use PKP\core\PKPApplication;
 use PKP\core\PKPRequest;
-use PKP\core\PKPServices;
 use PKP\db\DAO;
 use PKP\db\DAORegistry;
 use PKP\emailTemplate\EmailTemplate;
@@ -46,16 +47,13 @@ use PKP\facades\Locale;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\log\event\PKPSubmissionEventLogEntry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
-use PKP\log\SubmissionLog;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\Mailable;
 use PKP\mail\mailables\ReviewerReinstate;
 use PKP\mail\mailables\ReviewerResendRequest;
 use PKP\mail\mailables\ReviewerUnassign;
 use PKP\mail\traits\Sender;
-use PKP\notification\NotificationDAO;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\notification\PKPNotificationManager;
 use PKP\reviewForm\ReviewFormDAO;
 use PKP\reviewForm\ReviewFormElementDAO;
@@ -66,11 +64,16 @@ use PKP\security\authorization\WorkflowStageAccessPolicy;
 use PKP\security\Role;
 use PKP\security\Validation;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
+use PKP\submission\reviewer\suggestion\ReviewerSuggestion;
 use PKP\submission\reviewRound\ReviewRound;
 use PKP\submission\reviewRound\ReviewRoundDAO;
 use PKP\submission\SubmissionCommentDAO;
 use PKP\user\User;
+use PKP\userGroup\UserGroup;
+use PKP\controllers\grid\users\reviewer\form\ReviewerForm;
+use PKP\controllers\grid\users\reviewer\form\EnrollExistingReviewerForm;
+use PKP\controllers\grid\users\reviewer\form\CreateReviewerForm;
+use PKP\controllers\grid\users\reviewer\form\AdvancedSearchReviewerForm;
 use Symfony\Component\Mailer\Exception\TransportException;
 
 class PKPReviewerGridHandler extends GridHandler
@@ -243,7 +246,6 @@ class PKPReviewerGridHandler extends GridHandler
                     new AjaxModal(
                         $router->url($request, null, null, 'showReviewerForm', null, $actionArgs),
                         __('editor.submission.addReviewer'),
-                        'modal_add_user'
                     ),
                     __('editor.submission.addReviewer'),
                     'add_user'
@@ -333,8 +335,12 @@ class PKPReviewerGridHandler extends GridHandler
     {
         // Get the existing review assignments for this submission
         $reviewRound = $this->getReviewRound();
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        return $reviewAssignmentDao->getByReviewRoundId($reviewRound->getId());
+        return Repo::reviewAssignment()->getCollector()
+            ->filterByReviewRoundIds([$reviewRound->getId()])
+            ->getMany()
+            ->keyBy(fn (ReviewAssignment $reviewAssignment, int $key) => $reviewAssignment->getId())
+            ->sortKeys()
+            ->toArray();
     }
 
 
@@ -406,20 +412,20 @@ class PKPReviewerGridHandler extends GridHandler
     public function updateReviewer($args, $request)
     {
         $selectionType = $request->getUserVar('selectionType');
-        $formClassName = $this->_getReviewerFormClassName($selectionType);
 
-        // Form handling
-        $reviewerForm = new $formClassName($this->getSubmission(), $this->getReviewRound());
+        $reviewerForm = $this->getReviewerFrom($selectionType, $request);
         $reviewerForm->readInputData();
+        
+
         if ($reviewerForm->validate()) {
             $reviewAssignment = $reviewerForm->execute();
             $json = DAO::getDataChangedEvent($reviewAssignment->getId());
             $json->setGlobalEvent('update:decisions');
             return $json;
-        } else {
-            // There was an error, redisplay the form
-            return new JSONMessage(true, $reviewerForm->fetch($request));
         }
+
+        // There was an error, redisplay the form
+        return new JSONMessage(false);
     }
 
     /**
@@ -473,12 +479,18 @@ class PKPReviewerGridHandler extends GridHandler
     {
         $context = $request->getContext();
         $term = $request->getUserVar('term');
-        $reviewerUserGroupIds = Repo::userGroup()->getCollector()
+
+        $reviewerUserGroupIds = UserGroup::query()
+            ->withContextIds([$context->getId()])
+            ->withRoleIds([Role::ROLE_ID_REVIEWER])
+            ->get()
+            ->pluck('id')
+            ->toArray();
+
+        $users = Repo::user()
+            ->getCollector()
             ->filterByContextIds([$context->getId()])
-            ->filterByRoleIds([Role::ROLE_ID_REVIEWER])
-            ->getIds();
-        $users = Repo::user()->getCollector()
-            ->filterExcludeUserGroupIds(iterator_to_array($reviewerUserGroupIds))
+            ->filterExcludeUserGroupIds($reviewerUserGroupIds)
             ->searchPhrase($term)
             ->getMany();
 
@@ -560,14 +572,12 @@ class PKPReviewerGridHandler extends GridHandler
         if ($reinstateReviewerForm->execute() && !$request->getUserVar('skipEmail')) {
             $reviewer = Repo::user()->get($reviewAssignment->getReviewerId());
             $user = $request->getUser();
-            $context = PKPServices::get('context')->get($submission->getData('contextId'));
+            $context = app()->get('context')->get($submission->getData('contextId'));
             $template = Repo::emailTemplate()->getByKey($context->getId(), ReviewerReinstate::getEmailTemplateKey());
             $mailable = new ReviewerReinstate($context, $submission, $reviewAssignment);
 
-            if($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)){
-                /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_REINSTATED, $mailable, $submission, $user);
+            if ($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)) {
+                Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_REINSTATED, $mailable, $submission, $user);
             }
         }
 
@@ -625,10 +635,8 @@ class PKPReviewerGridHandler extends GridHandler
             $template = Repo::emailTemplate()->getByKey($context->getId(), ReviewerResendRequest::getEmailTemplateKey());
             $mailable = new ReviewerResendRequest($context, $submission, $reviewAssignment);
 
-            if($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)){
-                /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_RESEND, $mailable, $submission, $user);
+            if ($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)) {
+                Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_RESEND, $mailable, $submission, $user);
             }
         }
 
@@ -662,15 +670,12 @@ class PKPReviewerGridHandler extends GridHandler
         if ($unassignReviewerForm->execute() && !$request->getUserVar('skipEmail')) {
             $reviewer = Repo::user()->get($reviewAssignment->getReviewerId());
             $user = $request->getUser();
-            $context = PKPServices::get('context')->get($submission->getData('contextId'));
+            $context = app()->get('context')->get($submission->getData('contextId'));
             $template = Repo::emailTemplate()->getByKey($context->getId(), ReviewerUnassign::getEmailTemplateKey());
             $mailable = new ReviewerUnassign($context, $submission, $reviewAssignment);
-            $this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer);
 
-            if($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)){
-                /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-                $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                $submissionEmailLogDao->logMailable(SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_CANCEL, $mailable, $submission, $user);
+            if ($this->createMail($mailable, $request->getUserVar('personalMessage'), $template, $user, $reviewer)) {
+                Repo::emailLogEntry()->logMailable(SubmissionEmailLogEventType::REVIEW_CANCEL, $mailable, $submission, $user);
             }
         }
 
@@ -697,10 +702,11 @@ class PKPReviewerGridHandler extends GridHandler
         $submission = $this->getSubmission();
         $user = $request->getUser();
         $reviewAssignment = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_REVIEW_ASSIGNMENT);
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
 
-        $reviewAssignment->setConsidered(ReviewAssignment::REVIEW_ASSIGNMENT_UNCONSIDERED);
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, [
+            'considered' => ReviewAssignment::REVIEW_ASSIGNMENT_UNCONSIDERED,
+            'dateConsidered' => null
+        ]);
 
         // log the unconsider.
         $eventLog = Repo::eventLog()->newDataObject([
@@ -739,39 +745,36 @@ class PKPReviewerGridHandler extends GridHandler
 
         // Rate the reviewer's performance on this assignment
         $quality = $request->getUserVar('quality');
+        $newReviewData = [];
         if ($quality) {
-            $reviewAssignment->setQuality((int) $quality);
-            $reviewAssignment->setDateRated(Core::getCurrentDate());
+            $newReviewData['quality'] = (int) $quality;
+            $newReviewData['dateRated'] = Core::getCurrentDate();
         } else {
-            $reviewAssignment->setQuality(null);
-            $reviewAssignment->setDateRated(null);
+            $newReviewData['quality'] = $newReviewData['dateRated'] = null;
         }
 
-        // Mark the latest read date of the review by the editor.
-        $user = $request->getUser();
+        // if the review assignment had been unconsidered or only viewed but not considered, update the flag.
+        $newReviewData['considered'] = ($reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW || 
+                                       $reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_VIEWED)
+            ? ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED
+            : ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED;
 
-        // if the review assignment had been unconsidered, update the flag.
-        $reviewAssignment->setConsidered(
-            $reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW
-                ? ReviewAssignment::REVIEW_ASSIGNMENT_CONSIDERED
-                : ReviewAssignment::REVIEW_ASSIGNMENT_RECONSIDERED
-        );
+        // set the date when the editor confirms the review
+        $newReviewData['dateConsidered'] = Core::getCurrentDate();
 
         if (!$reviewAssignment->getDateCompleted()) {
             // Editor completes the review.
-            $reviewAssignment->setDateConfirmed(Core::getCurrentDate());
-            $reviewAssignment->setDateCompleted(Core::getCurrentDate());
+            $newReviewData['dateConfirmed'] = $newReviewData['dateCompleted'] = Core::getCurrentDate();
         }
 
         // Trigger an update of the review round status
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-        $reviewAssignmentDao->updateObject($reviewAssignment);
+        Repo::reviewAssignment()->edit($reviewAssignment, $newReviewData);
 
         //if the review was read by an editor, log event
         if ($reviewAssignment->isRead()) {
             $submissionId = $reviewAssignment->getSubmissionId();
             $submission = Repo::submission()->get($submissionId);
-
+            $user = $request->getUser();
             $eventLog = Repo::eventLog()->newDataObject([
                 'assocType' => PKPApplication::ASSOC_TYPE_SUBMISSION,
                 'assocId' => $submission->getId(),
@@ -787,13 +790,13 @@ class PKPReviewerGridHandler extends GridHandler
             Repo::eventLog()->add($eventLog);
         }
         // Remove the reviewer task.
-        $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-        $notificationDao->deleteByAssoc(
-            Application::ASSOC_TYPE_REVIEW_ASSIGNMENT,
-            $reviewAssignment->getId(),
-            $reviewAssignment->getReviewerId(),
-            PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT
-        );
+        Notification::withAssoc(Application::ASSOC_TYPE_REVIEW_ASSIGNMENT, $reviewAssignment->getId())
+            ->withUserId($reviewAssignment->getReviewerId())
+            ->withType(Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT)
+            ->delete();
+
+        // Deposit review to ORCID
+        (new SendReviewToOrcid($reviewAssignment->getId()))->execute();
 
         $json = DAO::getDataChangedEvent($reviewAssignment->getId());
         $json->setGlobalEvent('update:decisions');
@@ -873,6 +876,12 @@ class PKPReviewerGridHandler extends GridHandler
             ]);
         }
 
+        // If it's a new review assignment, mark it as viewed
+        if ($reviewAssignment->getConsidered() === ReviewAssignment::REVIEW_ASSIGNMENT_NEW) {
+            Repo::reviewAssignment()->edit($reviewAssignment, [
+                'considered' => ReviewAssignment::REVIEW_ASSIGNMENT_VIEWED,
+            ]);
+        }
 
         // Render the response.
         return $templateMgr->fetchJson('controllers/grid/users/reviewer/readReview.tpl');
@@ -901,7 +910,7 @@ class PKPReviewerGridHandler extends GridHandler
             $currentUser = $request->getUser();
             $notificationMgr = new NotificationManager();
             $messageKey = $thankReviewerForm->getData('skipEmail') ? __('notification.reviewAcknowledged') : __('notification.reviewerThankedEmail');
-            $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $messageKey]);
+            $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $messageKey]);
         } else {
             $json = new JSONMessage(false, __('editor.review.thankReviewerError'));
         }
@@ -950,7 +959,7 @@ class PKPReviewerGridHandler extends GridHandler
             // Insert a trivial notification to indicate the reviewer was reminded successfully.
             $currentUser = $request->getUser();
             $notificationMgr = new NotificationManager();
-            $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.sentNotification')]);
+            $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => __('notification.sentNotification')]);
             return new JSONMessage(true);
         } else {
             return new JSONMessage(false, __('editor.review.reminderError'));
@@ -1000,7 +1009,7 @@ class PKPReviewerGridHandler extends GridHandler
      */
     public function reviewHistory($args, $request)
     {
-        $reviewAssignment = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_REVIEW_ASSIGNMENT);
+        $reviewAssignment = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_REVIEW_ASSIGNMENT); /**@var ReviewAssignment $reviewAssignment */
 
         $templateMgr = TemplateManager::getManager($request);
         $dates = [
@@ -1076,7 +1085,7 @@ class PKPReviewerGridHandler extends GridHandler
         $mailable->sender($user);
         $mailable->addData([
             'messageToReviewer' => __('reviewer.step1.requestBoilerplate'),
-            'abstractTermIfEnabled' => ($this->getSubmission()->getLocalizedAbstract() == '' ? '' : __('common.abstract')), // Deprecated; for OJS 2.x templates
+            'abstractTermIfEnabled' => ($this->getSubmission()->getCurrentPublication()->getLocalizedData('abstract') == '' ? '' : __('common.abstract')), // Deprecated; for OJS 2.x templates
         ]);
 
         $body = Mail::compileParams($template->getLocalizedData('body'), $mailable->getData(Locale::getLocale()));
@@ -1100,11 +1109,10 @@ class PKPReviewerGridHandler extends GridHandler
     {
         $selectionType = $request->getUserVar('selectionType');
         assert(!empty($selectionType));
-        $formClassName = $this->_getReviewerFormClassName($selectionType);
+
         $userRoles = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_USER_ROLES);
 
-        // Form handling.
-        $reviewerForm = new $formClassName($this->getSubmission(), $this->getReviewRound());
+        $reviewerForm = $this->getReviewerFrom($selectionType, $request);
         $reviewerForm->initData();
         $reviewerForm->setUserRoles($userRoles);
 
@@ -1113,22 +1121,14 @@ class PKPReviewerGridHandler extends GridHandler
 
     /**
      * Get the name of ReviewerForm class for the current selection type.
-     *
-     * @param string $selectionType (const)
-     *
-     * @return string Form class name
      */
-    public function _getReviewerFormClassName($selectionType)
+    public function _getReviewerFormClassName(int $selectionType): string
     {
-        switch ($selectionType) {
-            case self::REVIEWER_SELECT_ADVANCED_SEARCH:
-                return '\PKP\controllers\grid\users\reviewer\form\AdvancedSearchReviewerForm';
-            case self::REVIEWER_SELECT_CREATE:
-                return '\PKP\controllers\grid\users\reviewer\form\CreateReviewerForm';
-            case self::REVIEWER_SELECT_ENROLL_EXISTING:
-                return '\PKP\controllers\grid\users\reviewer\form\EnrollExistingReviewerForm';
-        }
-        assert(false);
+        return match ((int)$selectionType) {
+            static::REVIEWER_SELECT_ADVANCED_SEARCH => AdvancedSearchReviewerForm::class,
+            static::REVIEWER_SELECT_CREATE => CreateReviewerForm::class,
+            static::REVIEWER_SELECT_ENROLL_EXISTING => EnrollExistingReviewerForm::class,
+        };
     }
 
     /**
@@ -1244,13 +1244,43 @@ class PKPReviewerGridHandler extends GridHandler
             $notificationMgr = new PKPNotificationManager();
             $notificationMgr->createTrivialNotification(
                 $sender->getId(),
-                PKPNotification::NOTIFICATION_TYPE_ERROR,
+                Notification::NOTIFICATION_TYPE_ERROR,
                 ['contents' => __('email.compose.error')]
             );
             trigger_error($e->getMessage(), E_USER_WARNING);
         }
 
         return false;
+    }
+
+    /**
+     * Get the proper reviewer from instance
+     */
+    protected function getReviewerFrom(int $selectionType, Request $request = null): ReviewerForm
+    {
+        $request ??= Application::get()->getRequest();
+        $formClassName = $this->_getReviewerFormClassName($selectionType);
+
+        if ($request->getUserVar('reviewerSuggestionId')) {
+            
+            $reviewerSuggestion = ReviewerSuggestion::find($request->getUserVar('reviewerSuggestionId'));
+            
+            if (!$reviewerSuggestion) {
+                throw new Exception('Given reviewer suggestion ID is invalid');
+            }
+
+            if ($reviewerSuggestion->isApproved()) {
+                throw new Exception('Not allowed to add reviewer suggestion as reviewer that has already been approved');
+            }
+
+            return new $formClassName(
+                $this->getSubmission(),
+                $this->getReviewRound(),
+                $reviewerSuggestion
+            );
+        }
+
+        return new $formClassName($this->getSubmission(), $this->getReviewRound());
     }
 }
 

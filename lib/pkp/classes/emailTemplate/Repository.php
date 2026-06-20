@@ -13,7 +13,6 @@
 
 namespace PKP\emailTemplate;
 
-use APP\core\Services;
 use APP\emailTemplate\DAO;
 use APP\facades\Repo;
 use PKP\context\Context;
@@ -51,13 +50,13 @@ class Repository
     }
 
     /** @copydoc DAO::getByKey() */
-    public function getByKey(int $contextId, string $key): ?EmailTemplate
+    public function getByKey(?int $contextId = null, string $key): ?EmailTemplate
     {
         return $this->dao->getByKey($contextId, $key);
     }
 
     /** @copydoc DAO::getCollector() */
-    public function getCollector(int $contextId): Collector
+    public function getCollector(?int $contextId = null): Collector
     {
         return app(Collector::class, ['contextId' => $contextId]);
     }
@@ -79,6 +78,8 @@ class Repository
      * @param array $props A key/value array with the new data to validate
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook EmailTemplate::validate [[&$errors, $object, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate(?EmailTemplate $object, array $props, Context $context): array
     {
@@ -103,7 +104,7 @@ class Repository
 
         if (isset($props['contextId'])) {
             $validator->after(function ($validator) use ($props, $context) {
-                if (!Services::get('context')->exists($props['contextId'])) {
+                if (!app()->get('context')->exists($props['contextId'])) {
                     $validator->errors()->add('contextId', __('api.contexts.404.contextNotFound'));
                 }
                 if ($context->getId() !== $props['contextId']) {
@@ -139,6 +140,8 @@ class Repository
 
     /**
      * Add a new email template
+     *
+    * @hook EmailTemplate::add [[$emailTemplate]]
     */
     public function add(EmailTemplate $emailTemplate): string
     {
@@ -187,6 +190,8 @@ class Repository
      * email template settings to their installed defaults.
      *
      * @return array List of keys that were deleted or reset
+     *
+     * @hook EmailTemplate::restoreDefaults [[&$deletedKeys, $contextId]]
      */
     public function restoreDefaults($contextId): array
     {

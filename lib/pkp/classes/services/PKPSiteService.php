@@ -17,7 +17,6 @@ namespace PKP\services;
 
 use APP\core\Application;
 use APP\core\Request;
-use APP\core\Services;
 use APP\file\PublicFileManager;
 use PKP\core\Core;
 use PKP\db\DAORegistry;
@@ -37,6 +36,8 @@ class PKPSiteService implements EntityPropertyInterface
      * @copydoc \PKP\services\interfaces\EntityPropertyInterface::getProperties()
      *
      * @param null|mixed $args
+     *
+     * @hook Site::getProperties [[&$values, $site, $props, $args]]
      */
     public function getProperties($site, $props, $args = null)
     {
@@ -49,7 +50,7 @@ class PKPSiteService implements EntityPropertyInterface
             $values[$prop] = $site->getData($prop);
         }
 
-        $values = Services::get('schema')->addMissingMultilingualValues(PKPSchemaService::SCHEMA_SITE, $values, $site->getSupportedLocales());
+        $values = app()->get('schema')->addMissingMultilingualValues(PKPSchemaService::SCHEMA_SITE, $values, $site->getSupportedLocales());
 
         Hook::call('Site::getProperties', [&$values, $site, $props, $args]);
 
@@ -75,7 +76,7 @@ class PKPSiteService implements EntityPropertyInterface
      */
     public function getFullProperties($site, $args = null)
     {
-        $props = Services::get('schema')->getFullProps(PKPSchemaService::SCHEMA_SITE);
+        $props = app()->get('schema')->getFullProps(PKPSchemaService::SCHEMA_SITE);
 
         return $this->getProperties($site, $props, $args);
     }
@@ -93,10 +94,12 @@ class PKPSiteService implements EntityPropertyInterface
      * @param string $primaryLocale
      *
      * @return array List of error messages. The array keys are property names
+     *
+     * @hook Site::validate [[&$errors, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate($props, $allowedLocales, $primaryLocale)
     {
-        $schemaService = Services::get('schema');
+        $schemaService = app()->get('schema');
 
         $validator = ValidatorFactory::make(
             $props,
@@ -194,6 +197,8 @@ class PKPSiteService implements EntityPropertyInterface
      * @param Request $request
      *
      * @return Site
+     *
+     * @hook Site::edit [[&$newSite, $site, $params, $request]]
      */
     public function edit($site, $params, $request)
     {
@@ -228,7 +233,6 @@ class PKPSiteService implements EntityPropertyInterface
     /**
      * Move a temporary file to the site's public directory
      *
-     * @param Site $context
      * @param TemporaryFile $temporaryFile
      * @param string $fileNameBase Unique identifier to use for the filename. The
      *  Extension and locale will be appended.

@@ -1,11 +1,11 @@
-# Pia Piontkowitz <pia.piontkowitz@rub.de>, 2022, 2023.
+# Pia Piontkowitz <pia.piontkowitz@rub.de>, 2022, 2023, 2025, 2026.
 # Heike Riegler <heike.riegler@julius-kuehn.de>, 2022.
 msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-09-27T09:47:23-07:00\n"
-"PO-Revision-Date: 2023-04-28 14:09+0000\n"
+"PO-Revision-Date: 2026-02-04 12:57+0000\n"
 "Last-Translator: Pia Piontkowitz <pia.piontkowitz@rub.de>\n"
 "Language-Team: German <http://translate.pkp.sfu.ca/projects/pkp-lib/api/de/>"
 "\n"
@@ -14,7 +14,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 4.13.1\n"
+"X-Generator: Weblate 4.18.2\n"
 
 msgid "api.400.paramNotSupported"
 msgstr "Der Parameter {$param} wird nicht unterstützt."
@@ -66,7 +66,7 @@ msgstr "Die folgenden Sprachen werden nicht unterstützt: {$locales}."
 
 msgid "api.dois.403.editItemOutOfContext"
 msgstr ""
-"Sie können keine DOI eines Objektes bearbeiten, dass nicht in diesem Kontext "
+"Sie können keine DOI eines Objektes bearbeiten, das nicht in diesem Kontext "
 "ist."
 
 msgid "api.dois.403.pubTypeNotRecognized"
@@ -74,8 +74,8 @@ msgstr "Der Publikationstyp wurde nicht erkannt."
 
 msgid "api.dois.404.contextNotFound"
 msgstr ""
-"Dieser Endpunkt ist nicht über den seitenübergreifenden Namensraum verfügbar "
-"und muss für einen bestimmten Kontext angefordert werden."
+"Dieser Endpoint ist nicht für den site-weiten Namespace verfügbar und muss "
+"für einen bestimmten Kontext angefordert werden."
 
 msgid "api.dois.404.doiNotFound"
 msgstr "Die DOI, nach der Sie suchen, konnte nicht gefunden werden."
@@ -374,3 +374,102 @@ msgstr "Fehlgeschlagener Auftrag erfolgreich von der Fehlerliste gelöscht."
 
 #~ msgid "api.vocabs.400.vocabNotSupported"
 #~ msgstr "Das {$vocab} Vokabular wird nicht unterstützt."
+
+msgid "api.422.routeRequestUnableToProcess"
+msgstr "Die Anfrage an die API konnte nicht verarbeitet werden."
+
+msgid "api.417.routeResponseIsNull"
+msgstr "Es konnte keine erwartete Antwort erhalten werden."
+
+msgid "api.400.routeNotDefined"
+msgstr "Es wurde keine API Route angegeben."
+
+msgid "api.400.errorUploadingImage"
+msgstr "Beim Upload dieses Images ist ein Fehler enstanden."
+
+msgid "api.400.invalidAuthorFriendlyParameter"
+msgstr "Ungültige author-friendly Parameter."
+
+msgid "api.dois.403.editItemDoiCantBeAssigned"
+msgstr "Diesem Element kann keine DOI zugewiesen werden."
+
+msgid "api.orcid.403.editWithoutPermission"
+msgstr ""
+"Sie können keine Änderungen an Autor/innen von Einreichungen, denen Sie "
+"nicht zugewiesen sind, vornehmen."
+
+msgid "api.orcid.404.contextRequired"
+msgstr ""
+"Dieser Endpoint ist nicht für den site-weiten Namespace verfügbar und muss "
+"für einen bestimmten Kontext angefordert werden."
+
+msgid "api.submission.403.cantChangeSubmissionLanguage"
+msgstr ""
+"Sie können die Sprache dieser Einreichnung nicht ändern, da es bereits mehr "
+"als eine Publikationsversion oder eine veröffentlichte Publikation gibt."
+
+msgid "api.reviews.assignments.invalidSubmission"
+msgstr ""
+"Die Einreichung für diese Gutachten-Zuweisung konnte nicht gefunden werden."
+
+msgid "api.submission.400.sectionDoesNotExist"
+msgstr "Die angegebene Rubrik existiert nicht."
+
+msgid "api.409.resourceActionConflict"
+msgstr ""
+"Die gewünschte Aktion konnte nicht für diese Ressource ausgeführt werden."
+
+msgid "api.highlights.404.highlightNotFound"
+msgstr "Das angeforderte Highlight konnte nicht gefunden werden."
+
+msgid "api.highlights.400.orderHighlightNotFound"
+msgstr ""
+"Highlight-Sortierung konnte nicht gespeichert werden, da ein oder mehrere "
+"Highlights nicht gefunden werden konnten."
+
+msgid "api.orcid.403.cannotUpdateAuthorOrcid"
+msgstr ""
+"Das Zuweisen einer ORCiD ID zu einem/einer Autor/in via dem Bearbeiten/"
+"Hinzufügen Autor/in Endpoint ist nicht gestattet. Um von einem/einer Autor/"
+"in die Aktualisierung der ORCiD ID anzufordern, verwenden Sie bitte den "
+"\"orcid/requestAuthorVerification/{authorId}\" Endpoint."
+
+msgid "api.reviews.assignments.invalidReviewer"
+msgstr "Der/die Gutachter/in von dieser Zuweisung konnte nicht gefunden werden"
+
+msgid "api.publications.403.noEnabledIdentifiers"
+msgstr ""
+"Das Formular für Publikations-Identifier ist nicht verfügbar, da es keine "
+"aktivierten Identifier gibt."
+
+msgid "api.review.assignments.invalidInvitationResponse"
+msgstr "Nur 'Annehmen' und 'Ablehnen' sind valide Werte"
+
+msgid "api.rors.404.rorNotFound"
+msgstr "Die von Ihnen angeforderte ROR konnte nicht gefunden werden."
+
+msgid "api.submission.400.missingQueryParam"
+msgstr ""
+"In der Anfrage fehlt der erforderliche Query-Parameter 'ids'. Bitte geben "
+"Sie die 'ids' der Einreichungen an, die Sie löschen möchten."
+
+msgid "api.submission.400.invalidId"
+msgstr "Invalide ID: \"{$id}\" angegeben."
+
+msgid "api.emailLogs.400.unrecognisedAuthorEmailEventType"
+msgstr ""
+"Sie haben einen invaliden \"eventType\",{$eventType} für Autor/innen E-Mails "
+"angegeben."
+
+msgid "api.highlights.400.noOrderData"
+msgstr ""
+"Highlight-Sortierung konnte nicht gespeichert werden, da keine "
+"Sortierungsinformationen gefunden wurden."
+
+msgid "api.orcid.403.orcidNotEnabled"
+msgstr ""
+"Diese Aktion kann mit ausgeschalteter ORCID-Funktionalität nicht ausgeführt "
+"werden."
+
+msgid "api.orcid.404.authorNotFound"
+msgstr "Der/die angeforderte Autor/in konnte nicht gefunden werden"

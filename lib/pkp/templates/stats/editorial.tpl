@@ -33,13 +33,12 @@
 		</div>
 		<div class="pkpStats__panel">
 			<pkp-header>
-				<h1 id="editorialActivityTabelLabel">
+				<h1 id="editorialActivityTableLabel">
 					{translate key="stats.trends"}
 					<span v-if="isLoading" class="pkpSpinner" aria-hidden="true"></span>
 				</h1>
-				<template slot="actions">
+				<template #actions>
 					<date-range
-						slot="thead-dateRange"
 						unique-id="editorial-stats-date-range"
 						:date-start="dateStart"
 						:date-start-min="dateStartMin"
@@ -69,7 +68,7 @@
 						:is-active="isSidebarVisible"
 						@click="toggleSidebar"
 					>
-						<icon icon="filter" :inline="true"></icon>
+						<icon icon="Filter" class="h-4 w-4" :inline="true"></icon>
 						{translate key="common.filter"}
 					</pkp-button>
 				</template>
@@ -104,27 +103,30 @@
 					<div class="pkpStats__table" role="region" aria-live="polite">
 						<pkp-table
 							class="pkpTable--editorialStats"
-							labelled-by="editorialActivityTabelLabel"
-							:columns="tableColumns"
-							:rows="tableRows"
+							labelled-by="editorialActivityTableLabel"
 						>
-							<template slot-scope="{ldelim}row, rowIndex{rdelim}">
-								<table-cell
-									v-for="(column, columnIndex) in tableColumns"
-									:key="column.name"
-									:column="column"
-									:row="row"
-									:tabindex="!rowIndex && !columnIndex ? 0 : -1"
+							<table-header>
+								<table-column v-for="column in tableColumns" :key="column.name" :id="column.name">
+									{{ column.label }}
+								</table-column>
+							</table-header>
+							<table-body>
+								<table-row
+									v-for="(row, index) in tableRows"
+									:key="row.key"
 								>
-									<template v-if="column.name === 'name'">
+									<table-cell>
 										{{ row.name }}
 										<tooltip v-if="row.description"
-											:label="__('stats.descriptionForStat', {ldelim}stat: row.name{rdelim})"
+											:label="t('stats.descriptionForStat', {ldelim}stat: row.name{rdelim})"
 											:tooltip="row.description"
+											icon-size="small"
 										></tooltip>
-									</template>
-								</table-cell>
-							</template>
+									</table-cell>
+									<table-cell>{{ row.dateRange }}</table-cell>
+									<table-cell>{{ row.total }}</table-cell>
+								</table-row>
+							</table-body>
 						</pkp-table>
 					</div>
 				</div>

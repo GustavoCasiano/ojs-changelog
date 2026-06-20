@@ -18,7 +18,6 @@ namespace PKP\jobs\notifications;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use Illuminate\Bus\Batchable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Mail;
@@ -29,6 +28,7 @@ use PKP\job\exceptions\JobException;
 use PKP\jobs\BaseJob;
 use PKP\mail\mailables\AnnouncementNotify;
 use PKP\notification\managerDelegate\AnnouncementNotificationManager;
+use PKP\notification\Notification;
 use PKP\user\User;
 
 class NewAnnouncementNotifyUsers extends BaseJob
@@ -61,7 +61,10 @@ class NewAnnouncementNotifyUsers extends BaseJob
 
     public function handle()
     {
-        $announcement = Repo::announcement()->get($this->announcementId);
+        /** @var \PKP\announcement\Announcement $announcement */
+        $announcement = app()->get(Announcement::class);
+        $announcement = $announcement->find($this->announcementId);
+        
         // Announcement was removed
         if (!$announcement) {
             throw new JobException(JobException::INVALID_PAYLOAD);
@@ -97,9 +100,9 @@ class NewAnnouncementNotifyUsers extends BaseJob
      * Creates new announcement notification email
      */
     protected function createMailable(
-        Context $context,
-        User $recipient,
-        Announcement $announcement,
+        Context       $context,
+        User          $recipient,
+        Announcement  $announcement,
         EmailTemplate $template
     ): AnnouncementNotify {
         $mailable = new AnnouncementNotify($context, $announcement);

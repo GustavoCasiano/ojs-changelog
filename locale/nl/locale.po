@@ -1662,12 +1662,6 @@ msgstr "Over dit tijdschrift"
 msgid "about.history"
 msgstr "Geschiedenis van het tijdschrift"
 
-msgid "about.editorialTeam"
-msgstr "Redactie"
-
-msgid "about.editorialTeam.biography"
-msgstr "Biografie"
-
 msgid "about.editorialPolicies"
 msgstr "Redactioneel beleid"
 
@@ -1959,7 +1953,7 @@ msgstr ""
 "\n"
 "<p>Dank u voor het downloaden van <strong>Open Journal Systems</strong> van "
 "het Public Knowledge Project. Lees voor u verdergaat eerst het <a href="
-"\"{$baseUrl}/docs/README.md\">README</a> bestand van de software. Voor meer "
+"\"{$baseUrl}/README.md\">README</a> bestand van de software. Voor meer "
 "informatie over het Public Knowledge Project en zijn software projecten, zie "
 "de <a href=\"http://pkp.sfu.ca/\" target=\"_blank\">PKP web site</a>. Als u "
 "problemen wilt melden of technische vragen wilt stellen over Open Journal "
@@ -2031,6 +2025,7 @@ msgstr ""
 "<p>2. Een map om ingestuurde bestanden op te slaan moet aangemaakt worden en "
 "schrijfbaar zijn (Zie \"Bestandsinstellingen\" hieronder).</p>"
 
+#, fuzzy
 msgid "installer.upgradeInstructions"
 msgstr ""
 "<h4>OJS Versie {$version}</h4>\n"

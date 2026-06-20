@@ -14,10 +14,8 @@
 namespace PKP\institution;
 
 use APP\core\Request;
-use APP\core\Services;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\LazyCollection;
-use PKP\core\PKPString;
 use PKP\plugins\Hook;
 use PKP\services\PKPSchemaService;
 use PKP\validation\ValidatorFactory;
@@ -90,6 +88,8 @@ class Repository
      * @param string $primaryLocale The context's primary locale
      *
      * @return array A key/value array with validation errors. Empty if no errors
+     *
+     * @hook Institution::validate [[&$errors, $object, $props, $allowedLocales, $primaryLocale]]
      */
     public function validate(?Institution $object, array $props, array $allowedLocales, string $primaryLocale): array
     {
@@ -116,14 +116,14 @@ class Repository
         // The contextId must match an existing context
         $validator->after(function ($validator) use ($props) {
             if (isset($props['contextId']) && !$validator->errors()->get('contextId')) {
-                $institutionContext = Services::get('context')->get($props['contextId']);
+                $institutionContext = app()->get('context')->get($props['contextId']);
                 if (!$institutionContext) {
                     $validator->errors()->add('contextId', __('manager.institutions.noContext'));
                 }
             }
             if (!empty($props['ipRanges']) && !$validator->errors()->get('ipRanges')) {
                 foreach ($props['ipRanges'] as $ipRange) {
-                    if (!PKPString::regexp_match(
+                    if (!preg_match(
                         '/^' .
                         // IP4 address (with or w/o wildcards) or IP4 address range (with or w/o wildcards) or CIDR IP4 address
                         '((([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5]|[' . Institution::IP_RANGE_WILDCARD . '])([.]([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5]|[' . Institution::IP_RANGE_WILDCARD . '])){3}((\s)*[' . Institution::IP_RANGE_RANGE . '](\s)*([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5]|[' . Institution::IP_RANGE_WILDCARD . '])([.]([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5]|[' . Institution::IP_RANGE_WILDCARD . '])){3}){0,1})|(([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5])([.]([0-9]|[1-9][0-9]|[1][0-9]{2}|[2][0-4][0-9]|[2][5][0-5])){3}([\/](([3][0-2]{0,1})|([1-2]{0,1}[0-9])))))' .

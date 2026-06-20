@@ -18,6 +18,7 @@ namespace PKP\submissionFile;
 
 use APP\facades\Repo;
 use PKP\facades\Locale;
+use PKP\services\PKPSchemaService;
 
 /**
  * @extends \PKP\core\DataObject<DAO>
@@ -39,6 +40,7 @@ class SubmissionFile extends \PKP\core\DataObject
     public const SUBMISSION_FILE_QUERY = 18;
     public const SUBMISSION_FILE_INTERNAL_REVIEW_FILE = 19;
     public const SUBMISSION_FILE_INTERNAL_REVIEW_REVISION = 20;
+    public const SUBMISSION_FILE_JATS = 21;
 
     public const INTERNAL_REVIEW_STAGES = [
         SubmissionFile::SUBMISSION_FILE_INTERNAL_REVIEW_FILE,
@@ -49,43 +51,14 @@ class SubmissionFile extends \PKP\core\DataObject
         SubmissionFile::SUBMISSION_FILE_REVIEW_FILE,
         SubmissionFile::SUBMISSION_FILE_REVIEW_REVISION,
     ];
-    
+
     /**
      * Get the default/fall back locale the values should exist for
+     * (see LocalizedData trait)
      */
-    public function getDefaultLocale(): ?string 
+    public function getDefaultLocale(): ?string
     {
-        return $this->getData('locale');
-    }
-
-    /**
-     * Get the locale of the submission.
-     * This is not properly a property of the submission file
-     * (e.g. it won't be persisted to the DB with the update function)
-     * It helps solve submission locale requirement for file's multilingual metadata
-     *
-     * @deprecated 3.3.0.0
-     *
-     * @return string
-     */
-    public function getSubmissionLocale()
-    {
-        return $this->getData('locale');
-    }
-
-    /**
-     * Set the locale of the submission.
-     * This is not properly a property of the submission file
-     * (e.g. it won't be persisted to the DB with the update function)
-     * It helps solve submission locale requirement for file's multilingual metadata
-     *
-     * @deprecated 3.3.0.0
-     *
-     * @param string $submissionLocale
-     */
-    public function setSubmissionLocale($submissionLocale)
-    {
-        $this->setData('locale', $submissionLocale);
+        return $this->getData('submissionLocale');
     }
 
     /**
@@ -381,6 +354,30 @@ class SubmissionFile extends \PKP\core\DataObject
     public function getDAO(): DAO
     {
         return Repo::submissionFile()->dao;
+    }
+
+    /**
+     * Get metadata language names
+     */
+    public function getLanguageNames(): array
+    {
+        return Locale::getSubmissionLocaleDisplayNames($this->getLanguages());
+    }
+
+    /**
+     * Get metadata languages
+     */
+    public function getLanguages(): array
+    {
+        $props = app()->get('schema')->getMultilingualProps(PKPSchemaService::SCHEMA_SUBMISSION_FILE);
+        $locales = array_map(fn (string $prop): array => array_keys($this->getData($prop) ?? []), $props);
+        return collect([$this->getData('submissionLocale')])
+            ->concat($locales)
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
     }
 }
 

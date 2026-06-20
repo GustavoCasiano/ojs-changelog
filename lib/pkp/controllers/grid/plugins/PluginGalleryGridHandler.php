@@ -28,11 +28,12 @@ use PKP\core\PKPRequest;
 use PKP\db\DAORegistry;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\RemoteActionConfirmationModal;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\GalleryPlugin;
 use PKP\plugins\PluginGalleryDAO;
 use PKP\plugins\PluginHelper;
 use PKP\plugins\PluginRegistry;
+use PKP\security\authorization\CanAccessSettingsPolicy;
 use PKP\security\authorization\PolicySet;
 use PKP\security\authorization\RoleBasedHandlerOperationPolicy;
 use PKP\security\Role;
@@ -130,6 +131,7 @@ class PluginGalleryGridHandler extends GridHandler
             $rolePolicy->addPolicy(new RoleBasedHandlerOperationPolicy($request, $role, $operations));
         }
         $this->addPolicy($rolePolicy);
+        $this->addPolicy(new CanAccessSettingsPolicy());
 
         return parent::authorize($request, $args, $roleAssignments);
     }
@@ -216,29 +218,29 @@ class PluginGalleryGridHandler extends GridHandler
         // Get currently installed version, if any.
         $installActionKey = $installConfirmKey = $installOp = null;
         switch ($plugin->getCurrentStatus()) {
-            case PLUGIN_GALLERY_STATE_NEWER:
+            case GalleryPlugin::PLUGIN_GALLERY_STATE_NEWER:
                 $statusKey = 'manager.plugins.installedVersionNewer';
                 $statusClass = 'newer';
                 break;
-            case PLUGIN_GALLERY_STATE_UPGRADABLE:
+            case GalleryPlugin::PLUGIN_GALLERY_STATE_UPGRADABLE:
                 $statusKey = 'manager.plugins.installedVersionOlder';
                 $statusClass = 'older';
                 $installActionKey = 'grid.action.upgrade';
                 $installOp = 'upgradePlugin';
                 $installConfirmKey = 'manager.plugins.upgradeConfirm';
                 break;
-            case PLUGIN_GALLERY_STATE_CURRENT:
+            case GalleryPlugin::PLUGIN_GALLERY_STATE_CURRENT:
                 $statusKey = 'manager.plugins.installedVersionNewest';
                 $statusClass = 'newest';
                 break;
-            case PLUGIN_GALLERY_STATE_AVAILABLE:
+            case GalleryPlugin::PLUGIN_GALLERY_STATE_AVAILABLE:
                 $statusKey = 'manager.plugins.noInstalledVersion';
                 $statusClass = 'notinstalled';
                 $installActionKey = 'grid.action.install';
                 $installOp = 'installPlugin';
                 $installConfirmKey = 'manager.plugins.installConfirm';
                 break;
-            case PLUGIN_GALLERY_STATE_INCOMPATIBLE:
+            case GalleryPlugin::PLUGIN_GALLERY_STATE_INCOMPATIBLE:
                 $statusKey = 'manager.plugins.noCompatibleVersion';
                 $statusClass = 'incompatible';
                 break;
@@ -259,7 +261,7 @@ class PluginGalleryGridHandler extends GridHandler
                     __($installConfirmKey),
                     __($installActionKey),
                     $router->url($request, null, null, $installOp, null, ['rowId' => $request->getUserVar('rowId')]),
-                    'modal_information'
+                    'primary'
                 ),
                 __($installActionKey),
                 null
@@ -329,7 +331,7 @@ class PluginGalleryGridHandler extends GridHandler
             $version = $pluginVersion->getVersionString(false);
             $notificationMgr->createTrivialNotification(
                 $user->getId(),
-                PKPNotification::NOTIFICATION_TYPE_SUCCESS,
+                Notification::NOTIFICATION_TYPE_SUCCESS,
                 [
                     'contents' => $isUpgrade
                         ? __('manager.plugins.upgradeSuccessful', ['versionString' => $version])
@@ -340,7 +342,7 @@ class PluginGalleryGridHandler extends GridHandler
             // Failure notification
             $notificationMgr->createTrivialNotification(
                 $user->getId(),
-                PKPNotification::NOTIFICATION_TYPE_ERROR,
+                Notification::NOTIFICATION_TYPE_ERROR,
                 ['contents' => $e->getMessage()]
             );
         } finally {

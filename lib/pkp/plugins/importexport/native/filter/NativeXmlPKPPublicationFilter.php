@@ -20,6 +20,7 @@ use APP\core\Application;
 use APP\facades\Repo;
 use APP\publication\Publication;
 use PKP\citation\CitationDAO;
+use PKP\controlledVocab\ControlledVocab;
 use PKP\db\DAORegistry;
 use PKP\filter\Filter;
 use PKP\filter\FilterGroup;
@@ -138,20 +139,37 @@ class NativeXmlPKPPublicationFilter extends NativeImportFilter
         if (in_array($n->tagName, $setterMappings)) {
             $publication->setData($n->tagName, $value, $locale);
         } elseif (isset($controlledVocabulariesMappings[$n->tagName])) {
-            $controlledVocabulariesDao = $submissionKeywordDao = DAORegistry::getDAO($controlledVocabulariesMappings[$n->tagName][0]);
-            $insertFunction = $controlledVocabulariesMappings[$n->tagName][1];
-
+            $symbolic = $controlledVocabulariesMappings[$n->tagName][0];
             $controlledVocabulary = [];
+
             for ($nc = $n->firstChild; $nc !== null; $nc = $nc->nextSibling) {
                 if ($nc instanceof \DOMElement) {
-                    $controlledVocabulary[] = $nc->textContent;
+                    $item = ['name' => $nc->getElementsByTagName('name')->item(0)->textContent];
+
+                    $identifierNode = $nc->getElementsByTagName('identifier')->item(0);
+                    if ($identifierNode) {
+                        $item['identifier'] = $identifierNode->textContent;
+                    }
+
+                    $sourceNode = $nc->getElementsByTagName('source')->item(0);
+                    if ($sourceNode) {
+                        $item['source'] = $sourceNode->textContent;
+                    }
+
+                    $controlledVocabulary[] = $item;
                 }
             }
 
             $controlledVocabulariesValues = [];
             $controlledVocabulariesValues[$locale] = $controlledVocabulary;
 
-            $controlledVocabulariesDao->$insertFunction($controlledVocabulariesValues, $publication->getId(), false);
+            Repo::controlledVocab()->insertBySymbolic(
+                $symbolic,
+                $controlledVocabulariesValues,
+                Application::ASSOC_TYPE_PUBLICATION,
+                $publication->getId(),
+                false
+            );
 
             $publicationNew = Repo::publication()->get($publication->getId());
             $publication->setData($n->tagName, $publicationNew->getData($n->tagName));
@@ -315,11 +333,10 @@ class NativeXmlPKPPublicationFilter extends NativeImportFilter
     public function _getControlledVocabulariesMappings()
     {
         return [
-            'keywords' => ['SubmissionKeywordDAO', 'insertKeywords'],
-            'agencies' => ['SubmissionAgencyDAO', 'insertAgencies'],
-            'languages' => ['SubmissionLanguageDAO', 'insertLanguages'],
-            'disciplines' => ['SubmissionDisciplineDAO', 'insertDisciplines'],
-            'subjects' => ['SubmissionSubjectDAO', 'insertSubjects'],
+            'keywords' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_KEYWORD],
+            'agencies' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_AGENCY],
+            'disciplines' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_DISCIPLINE],
+            'subjects' => [ControlledVocab::CONTROLLED_VOCAB_SUBMISSION_SUBJECT],
         ];
     }
 

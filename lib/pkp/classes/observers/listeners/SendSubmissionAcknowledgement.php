@@ -24,16 +24,13 @@ use APP\facades\Repo;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Enumerable;
 use Illuminate\Support\Facades\Mail;
-use PKP\db\DAORegistry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\Mailable;
 use PKP\mail\mailables\SubmissionAcknowledgement;
 use PKP\mail\mailables\SubmissionAcknowledgementOtherAuthors;
 use PKP\observers\events\SubmissionSubmitted;
 use PKP\security\Role;
 use PKP\stageAssignment\StageAssignment;
-use PKP\stageAssignment\StageAssignmentDAO;
 use PKP\user\User;
 
 abstract class SendSubmissionAcknowledgement
@@ -46,14 +43,12 @@ abstract class SendSubmissionAcknowledgement
             return;
         }
 
-        /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
-        $result = $stageAssignmentDao->getBySubmissionAndRoleIds($event->submission->getId(), [Role::ROLE_ID_AUTHOR]);
-        $assignedUserIds = [];
-        while ($stageAssignment = $result->next()) {
-            /** @var StageAssignment $stageAssignment */
-            $assignedUserIds[] = $stageAssignment->getUserId();
-        }
+        // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+        $assignedUserIds = StageAssignment::withSubmissionIds([$event->submission->getId()])
+            ->withRoleIds([Role::ROLE_ID_AUTHOR])
+            ->get()
+            ->pluck('user_id')
+            ->all();
 
         $submitterUsers = Repo::user()
             ->getCollector()
@@ -74,10 +69,8 @@ abstract class SendSubmissionAcknowledgement
 
             Mail::send($mailable);
 
-            /** @var SubmissionEmailLogDAO $logDao */
-            $logDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-            $logDao->logMailable(
-                SubmissionEmailLogEntry::SUBMISSION_EMAIL_AUTHOR_SUBMISSION_ACK,
+            Repo::emailLogEntry()->logMailable(
+                SubmissionEmailLogEventType::AUTHOR_SUBMISSION_ACK,
                 $mailable,
                 $event->submission
             );
@@ -109,10 +102,8 @@ abstract class SendSubmissionAcknowledgement
 
             Mail::send($mailable);
 
-            /** @var SubmissionEmailLogDAO $logDao */
-            $logDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-            $logDao->logMailable(
-                SubmissionEmailLogEntry::SUBMISSION_EMAIL_AUTHOR_SUBMISSION_ACK,
+            Repo::emailLogEntry()->logMailable(
+                SubmissionEmailLogEventType::AUTHOR_SUBMISSION_ACK,
                 $mailable,
                 $event->submission
             );

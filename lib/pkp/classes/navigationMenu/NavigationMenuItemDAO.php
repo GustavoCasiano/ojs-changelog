@@ -18,6 +18,8 @@
 
 namespace PKP\navigationMenu;
 
+use APP\core\Application;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use PKP\db\DAORegistry;
 use PKP\db\DAOResultFactory;
@@ -28,17 +30,12 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 {
     /**
      * Retrieve a navigation menu item by ID.
-     *
-     * @param int $navigationMenuItemId
-     *
-     * @return ?NavigationMenuItem
      */
-    public function getById($navigationMenuItemId)
+    public function getById(int $navigationMenuItemId): ?NavigationMenuItem
     {
-        $params = [(int) $navigationMenuItemId];
         $result = $this->retrieve(
             'SELECT	* FROM navigation_menu_items WHERE navigation_menu_item_id = ?',
-            $params
+            [(int) $navigationMenuItemId]
         );
 
         $row = (array) $result->current();
@@ -47,16 +44,11 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Retrieve a navigation menu item by path.
-     *
-     * @param int $contextId Context Id
-     * @param string $path
-     *
-     * @return ?NavigationMenuItem
      */
-    public function getByPath($contextId, $path)
+    public function getByPath(?int $contextId, string $path): ?NavigationMenuItem
     {
         $result = $this->retrieve(
-            'SELECT	* FROM navigation_menu_items WHERE path = ? and context_id = ? and type= ?',
+            'SELECT * FROM navigation_menu_items WHERE path = ? AND COALESCE(context_id, 0) = ? AND type = ?',
             [$path, (int) $contextId, 'NMI_TYPE_CUSTOM']
         );
 
@@ -67,14 +59,12 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
     /**
      * Retrieve a navigation menu items by context Id.
      *
-     * @param int $contextId Context Id
-     *
      * @return DAOResultFactory<NavigationMenuItem>
      */
-    public function getByContextId($contextId)
+    public function getByContextId(?int $contextId): DAOResultFactory
     {
         $result = $this->retrieve(
-            'SELECT * FROM navigation_menu_items WHERE context_id = ?',
+            'SELECT * FROM navigation_menu_items WHERE COALESCE(context_id, 0) = ?',
             [(int) $contextId]
         );
 
@@ -84,11 +74,9 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
     /**
      * Retrieve items by menu id
      *
-     * @param int $menuId
-     *
      * @return DAOResultFactory<NavigationMenuItem>
      */
-    public function getByMenuId($menuId)
+    public function getByMenuId(int $navigationMenuId): DAOResultFactory
     {
         $result = $this->retrieve(
             'SELECT nmi.*
@@ -96,29 +84,23 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 				LEFT JOIN navigation_menu_items as nmi ON (nmh.navigation_menu_item_id = nmi.navigation_menu_item_id)
 				WHERE nmh.navigation_menu_id = ?
 				ORDER BY nmh.seq',
-            [(int) $menuId]
+            [$navigationMenuId]
         );
         return new DAOResultFactory($result, $this, '_fromRow');
     }
 
     /**
      * Retrieve items by menuItemType and setting_name = titleLocaleKey
-     *
-     * @param int $contextId
-     * @param string $menuItemType
-     * @param string $menuItemTitleLocaleKey
-     *
-     * @return ?NavigationMenuItem
      */
-    public function getByTypeAndTitleLocaleKey($contextId, $menuItemType, $menuItemTitleLocaleKey)
+    public function getByTypeAndTitleLocaleKey(?int $contextId, string $menuItemType, string $menuItemTitleLocaleKey): ?NavigationMenuItem
     {
         $result = $this->retrieve(
             'SELECT *
-				FROM navigation_menu_items
-				LEFT JOIN navigation_menu_item_settings ON (navigation_menu_items.navigation_menu_item_id = navigation_menu_item_settings.navigation_menu_item_id)
-				WHERE navigation_menu_items.type = ?
-				AND (navigation_menu_item_settings.setting_name = \'titleLocaleKey\' and navigation_menu_item_settings.setting_value = ?)
-				AND navigation_menu_items.context_id = ?',
+            FROM navigation_menu_items
+            LEFT JOIN navigation_menu_item_settings ON (navigation_menu_items.navigation_menu_item_id = navigation_menu_item_settings.navigation_menu_item_id)
+            WHERE navigation_menu_items.type = ?
+            AND (navigation_menu_item_settings.setting_name = \'titleLocaleKey\' and navigation_menu_item_settings.setting_value = ?)
+            AND COALESCE(navigation_menu_items.context_id, 0) = ?',
             [$menuItemType, $menuItemTitleLocaleKey, (int) $contextId]
         );
         $row = (array) $result->current();
@@ -126,22 +108,19 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
     }
 
     /**
-     * Retrieve the menu items with the specified type.
+     * Retrieve the menu items with the specified type (NMI_TYPE_...).
      *
-     * @param int $type NMI_TYPE_...
-     * @param int $contextId
-     *
-     * @return DAOResultFactory<NavigationMenuItem> containing matching NavigationMenuItems
+     * @return DAOResultFactory<NavigationMenuItem>
      */
-    public function getByType($type, $contextId = null)
+    public function getByType(string $type, ?int $contextId = Application::SITE_CONTEXT_ID_ALL): DAOResultFactory
     {
         $params = [$type];
-        if ($contextId !== null) {
-            $params[] = $contextId;
+        if ($contextId !== Application::SITE_CONTEXT_ID_ALL) {
+            $params[] = (int) $contextId;
         }
         $result = $this->retrieve(
-            'SELECT	* FROM navigation_menu_items WHERE type = ?' .
-            ($contextId !== null ? ' AND context_id = ?' : ''),
+            'SELECT * FROM navigation_menu_items WHERE type = ?' .
+            ($contextId !== Application::SITE_CONTEXT_ID_ALL ? ' AND COALESCE(context_id, 0) = ?' : ''),
             $params
         );
         return new DAOResultFactory($result, $this, '_fromRow');
@@ -149,10 +128,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Get the list of localized field names for this table
-     *
-     * @return array
      */
-    public function getLocaleFieldNames()
+    public function getLocaleFieldNames(): array
     {
         return ['title', 'content', 'remoteUrl'];
     }
@@ -160,29 +137,23 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
     /**
      * @copydoc DAO::getAdditionalFieldNames()
      */
-    public function getAdditionalFieldNames()
+    public function getAdditionalFieldNames(): array
     {
         return ['titleLocaleKey'];
     }
 
     /**
      * Get a new data object.
-     *
-     * @return NavigationMenuItem
      */
-    public function newDataObject()
+    public function newDataObject(): NavigationMenuItem
     {
         return new NavigationMenuItem();
     }
 
     /**
      * Internal function to return a NavigationMenuItem object from a row.
-     *
-     * @param array $row
-     *
-     * @return NavigationMenuItem
      */
-    public function _fromRow($row, $dataObject = false)
+    public function _fromRow(array $row): NavigationMenuItem
     {
         $navigationMenuItem = $this->newDataObject();
         $navigationMenuItem->setId($row['navigation_menu_item_id']);
@@ -197,10 +168,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Update the settings for this object
-     *
-     * @param object $navigationMenuItem
      */
-    public function updateLocaleFields($navigationMenuItem)
+    public function updateLocaleFields(NavigationMenuItem $navigationMenuItem): void
     {
         $this->updateDataObjectSettings('navigation_menu_item_settings', $navigationMenuItem, [
             'navigation_menu_item_id' => $navigationMenuItem->getId()
@@ -209,12 +178,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Insert a new NavigationMenuItem.
-     *
-     * @param NavigationMenuItem $navigationMenuItem
-     *
-     * @return int
      */
-    public function insertObject($navigationMenuItem)
+    public function insertObject(NavigationMenuItem $navigationMenuItem): int
     {
         $this->update(
             'INSERT INTO navigation_menu_items
@@ -223,7 +188,7 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 				(?, ?, ?)',
             [
                 $navigationMenuItem->getPath(),
-                (int) $navigationMenuItem->getContextId(),
+                $navigationMenuItem->getContextId(),
                 $navigationMenuItem->getType(),
             ]
         );
@@ -237,12 +202,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Update an existing NavigationMenuItem.
-     *
-     * @param NavigationMenuItem $navigationMenuItem
-     *
-     * @return bool
      */
-    public function updateObject($navigationMenuItem)
+    public function updateObject(NavigationMenuItem $navigationMenuItem): bool
     {
         $returner = $this->update(
             'UPDATE navigation_menu_items
@@ -253,7 +214,7 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 				WHERE navigation_menu_item_id = ?',
             [
                 $navigationMenuItem->getPath(),
-                (int) $navigationMenuItem->getContextId(),
+                $navigationMenuItem->getContextId(),
                 $navigationMenuItem->getType(),
                 (int) $navigationMenuItem->getId(),
             ]
@@ -262,41 +223,33 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
         $this->unCacheRelatedNavigationMenus($navigationMenuItem->getId());
 
-        return $returner;
+        return (bool) $returner;
     }
 
     /**
      * Delete a NavigationMenuItem.
-     *
-     * @param NavigationMenuItem $navigationMenuItem
      */
-    public function deleteObject($navigationMenuItem)
+    public function deleteObject(NavigationMenuItem $navigationMenuItem): void
     {
-        return $this->deleteById($navigationMenuItem->getId());
+        $this->deleteById($navigationMenuItem->getId());
     }
 
     /**
      * Delete a NavigationMenuItem by navigationMenuItem ID.
-     *
-     * @param int $navigationMenuItemId
      */
-    public function deleteById($navigationMenuItemId)
+    public function deleteById(int $navigationMenuItemId): int
     {
         $this->unCacheRelatedNavigationMenus($navigationMenuItemId);
 
-        $this->update('DELETE FROM navigation_menu_item_settings WHERE navigation_menu_item_id = ?', [(int) $navigationMenuItemId]);
-        $this->update('DELETE FROM navigation_menu_items WHERE navigation_menu_item_id = ?', [(int) $navigationMenuItemId]);
-
-        $navigationMenuItemAssignmentDao = DAORegistry::getDAO('NavigationMenuItemAssignmentDAO'); /** @var NavigationMenuItemAssignmentDAO $navigationMenuItemAssignmentDao */
-        $navigationMenuItemAssignmentDao->deleteByMenuItemId($navigationMenuItemId);
+        return DB::table('navigation_menu_items')
+            ->where('navigation_menu_item_id', '=', $navigationMenuItemId)
+            ->delete();
     }
 
     /**
      * Delete NavigationMenuItems by contextId.
-     *
-     * @param int $contextId
      */
-    public function deleteByContextId($contextId)
+    public function deleteByContextId(?int $contextId): void
     {
         $navigationMenuItems = $this->getByContextId($contextId);
 
@@ -307,18 +260,13 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Load the XML file and move the settings to the DB
-     *
-     * @param int $contextId
-     * @param string $filename
-     *
-     * @return bool true === success
      */
-    public function installSettings($contextId, $filename)
+    public function installSettings(?int $contextId, string $filename): bool
     {
         $xmlParser = new PKPXMLParser();
         $tree = $xmlParser->parse($filename);
 
-        if ($contextId == \PKP\core\PKPApplication::CONTEXT_ID_NONE) {
+        if ($contextId === Application::SITE_CONTEXT_ID) {
             $siteDao = DAORegistry::getDAO('SiteDAO'); /** @var \PKP\site\SiteDAO $siteDao */
             $site = $siteDao->getSite();
         }
@@ -329,7 +277,7 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
         foreach ($tree->getChildren() as $setting) {
             $site = $setting->getAttribute('site');
-            if ($contextId == \PKP\core\PKPApplication::CONTEXT_ID_NONE && !$site) {
+            if ($contextId === Application::SITE_CONTEXT_ID && !$site) {
                 continue;
             }
             $this->installNodeSettings($contextId, $setting, null, null, 0, true);
@@ -340,17 +288,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Load a XML node to DB
-     *
-     * @param int $contextId
-     * @param XMLNode $node
-     * @param int $navigationMenuId
-     * @param int $navigationMenuItemParentId
-     * @param int $seq
-     * @param bool $checkChildren Optional
-     *
-     * @return bool true === success
      */
-    public function installNodeSettings($contextId, $node, $navigationMenuId = null, $navigationMenuItemParentId = null, $seq = 0, $checkChildren = false)
+    public function installNodeSettings(?int $contextId, XMLNode $node, ?int $navigationMenuId = null, ?int $navigationMenuItemParentId = null, int $seq = 0, bool $checkChildren = false): bool
     {
         $titleKey = $node->getAttribute('title');
         $path = $node->getAttribute('path');
@@ -412,13 +351,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Method for update navigationMenuItem setting
-     *
-     * @param int $navigationMenuItemId
-     * @param string $name
-     * @param string $type data type of the setting. If omitted, type will be guessed
-     * @param bool $isLocalized
      */
-    public function updateSetting($navigationMenuItemId, $name, $value, $type = null, $isLocalized = false)
+    public function updateSetting(int $navigationMenuItemId, string $name, mixed $value, ?string $type = null, bool $isLocalized = false): void
     {
         $keyFields = ['setting_name', 'locale', 'navigation_menu_item_id'];
 
@@ -449,13 +383,10 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Retrieve a context setting value.
-     *
-     * @param string $name
-     * @param string $locale optional
      */
-    public function getSetting($navigationMenuItemId, $name, $locale = null)
+    public function getSetting(int $navigationMenuItemId, string $name, ?string $locale = null): mixed
     {
-        $params = [(int) $navigationMenuItemId, $name];
+        $params = [$navigationMenuItemId, $name];
         if ($locale) {
             $params[] = $locale;
         }
@@ -482,10 +413,8 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
 
     /**
      * Remove all settings associated with a locale
-     *
-     * @param string $locale
      */
-    public function deleteSettingsByLocale($locale)
+    public function deleteSettingsByLocale(string $locale): int
     {
         return $this->update('DELETE FROM navigation_menu_item_settings WHERE locale = ?', [$locale]);
     }
@@ -493,32 +422,25 @@ class NavigationMenuItemDAO extends \PKP\db\DAO
     /**
      * Uncache the related NMs to the NMI with $id
      */
-    public function unCacheRelatedNavigationMenus($id)
+    public function unCacheRelatedNavigationMenus(int $navigationMenuItemId)
     {
         /** @var NavigationMenuDAO */
         $navigationMenuDao = DAORegistry::getDAO('NavigationMenuDAO');
         /** @var NavigationMenuItemAssignmentDAO */
         $navigationMenuItemAssignmentDao = DAORegistry::getDAO('NavigationMenuItemAssignmentDAO');
-        $assignments = $navigationMenuItemAssignmentDao->getByMenuItemId($id);
+        $assignments = $navigationMenuItemAssignmentDao->getByMenuItemId($navigationMenuItemId);
         if ($assignments) {
             $assignmentsArray = $assignments->toArray();
             foreach ($assignmentsArray as $assignment) {
-                $cache = $navigationMenuDao->getCache($assignment->getMenuId());
-                if ($cache) {
-                    $cache->flush();
-                }
+                Cache::forget("navigationMenu-{$assignment->getMenuId()}");
             }
         }
     }
 
     /**
      * Port static page as a Custom NMI
-     *
-     * @param \APP\plugins\generic\staticPages\classes\StaticPage $staticPage
-     *
-     * @return int The id of the inserted NMI. Null if non is inserted
      */
-    public function portStaticPage($staticPage)
+    public function portStaticPage(\APP\plugins\generic\staticPages\classes\StaticPage $staticPage): ?int
     {
         $path = $staticPage->getPath();
         $contextId = $staticPage->getContextId();

@@ -24,8 +24,5 @@ switch ($op) {
     case 'externalReview':
     case 'editorial':
     case 'production':
-    case 'editorDecisionActions':
-    case 'submissionProgressBar':
-        define('HANDLER_CLASS', 'APP\pages\workflow\WorkflowHandler');
-        break;
+        return new APP\pages\workflow\WorkflowHandler();
 }

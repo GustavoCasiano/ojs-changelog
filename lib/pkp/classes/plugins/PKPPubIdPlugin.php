@@ -18,7 +18,6 @@ namespace PKP\plugins;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use PKP\core\EntityDAO;
 use PKP\core\JSONMessage;
@@ -27,6 +26,7 @@ use PKP\db\DAO;
 use PKP\db\SchemaDAO;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
+use PKP\notification\Notification;
 use PKP\template\PKPTemplateManager;
 
 abstract class PKPPubIdPlugin extends LazyLoadPlugin
@@ -50,14 +50,14 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
                 // Augment the object with the additional properties required by the pub ID plugin.
                 if ($dao instanceof SchemaDAO) {
                     // Schema-backed DAOs need the schema extended.
-                    Hook::add('Schema::get::' . $dao->schemaName, [$this, 'addToSchema']);
+                    Hook::add('Schema::get::' . $dao->schemaName, $this->addToSchema(...));
                 } elseif ($dao instanceof EntityDAO) {
                     // Schema-backed DAOs need the schema extended.
-                    Hook::add('Schema::get::' . $dao->schema, [$this, 'addToSchema']);
+                    Hook::add('Schema::get::' . $dao->schema, $this->addToSchema(...));
                 } else {
                     // For non-schema-backed DAOs, DAOName::getAdditionalFieldNames can be used.
                     $classNameParts = explode('\\', get_class($dao)); // Separate namespace info from class name
-                    Hook::add(strtolower_codesafe(end($classNameParts)) . '::getAdditionalFieldNames', [$this, 'getAdditionalFieldNames']);
+                    Hook::add(strtolower(end($classNameParts)) . '::getAdditionalFieldNames', $this->getAdditionalFieldNames(...));
                 }
             }
         }
@@ -77,7 +77,7 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
                     'settings',
                     new AjaxModal(
                         $router->url($request, null, null, 'manage', null, $actionArgs),
-                        $this->getDisplayName()
+                        $this->getDisplayName(),
                     ),
                     __('manager.plugins.settings'),
                     null
@@ -139,11 +139,10 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
      *
      * @param string $pubIdPrefix
      * @param string $pubIdSuffix
-     * @param int $contextId
      *
      * @return string
      */
-    abstract public function constructPubId($pubIdPrefix, $pubIdSuffix, $contextId);
+    abstract public function constructPubId($pubIdPrefix, $pubIdSuffix, int $contextId);
 
     /**
      * Public identifier type, see
@@ -170,12 +169,11 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
     /**
      * Get the whole resolving URL.
      *
-     * @param int $contextId
      * @param string $pubId
      *
      * @return string resolving URL
      */
-    abstract public function getResolvingURL($contextId, $pubId);
+    abstract public function getResolvingURL(int $contextId, $pubId);
 
     /**
      * Get the file (path + filename)
@@ -208,11 +206,9 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
     /**
      * Get the settings form.
      *
-     * @param int $contextId
-     *
      * @return object Settings form
      */
-    abstract public function instantiateSettingsForm($contextId);
+    abstract public function instantiateSettingsForm(int $contextId);
 
     /**
      * Get the additional form field names,
@@ -283,11 +279,10 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
      * Is this object type enabled in plugin settings
      *
      * @param string $pubObjectType
-     * @param int $contextId
      *
      * @return bool
      */
-    abstract public function isObjectTypeEnabled($pubObjectType, $contextId);
+    abstract public function isObjectTypeEnabled($pubObjectType, int $contextId);
 
     /**
      * Get the error message for not unique pub id
@@ -302,12 +297,11 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
      * @param string $fieldName The form field to be checked.
      * @param string $fieldValue The value of the form field.
      * @param object $pubObject
-     * @param int $contextId
      * @param string $errorMsg Return validation error messages here.
      *
      * @return bool
      */
-    public function verifyData($fieldName, $fieldValue, $pubObject, $contextId, &$errorMsg)
+    public function verifyData($fieldName, $fieldValue, $pubObject, int $contextId, &$errorMsg)
     {
         // Verify pub id uniqueness.
         if ($fieldName == $this->getSuffixFieldName()) {
@@ -322,7 +316,7 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
             }
             $newPubId = $this->constructPubId($pubIdPrefix, $fieldValue, $contextId);
 
-            if (!$this->checkDuplicate($newPubId, get_class($pubObject), $pubObject->getId(), $contextId)) {
+            if (!$this->checkDuplicate($newPubId, $pubObject, $contextId)) {
                 $errorMsg = $this->getNotUniqueErrorMsg();
                 return false;
             }
@@ -476,31 +470,28 @@ abstract class PKPPubIdPlugin extends LazyLoadPlugin
      * Check for duplicate public identifiers.
      *
      * Checks to see if a pubId has already been assigned to any object
-     * in the context.
+     * in the context (excluding the given object).
      *
      * @param string $pubId
-     * @param string $pubObjectType Class name of the pub object being checked
-     * @param int $excludeId This object id will not be checked for duplicates
-     * @param int $contextId
+     * @param object $pubObject Pub object being checked
      *
      * @return bool
      */
-    public function checkDuplicate($pubId, $pubObjectType, $excludeId, $contextId)
+    public function checkDuplicate($pubId, $pubObject, int $contextId)
     {
         foreach ($this->getPubObjectTypes() as $type => $fqcn) {
-            if ($type === 'Publication') {
-                $typeDao = Repo::publication()->dao;
-            } elseif ($type === 'Representation') {
-                $typeDao = Application::getRepresentationDAO();
-            } elseif ($type === 'SubmissionFile') {
-                $typeDao = Repo::submissionFile()->dao;
+            if (!$pubObject instanceof $fqcn) {
+                continue;
             }
-            $excludeTypeId = $type === $pubObjectType ? $excludeId : null;
-            if (isset($typeDao) && $typeDao->pubIdExists($this->getPubIdType(), $pubId, $excludeTypeId, $contextId)) {
+            $typeDao = match ($type) {
+                'Publication' => Repo::publication()->dao,
+                'Representation' => Application::getRepresentationDAO(),
+                'SubmissionFile' => Repo::submissionFile()->dao,
+            };
+            if (isset($typeDao) && $typeDao->pubIdExists($this->getPubIdType(), $pubId, $pubObject->getId(), $contextId)) {
                 return false;
             }
         }
-
         return true;
     }
 

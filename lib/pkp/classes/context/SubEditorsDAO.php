@@ -18,7 +18,6 @@ namespace PKP\context;
 
 use APP\core\Application;
 use APP\facades\Repo;
-use APP\notification\Notification;
 use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use Exception;
@@ -27,13 +26,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use PKP\db\DAORegistry;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\mailables\EditorAssigned;
+use PKP\notification\Notification;
 use PKP\notification\NotificationSubscriptionSettingsDAO;
 use PKP\security\Role;
 use PKP\stageAssignment\StageAssignment;
-use PKP\stageAssignment\StageAssignmentDAO;
 use PKP\userGroup\UserGroup;
 
 class SubEditorsDAO extends \PKP\db\DAO
@@ -41,11 +39,10 @@ class SubEditorsDAO extends \PKP\db\DAO
     /**
      * Insert a new sub editor.
      *
-     * @param int $contextId
      * @param int $assocId
      * @param int $userId
      */
-    public function insertEditor($contextId, $assocId, $userId, $assocType, int $userGroupId)
+    public function insertEditor(int $contextId, $assocId, $userId, $assocType, int $userGroupId)
     {
         return $this->update(
             'INSERT INTO subeditor_submission_group
@@ -53,7 +50,7 @@ class SubEditorsDAO extends \PKP\db\DAO
 				VALUES
 				(?, ?, ?, ?, ?)',
             [
-                (int) $contextId,
+                $contextId,
                 (int) $assocId,
                 (int) $userId,
                 (int) $assocType,
@@ -65,17 +62,16 @@ class SubEditorsDAO extends \PKP\db\DAO
     /**
      * Delete a sub editor.
      *
-     * @param int $contextId
      * @param int $assocId
      * @param int $userId
      * @param int $assocType Application::ASSOC_TYPE_SECTION or Application::ASSOC_TYPE_CATEGORY
      */
-    public function deleteEditor($contextId, $assocId, $userId, $assocType)
+    public function deleteEditor(int $contextId, $assocId, $userId, $assocType)
     {
         $this->update(
             'DELETE FROM subeditor_submission_group WHERE context_id = ? AND section_id = ? AND user_id = ? AND assoc_type = ?',
             [
-                (int) $contextId,
+                $contextId,
                 (int) $assocId,
                 (int) $userId,
                 (int) $assocType,
@@ -88,16 +84,24 @@ class SubEditorsDAO extends \PKP\db\DAO
      *
      * @param int[] $assocIds Section or category ids
      * @param int $assocType Application::ASSOC_TYPE_SECTION or Application::ASSOC_TYPE_CATEGORY
+     * @param int $contextId
+     * @param bool $allowDisabled If true, include disabled users in the results. By default, only enabled users are included.
      *
-     * @return Collection result rows with userId and userGroupId columns
+     * @return \Illuminate\Support\Collection<int, \stdClass> result rows with userId and userGroupId properties
      */
-    public function getBySubmissionGroupIds(array $assocIds, int $assocType, int $contextId): Collection
+    public function getBySubmissionGroupIds(array $assocIds, int $assocType, int $contextId, bool $allowDisabled = false): Collection
     {
         return DB::table('subeditor_submission_group')
-            ->where('assoc_type', '=', $assocType)
-            ->where('context_id', '=', $contextId)
-            ->whereIn('assoc_id', $assocIds)
-            ->get(['user_id as userId', 'user_group_id as userGroupId']);
+            ->where('subeditor_submission_group.assoc_type', '=', $assocType)
+            ->where('subeditor_submission_group.context_id', '=', $contextId)
+            ->whereIn('subeditor_submission_group.assoc_id', $assocIds)
+            ->when(!$allowDisabled, function ($query) {
+                return $query->join('users', 'subeditor_submission_group.user_id', '=', 'users.user_id')
+                    ->where('users.disabled', '=', false);
+            })->get([
+                'subeditor_submission_group.user_id as userId',
+                'subeditor_submission_group.user_group_id as userGroupId'
+            ]);
     }
 
     /**
@@ -105,9 +109,8 @@ class SubEditorsDAO extends \PKP\db\DAO
      *
      * @param int $assocId
      * @param int $assocType Application::ASSOC_TYPE_SECTION or Application::ASSOC_TYPE_CATEGORY
-     * @param int $contextId
      */
-    public function deleteBySubmissionGroupId($assocId, $assocType, $contextId = null)
+    public function deleteBySubmissionGroupId($assocId, $assocType, ?int $contextId = null)
     {
         $params = [(int) $assocId, (int) $assocType];
         if ($contextId) {
@@ -153,18 +156,17 @@ class SubEditorsDAO extends \PKP\db\DAO
     /**
      * Check if a user is assigned to a specified submission group.
      *
-     * @param int $contextId
      * @param int $assocId
      * @param int $userId
      * @param int $assocType optional Application::ASSOC_TYPE_SECTION or Application::ASSOC_TYPE_CATEGORY
      *
      * @return bool
      */
-    public function editorExists($contextId, $assocId, $userId, $assocType)
+    public function editorExists(int $contextId, $assocId, $userId, $assocType)
     {
         $result = $this->retrieve(
             'SELECT COUNT(*) AS row_count FROM subeditor_submission_group WHERE context_id = ? AND section_id = ? AND user_id = ? AND assoc_id = ?',
-            [(int) $contextId, (int) $assocId, (int) $userId, (int) $assocType]
+            [$contextId, (int) $assocId, (int) $userId, (int) $assocType]
         );
         $row = $result->current();
         return $row ? (bool) $row->row_count : false;
@@ -203,10 +205,9 @@ class SubEditorsDAO extends \PKP\db\DAO
         // that will cause duplicates to be overwritten
         $assignments = collect($assignments)->mapWithKeys(fn ($assignment, $key) => [$assignment->userId . '-' . $assignment->userGroupId => $assignment]);
 
-        $userGroups = Repo::userGroup()
-            ->getCollector()
-            ->filterByContextIds([$submission->getData('contextId')])
-            ->getMany();
+        $userGroups = UserGroup::query()
+            ->withContextIds([$submission->getData('contextId')])
+            ->get();
 
         $userGroupIds = $userGroups->keys();
 
@@ -215,11 +216,15 @@ class SubEditorsDAO extends \PKP\db\DAO
                 && $userGroupIds->contains($assignment->userGroupId);
         });
 
-        /** @var StageAssignmentDAO $stageAssignmentDao */
-        $stageAssignmentDao = DAORegistry::getDAO('StageAssignmentDAO');
         foreach ($assignments as $assignment) {
-            $userGroup = $userGroups->first(fn (UserGroup $userGroup) => $userGroup->getId() == $assignment->userGroupId);
-            $stageAssignmentDao->build($submission->getId(), $assignment->userGroupId, $assignment->userId, $userGroup->getRecommendOnly());
+            $userGroup = $userGroups->first(fn (UserGroup $userGroup) => $userGroup->id == $assignment->userGroupId);
+            Repo::stageAssignment()
+                ->build(
+                    $submission->getId(),
+                    $assignment->userGroupId,
+                    $assignment->userId,
+                    $userGroup->recommendOnly,
+                );
         }
 
         // Update assignment notifications
@@ -235,24 +240,23 @@ class SubEditorsDAO extends \PKP\db\DAO
         // Send a notification to assigned users
         foreach ($assignments as $assignment) {
             $notificationManager->createNotification(
-                Application::get()->getRequest(),
                 $assignment->userId,
                 Notification::NOTIFICATION_TYPE_SUBMISSION_SUBMITTED,
-                $submission->getContextId(),
+                $submission->getData('contextId'),
                 Application::ASSOC_TYPE_SUBMISSION,
                 $submission->getId()
             );
         }
 
         // Send an email to assigned editors
-        $editorAssignments = $stageAssignmentDao->getBySubmissionAndRoleIds(
-            $submission->getId(),
-            [Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR],
-            WORKFLOW_STAGE_ID_SUBMISSION
-        )->toArray();
+        // Replaces StageAssignmentDAO::getBySubmissionAndRoleIds
+        $editorAssignments = StageAssignment::withSubmissionIds([$submission->getId()])
+            ->withRoleIds([Role::ROLE_ID_MANAGER, Role::ROLE_ID_SUB_EDITOR])
+            ->withStageIds([WORKFLOW_STAGE_ID_SUBMISSION])
+            ->get();
 
         $emailTemplate = Repo::emailTemplate()->getByKey($context->getId(), EditorAssigned::getEmailTemplateKey());
-        if (count($editorAssignments) && $emailTemplate) {
+        if ($editorAssignments->isNotEmpty() && $emailTemplate) {
             // Never notify the same user twice, even if they are assigned in multiple roles
             $notifiedEditors = [];
 
@@ -264,32 +268,28 @@ class SubEditorsDAO extends \PKP\db\DAO
                 ->subject($emailTemplate->getLocalizedData('subject') ?? '')
                 ->body($emailTemplate->getLocalizedData('body') ?? '');
 
-            /** @var StageAssignment $editorAssignment */
             foreach ($editorAssignments as $editorAssignment) {
                 $unsubscribed = in_array(
                     Notification::NOTIFICATION_TYPE_SUBMISSION_SUBMITTED,
                     $notificationSubscriptionSettingsDao->getNotificationSubscriptionSettings(
                         NotificationSubscriptionSettingsDAO::BLOCKED_EMAIL_NOTIFICATION_KEY,
-                        $editorAssignment->getUserId(),
+                        $editorAssignment->userId,
                         $context->getId()
                     )
                 );
 
-                if ($unsubscribed || in_array($editorAssignment->getUserId(), $notifiedEditors)) {
+                if ($unsubscribed || in_array($editorAssignment->userId, $notifiedEditors)) {
                     continue;
                 }
 
-                $notifiedEditors[] = $editorAssignment->getUserId();
+                $notifiedEditors[] = $editorAssignment->userId;
 
-                $recipient = Repo::user()->get($editorAssignment->getUserId());
+                $recipient = Repo::user()->get($editorAssignment->userId);
                 $mailable->recipients([$recipient]);
 
                 Mail::send($mailable);
-
-                /** @var SubmissionEmailLogDAO $logDao */
-                $logDao = DAORegistry::getDAO('SubmissionEmailLogDAO');
-                $logDao->logMailable(
-                    SubmissionEmailLogEntry::SUBMISSION_EMAIL_EDITOR_ASSIGN,
+                Repo::emailLogEntry()->logMailable(
+                    SubmissionEmailLogEventType::EDITOR_ASSIGN,
                     $mailable,
                     $submission
                 );

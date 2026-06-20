@@ -38,6 +38,7 @@ use PKP\security\authorization\WorkflowStageAccessPolicy;
 use PKP\security\Role;
 use PKP\security\Validation;
 use PKP\submission\GenreDAO;
+use PKP\submission\reviewRound\ReviewRound;
 use PKP\submissionFile\SubmissionFile;
 
 class FileUploadWizardHandler extends Handler
@@ -122,7 +123,7 @@ class FileUploadWizardHandler extends Handler
         if ($submissionFileIdToValidate) {
             $this->addPolicy(new SubmissionFileAccessPolicy($request, $args, $roleAssignments, SubmissionFileAccessPolicy::SUBMISSION_FILE_ACCESS_MODIFY, $submissionFileIdToValidate));
 
-        // Allow uploading to review attachments
+            // Allow uploading to review attachments
         } elseif ($fileStage === SubmissionFile::SUBMISSION_FILE_REVIEW_ATTACHMENT) {
             $assocType = (int) $request->getUserVar('assocType');
             $assocId = (int) $request->getUserVar('assocId');
@@ -136,7 +137,7 @@ class FileUploadWizardHandler extends Handler
             $this->addPolicy(new ReviewRoundRequiredPolicy($request, $args));
             $this->addPolicy(new ReviewAssignmentFileWritePolicy($request, $assocId));
 
-        // Allow uploading to a note
+            // Allow uploading to a note
         } elseif ($fileStage === SubmissionFile::SUBMISSION_FILE_QUERY) {
             $assocType = (int) $request->getUserVar('assocType');
             $assocId = (int) $request->getUserVar('assocId');
@@ -148,7 +149,7 @@ class FileUploadWizardHandler extends Handler
             $this->addPolicy(new QueryAccessPolicy($request, $args, $roleAssignments, $stageId));
             $this->addPolicy(new NoteAccessPolicy($request, $assocId, NoteAccessPolicy::NOTE_ACCESS_WRITE));
 
-        // Allow uploading a dependent file to another file
+            // Allow uploading a dependent file to another file
         } elseif ($fileStage === SubmissionFile::SUBMISSION_FILE_DEPENDENT) {
             $assocType = (int) $request->getUserVar('assocType');
             $assocId = (int) $request->getUserVar('assocId');
@@ -158,7 +159,7 @@ class FileUploadWizardHandler extends Handler
 
             $this->addPolicy(new SubmissionFileAccessPolicy($request, $args, $roleAssignments, SubmissionFileAccessPolicy::SUBMISSION_FILE_ACCESS_MODIFY, $assocId));
 
-        // Allow uploading to other file stages in the workflow
+            // Allow uploading to other file stages in the workflow
         } else {
             $stageId = (int) $request->getUserVar('stageId');
             $assocType = (int) $request->getUserVar('assocType');
@@ -191,10 +192,12 @@ class FileUploadWizardHandler extends Handler
 
     /**
      * @copydoc PKPHandler::initialize()
+     *
+     * @param null|mixed $args
      */
-    public function initialize($request)
+    public function initialize($request, $args = null)
     {
-        parent::initialize($request);
+        parent::initialize($request, $args);
         // Configure the wizard with the authorized submission and file stage.
         // Validated in authorize.
         $this->_fileStage = (int)$request->getUserVar('fileStage');
@@ -206,7 +209,7 @@ class FileUploadWizardHandler extends Handler
             $uploaderRoles = explode('-', $uploaderRoles);
             foreach ($uploaderRoles as $uploaderRole) {
                 if (!is_numeric($uploaderRole)) {
-                    fatalError('Invalid uploader role!');
+                    throw new \Exception('Invalid uploader role!');
                 }
                 $this->_uploaderRoles[] = (int)$uploaderRole;
             }
@@ -345,7 +348,7 @@ class FileUploadWizardHandler extends Handler
             'fileStage' => $this->getFileStage(),
             'isReviewer' => $request->getUserVar('isReviewer'),
             'revisionOnly' => $this->getRevisionOnly(),
-            'reviewRoundId' => is_a($reviewRound, 'ReviewRound') ? $reviewRound->getId() : null,
+            'reviewRoundId' => $reviewRound instanceof ReviewRound ? $reviewRound->getId() : null,
             'revisedFileId' => $this->getRevisedFileId(),
             'assocType' => $this->getAssocType(),
             'assocId' => $this->getAssocId(),
@@ -425,7 +428,7 @@ class FileUploadWizardHandler extends Handler
         }
 
         $uploadedFile = $uploadForm->execute(); /** @var SubmissionFile $uploadedFile */
-        if (!is_a($uploadedFile, 'SubmissionFile')) {
+        if (!$uploadedFile instanceof SubmissionFile) {
             return new JSONMessage(false, __('common.uploadFailed'));
         }
 
@@ -450,20 +453,21 @@ class FileUploadWizardHandler extends Handler
     {
         $templateMgr = TemplateManager::getManager($request);
         $templateMgr->assign([
-            'primaryLocale' => $this->getSubmission()->getLocale(),
+            'primaryLocale' => $this->getSubmission()->getData('locale'),
         ]);
 
+        $context = $request->getContext();
         $submissionFile = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_SUBMISSION_FILE);
         $form = new SubmissionFilesMetadataForm($submissionFile, $this->getStageId(), $this->getReviewRound());
         $form->initData();
 
         /** @var GenreDAO $genreDao */
         $genreDao = DAORegistry::getDAO('GenreDAO');
-        $fileGenres = $genreDao->getByContextId($request->getContext()->getId())->toArray();
+        $fileGenres = $genreDao->getByContextId($context->getId())->toAssociativeArray();
 
         $fileData = Repo::submissionFile()
-            ->getSchemaMap()
-            ->map($submissionFile, $fileGenres);
+            ->getSchemaMap($this->getSubmission(), $fileGenres)
+            ->map($submissionFile);
 
         $json = new JSONMessage(true, $form->fetch($request));
         $json->setGlobalEvent('submissionFile:added', $fileData);
@@ -497,11 +501,11 @@ class FileUploadWizardHandler extends Handler
 
         /** @var GenreDAO $genreDao */
         $genreDao = DAORegistry::getDAO('GenreDAO');
-        $fileGenres = $genreDao->getByContextId($request->getContext()->getId())->toArray();
+        $fileGenres = $genreDao->getByContextId($request->getContext()->getId())->toAssociativeArray();
 
         $fileData = Repo::submissionFile()
-            ->getSchemaMap()
-            ->map($submissionFile, $fileGenres);
+            ->getSchemaMap($submission, $fileGenres)
+            ->map($submissionFile);
 
         $json = $templateMgr->fetchJson('controllers/wizard/fileUpload/form/fileSubmissionComplete.tpl');
         $json->setGlobalEvent('submissionFile:edited', $fileData);
@@ -554,7 +558,6 @@ class FileUploadWizardHandler extends Handler
      * Create an array that describes an uploaded file which can
      * be used in a JSON response.
      *
-     * @param SubmissionFile $uploadedFile
      *
      * @return array
      */

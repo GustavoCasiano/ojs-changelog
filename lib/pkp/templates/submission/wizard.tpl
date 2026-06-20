@@ -6,6 +6,9 @@
  * Distributed under the GNU GPL v3. For full terms see the file docs/COPYING.
  *
  * The submission wizard screen with all steps to complete for submission.
+ *
+ * @hook Template::SubmissionWizard::Section::Review [[submission, step], $templateMgr, $output]
+ * @hook Template::SubmissionWizard::Section [[submission], $templateMgr, $output]
  *}
 {extends file="layouts/backend.tpl"}
 
@@ -37,21 +40,10 @@
                 <button
                     class="-linkButton"
                     aria-describedby="submission-configuration"
-                    @click="$modal.show('config')"
+                    @click="openReconfigureModal"
                 >
                     {translate key="manager.reviewerSearch.change"}
                 </button>
-                <modal
-                    close-label="{translate key="common.close"}"
-                    name="config"
-                    title="{translate key="submission.wizard.changeSubmission"}"
-                >
-                    <pkp-form
-                        v-bind="components.reconfigureSubmission"
-                        @set="set"
-                        @success="reconfigureSubmission"
-                    ></pkp-form>
-                </modal>
             </div>
         {/if}
         <steps
@@ -72,9 +64,9 @@
             >
                 <panel>
                     <panel-section v-for="section in step.sections" :key="section.id">
-                        <template slot="header">
+                        <template #header>
                             <h2>{{ section.name }}</h2>
-                            <div v-strip-unsafe-html="section.description" />
+                            <div class="semantic-defaults" v-strip-unsafe-html="section.description" />
                         </template>
                         <pkp-form
                             v-if="section.type === 'form'"
@@ -96,6 +88,14 @@
                             @updated:contributors="setContributors"
                             @updated:publication="setPublication"
                         ></contributors-list-panel>
+                        <reviewer-suggestions-list-panel
+                            v-else-if="section.type === 'reviewerSuggestions'"
+                            v-bind="components.reviewerSuggestions"
+                            :items="submission.reviewerSuggestions"
+                            :submission="submission"
+                            :publication="publication"
+                            @updated:reviewer-suggestions="setReviewerSuggestion"
+                        ></reviewer-suggestions-list-panel>
                         <template v-else-if="section.type === 'review'">
                             <notification
                                 v-if="Object.keys(errors).length" type="warning"
@@ -103,14 +103,14 @@
                             >
                                 {translate key="submission.wizard.errors"}
                             </notification>
-                            <template>
-                                {foreach from=$reviewSteps item=$step}
-                                    {if $step.reviewTemplate}
-                                        {include file=$step.reviewTemplate}
-                                    {/if}
-                                    {call_hook name="Template::SubmissionWizard::Section::Review" submission=$submission step=$step.id}
-                                {/foreach}
-                            </template>
+                            {foreach from=$reviewSteps item=$step}
+                                {if $step.reviewTemplate}
+                                    {include file=$step.reviewTemplate}
+                                {elseif $step.component}
+                                    <component :is="'{$step.component}'" v-bind='{$step.props|json_encode_html_attribute}'></component>
+                                {/if}
+                                {call_hook name="Template::SubmissionWizard::Section::Review" submission=$submission step=$step.id}
+                            {/foreach}
                             <transition name="submissionWizard__reviewLoading">
                                 <span
                                     v-if="isAutosaving || isValidating"
@@ -122,6 +122,7 @@
                                 </span>
                             </transition>
                         </template>
+                        <component v-else-if="section.component" :is="section.component" v-bind="section?.props || {}"></component>
                         <pkp-form
                             v-if="section.type === 'confirm'"
                             v-bind="section.form"
@@ -135,7 +136,7 @@
         </steps>
 
         <button-row class="submissionWizard__footer">
-            <template slot="end">
+            <template #end>
                 <pkp-button
                     v-if="!isOnFirstStep"
                     :is-warnable="true"
@@ -166,6 +167,9 @@
                     {{ lastAutosavedMessage }}
                 </template>
             </span>
+            {if $canCancelSubmission}
+                <pkp-button  :is-warnable="true" :is-link="true" id='cancelSubmission' @click="cancelSubmission">{translate key="common.cancel"}</pkp-button>
+            {/if}
             <pkp-button
                 :is-disabled="isDisconnected"
                 @click="saveForLater"

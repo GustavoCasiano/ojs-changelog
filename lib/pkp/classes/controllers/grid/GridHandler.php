@@ -40,6 +40,7 @@
 namespace PKP\controllers\grid;
 
 use APP\template\TemplateManager;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Enumerable;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
@@ -47,6 +48,7 @@ use PKP\controllers\grid\files\FilesGridDataProvider;
 use PKP\core\ItemIterator;
 use PKP\core\JSONMessage;
 use PKP\core\PKPRequest;
+use PKP\db\DAOResultFactory;
 use PKP\db\DBResultRange;
 use PKP\form\Form;
 use PKP\handler\PKPHandler;
@@ -345,7 +347,7 @@ class GridHandler extends PKPHandler
      */
     public function addColumn($column)
     {
-        assert($column instanceof \PKP\controllers\grid\GridColumn);
+        assert($column instanceof GridColumn);
         $this->_columns[$column->getId()] = $column;
     }
 
@@ -384,7 +386,7 @@ class GridHandler extends PKPHandler
      */
     public function hasGridDataElements($request)
     {
-        $data = & $this->getGridDataElements($request);
+        $data = &$this->getGridDataElements($request);
         assert(is_array($data));
         return (bool) count($data);
     }
@@ -397,18 +399,17 @@ class GridHandler extends PKPHandler
     public function setGridDataElements($data)
     {
         $this->callFeaturesHook('setGridDataElements', ['grid' => &$this, 'data' => &$data]);
-
-        if ($data instanceof Enumerable) {
-            $this->_data = $this->toAssociativeArray($data);
-        } elseif (is_iterable($data)) {
-            $this->_data = $data;
-        } elseif ($data instanceof \PKP\db\DAOResultFactory) {
-            $this->_data = $data->toAssociativeArray();
-        } elseif ($data instanceof ItemIterator) {
-            $this->_data = $data->toArray();
-        } else {
-            assert(false);
-        }
+    
+        $this->_data = match (true) {
+            $data instanceof LazyCollection => $this->toAssociativeArray($data),
+    
+            $data instanceof Enumerable => $this->toAssociativeArray(LazyCollection::make($data)),
+    
+            $data instanceof DAOResultFactory => $data->toAssociativeArray(),
+            $data instanceof ItemIterator => $data->toArray(),
+            is_iterable($data) => $data,
+            default => [],
+        };
     }
 
     /**
@@ -717,6 +718,7 @@ class GridHandler extends PKPHandler
 
         // Prepare the template to render the grid.
         $templateMgr = TemplateManager::getManager($request);
+        $templateMgr->registerClass(GridColumn::class, GridColumn::class);
         $templateMgr->assign('grid', $this);
         $templateMgr->assign('request', $request);
 
@@ -828,10 +830,10 @@ class GridHandler extends PKPHandler
     {
         // Check the requested column
         if (!isset($args['columnId'])) {
-            fatalError('Missing column id!');
+            throw new \Exception('Missing column id!');
         }
         if (!$this->hasColumn($args['columnId'])) {
-            fatalError('Invalid column id!');
+            throw new \Exception('Invalid column id!');
         }
         $this->setFirstDataColumn();
         $column = $this->getColumn($args['columnId']);
@@ -839,7 +841,7 @@ class GridHandler extends PKPHandler
         // Instantiate the requested row
         $row = $this->getRequestedRow($request, $args);
         if (is_null($row)) {
-            fatalError('Row not found!');
+            throw new \Exception('Row not found!');
         }
 
         // Render the cell
@@ -923,7 +925,7 @@ class GridHandler extends PKPHandler
      */
     protected function &getDataElementFromRequest($request, &$elementId)
     {
-        fatalError('Grid does not support data element creation!');
+        throw new \Exception('Grid does not support data element creation!');
     }
 
     /**
@@ -936,7 +938,7 @@ class GridHandler extends PKPHandler
      */
     protected function getRowDataElement($request, &$rowId)
     {
-        $elements = & $this->getGridDataElements($request);
+        $elements = &$this->getGridDataElements($request);
 
         assert(is_array($elements));
         if (!isset($elements[$rowId])) {
@@ -1073,7 +1075,7 @@ class GridHandler extends PKPHandler
      */
     protected function setFirstDataColumn()
     {
-        $columns = & $this->getColumns();
+        $columns = &$this->getColumns();
         $firstColumn = reset($columns);
         $firstColumn->addFlag('firstColumn', true);
     }
@@ -1093,7 +1095,7 @@ class GridHandler extends PKPHandler
     {
         $returner = [];
         $classNameParts = explode('\\', get_class($this)); // Separate namespace info from class name
-        Hook::call(strtolower_codesafe(end($classNameParts) . '::initFeatures'), [$this, $request, $args, &$returner]);
+        Hook::call(strtolower(end($classNameParts) . '::initFeatures'), [$this, $request, $args, &$returner]);
         return $returner;
     }
 
@@ -1159,7 +1161,7 @@ class GridHandler extends PKPHandler
         $renderedCells = [];
         $columns = $this->getColumns();
         foreach ($columns as $column) {
-            assert($column instanceof \PKP\controllers\grid\GridColumn);
+            assert($column instanceof GridColumn);
             $renderedCells[] = $this->_renderCellInternally($request, $row, $column);
         }
 
@@ -1243,7 +1245,7 @@ class GridHandler extends PKPHandler
     {
         // If there is no object, then we want to return an empty row.
         // override the assigned GridCellProvider and provide the default.
-        $element = & $row->getData();
+        $element = &$row->getData();
         if (is_null($element) && $row->getIsModified()) {
             $cellProvider = new GridCellProvider();
             return $cellProvider->render($request, $row, $column);
@@ -1268,7 +1270,7 @@ class GridHandler extends PKPHandler
      */
     private function _fixColumnWidths()
     {
-        $columns = & $this->getColumns();
+        $columns = &$this->getColumns();
         $width = 0;
         $noSpecifiedWidthCount = 0;
         // Find the total width and how many columns do not specify their width.
@@ -1377,7 +1379,11 @@ class GridHandler extends PKPHandler
     {
         $returner = [];
         foreach ($lazyCollection as $item) {
-            $returner[$item->getData($idField)] = $item;
+            if ($item instanceof Model) {
+                $returner[$item->$idField] = $item;
+            } else {
+                $returner[$item->getData($idField)] = $item;
+            }
         }
         return $returner;
     }

@@ -22,16 +22,13 @@ use APP\submission\Submission;
 use PKP\context\Context;
 use PKP\core\Core;
 use PKP\core\PKPApplication;
-use PKP\db\DAORegistry;
 use PKP\log\event\PKPSubmissionEventLogEntry;
 use PKP\mail\Mailable;
 use PKP\mail\mailables\ReviewerUnassign;
-use PKP\notification\NotificationDAO;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\plugins\Hook;
 use PKP\security\Validation;
 use PKP\submission\reviewAssignment\ReviewAssignment;
-use PKP\submission\reviewAssignment\ReviewAssignmentDAO;
 
 class UnassignReviewerForm extends ReviewerNotifyActionForm
 {
@@ -59,6 +56,8 @@ class UnassignReviewerForm extends ReviewerNotifyActionForm
      * @copydoc Form::execute()
      *
      * @return bool whether or not the review assignment was deleted successfully
+     *
+     * @hook EditorAction::clearReview [[&$submission, $reviewAssignment]]
      */
     public function execute(...$functionArgs)
     {
@@ -69,8 +68,6 @@ class UnassignReviewerForm extends ReviewerNotifyActionForm
         $reviewAssignment = $this->getReviewAssignment();
 
         // Delete or cancel the review assignment.
-        $reviewAssignmentDao = DAORegistry::getDAO('ReviewAssignmentDAO'); /** @var ReviewAssignmentDAO $reviewAssignmentDao */
-
         if (isset($reviewAssignment) && $reviewAssignment->getSubmissionId() == $submission->getId() && !Hook::call('EditorAction::clearReview', [&$submission, $reviewAssignment])) {
             $reviewer = Repo::user()->get($reviewAssignment->getReviewerId(), true);
             if (!isset($reviewer)) {
@@ -78,29 +75,28 @@ class UnassignReviewerForm extends ReviewerNotifyActionForm
             }
             if ($reviewAssignment->getDateConfirmed()) {
                 // The review has been confirmed but not completed. Flag it as cancelled.
-                $reviewAssignment->setCancelled(true);
-                $reviewAssignmentDao->updateObject($reviewAssignment);
+                Repo::reviewAssignment()->edit($reviewAssignment, [
+                    'cancelled' => true,
+                    'dateCancelled' => Core::getCurrentDate(),
+                ]);
             } else {
                 // The review had not been confirmed yet. Delete the assignment.
-                $reviewAssignmentDao->deleteById($reviewAssignment->getId());
+                Repo::reviewAssignment()->delete($reviewAssignment);
             }
 
             // Stamp the modification date
             $submission->stampModified();
             Repo::submission()->dao->update($submission);
 
-            $notificationDao = DAORegistry::getDAO('NotificationDAO'); /** @var NotificationDAO $notificationDao */
-            $notificationDao->deleteByAssoc(
-                Application::ASSOC_TYPE_REVIEW_ASSIGNMENT,
-                $reviewAssignment->getId(),
-                $reviewAssignment->getReviewerId(),
-                PKPNotification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT
-            );
+            Notification::withAssoc(Application::ASSOC_TYPE_REVIEW_ASSIGNMENT, $reviewAssignment->getId())
+                ->withUserId($reviewAssignment->getReviewerId())
+                ->withType(Notification::NOTIFICATION_TYPE_REVIEW_ASSIGNMENT)
+                ->delete();
 
             // Insert a trivial notification to indicate the reviewer was removed successfully.
             $currentUser = $request->getUser();
             $notificationMgr = new NotificationManager();
-            $notificationMgr->createTrivialNotification($currentUser->getId(), PKPNotification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $reviewAssignment->getDateConfirmed() ? __('notification.cancelledReviewer') : __('notification.removedReviewer')]);
+            $notificationMgr->createTrivialNotification($currentUser->getId(), Notification::NOTIFICATION_TYPE_SUCCESS, ['contents' => $reviewAssignment->getDateConfirmed() ? __('notification.cancelledReviewer') : __('notification.removedReviewer')]);
 
             // Add log
             $eventLog = Repo::eventLog()->newDataObject([

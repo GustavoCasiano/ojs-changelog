@@ -18,6 +18,8 @@ namespace PKP\user\form;
 
 use APP\core\Application;
 use APP\template\TemplateManager;
+use Illuminate\Support\Str;
+use PKP\orcid\OrcidManager;
 use PKP\user\User;
 
 class IdentityForm extends BaseProfileForm
@@ -64,6 +66,26 @@ class IdentityForm extends BaseProfileForm
             'username' => $user->getUsername(),
         ]);
 
+        // FIXME: ORCID validation/authorization requires a context so this should not appear at the
+        //        site level for the time-being
+        if ($request->getContext() && OrcidManager::isEnabled()) {
+            $targetOp = 'profile';
+            $templateMgr->assign([
+                'orcidEnabled' => true,
+                'targetOp' => $targetOp,
+                'orcidUrl' => OrcidManager::getOrcidUrl(),
+                'orcidOAuthUrl' => OrcidManager::buildOAuthUrl('authorizeOrcid', ['targetOp' => $targetOp]),
+                'orcidClientId' => OrcidManager::getClientId(),
+                'orcidIcon' => OrcidManager::getIcon(),
+                'orcidUnauthenticatedIcon' => OrcidManager::getUnauthenticatedIcon(),
+                'orcidAuthenticated' => $user !== null && $user->hasVerifiedOrcid(),
+                'orcidDisplayValue' => $user->getOrcidDisplayValue(),
+            ]);
+        } else {
+            $templateMgr->assign([
+                'orcidEnabled' => false,
+            ]);
+        }
         return parent::fetch($request, $template, $display);
     }
 
@@ -78,6 +100,8 @@ class IdentityForm extends BaseProfileForm
             'givenName' => $user->getGivenName(null),
             'familyName' => $user->getFamilyName(null),
             'preferredPublicName' => $user->getPreferredPublicName(null),
+            'orcid' => $user->getOrcid(),
+            'preferredAvatarInitials' => $user->getPreferredAvatarInitials(null),
         ];
     }
 
@@ -89,7 +113,7 @@ class IdentityForm extends BaseProfileForm
         parent::readInputData();
 
         $this->readUserVars([
-            'givenName', 'familyName', 'preferredPublicName',
+            'givenName', 'familyName', 'preferredPublicName', 'orcid', 'removeOrcidId', 'preferredAvatarInitials'
         ]);
     }
 
@@ -101,9 +125,18 @@ class IdentityForm extends BaseProfileForm
         $request = Application::get()->getRequest();
         $user = $request->getUser();
 
-        $user->setGivenName($this->getData('givenName'), null);
-        $user->setFamilyName($this->getData('familyName'), null);
-        $user->setPreferredPublicName($this->getData('preferredPublicName'), null);
+
+        // Request to delete ORCID token is handled separately from other form field updates
+        if ($this->getData('removeOrcidId') === 'true') {
+            $user->setOrcid(null);
+            $user->setOrcidVerified(false);
+            OrcidManager::removeOrcidAccessToken($user);
+        } else {
+            $user->setGivenName($this->getData('givenName'), null);
+            $user->setFamilyName($this->getData('familyName'), null);
+            $user->setPreferredPublicName($this->getData('preferredPublicName'), null);
+            $user->setPreferredAvatarInitials(trim(Str::upper($this->getData('preferredAvatarInitials') ?? '')), null);
+        }
 
         parent::execute(...$functionArgs);
     }

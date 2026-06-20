@@ -15,6 +15,7 @@
  */
 
 namespace PKP\plugins;
+
 use PKP\core\PKPRequest;
 
 abstract class BlockPlugin extends LazyLoadPlugin
@@ -51,9 +52,8 @@ abstract class BlockPlugin extends LazyLoadPlugin
      * getContents function.)
      * Returning null from this function results in an empty display.
      *
-     * @return string
      */
-    public function getBlockTemplateFilename()
+    public function getBlockTemplateFilename(): string
     {
         return 'block.tpl';
     }

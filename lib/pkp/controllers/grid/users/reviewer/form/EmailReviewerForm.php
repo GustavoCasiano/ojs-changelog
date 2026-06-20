@@ -22,12 +22,10 @@ use APP\notification\NotificationManager;
 use APP\submission\Submission;
 use APP\template\TemplateManager;
 use Illuminate\Support\Facades\Mail;
-use PKP\db\DAORegistry;
 use PKP\form\Form;
-use PKP\log\SubmissionEmailLogDAO;
-use PKP\log\SubmissionEmailLogEntry;
+use PKP\log\SubmissionEmailLogEventType;
 use PKP\mail\Mailable;
-use PKP\notification\PKPNotification;
+use PKP\notification\Notification;
 use PKP\submission\reviewAssignment\ReviewAssignment;
 use Symfony\Component\Mailer\Exception\TransportException;
 
@@ -108,9 +106,8 @@ class EmailReviewerForm extends Form
 
         try {
             Mail::send($mailable);
-            $submissionEmailLogDao = DAORegistry::getDAO('SubmissionEmailLogDAO'); /** @var SubmissionEmailLogDAO $submissionEmailLogDao */
-            $submissionEmailLogDao->logMailable(
-                SubmissionEmailLogEntry::SUBMISSION_EMAIL_REVIEW_NOTIFY_REVIEWER,
+            Repo::emailLogEntry()->logMailable(
+                SubmissionEmailLogEventType::REVIEW_NOTIFY_REVIEWER,
                 $mailable,
                 $this->submission,
                 $fromUser,
@@ -119,7 +116,7 @@ class EmailReviewerForm extends Form
             $notificationMgr = new NotificationManager();
             $notificationMgr->createTrivialNotification(
                 $fromUser->getId(),
-                PKPNotification::NOTIFICATION_TYPE_ERROR,
+                Notification::NOTIFICATION_TYPE_ERROR,
                 ['contents' => __('email.compose.error')]
             );
             trigger_error($e->getMessage(), E_USER_WARNING);
