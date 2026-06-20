@@ -1,0 +1,7 @@
+/public/*
+!/public/**/*.css
+!/public/**/**/*.css
+/cache/
+/matomo/
+config.inc.php
+config.inc.*.php
