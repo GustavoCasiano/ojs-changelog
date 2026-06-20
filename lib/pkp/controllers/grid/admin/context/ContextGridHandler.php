@@ -43,7 +43,7 @@ class ContextGridHandler extends GridHandler
             [
                 Role::ROLE_ID_SITE_ADMIN],
             ['fetchGrid', 'fetchRow', 'createContext', 'editContext', 'updateContext', 'users',
-                'deleteContext', 'saveSequence']
+                'saveSequence']
         );
     }
 
@@ -266,6 +266,7 @@ class ContextGridHandler extends GridHandler
 
     /**
      * Delete a context.
+     * PATCHED: journal deletion is disabled for security reasons.
      *
      * @param array $args
      * @param Request $request
@@ -274,21 +275,7 @@ class ContextGridHandler extends GridHandler
      */
     public function deleteContext($args, $request)
     {
-        if (!$request->checkCSRF()) {
-            return new JSONMessage(false);
-        }
-
-        $contextService = Services::get('context');
-
-        $context = $contextService->get((int) $request->getUserVar('rowId'));
-
-        if (!$context) {
-            return new JSONMessage(false);
-        }
-
-        $contextService->delete($context);
-
-        return \PKP\db\DAO::getDataChangedEvent($context->getId());
+        return new JSONMessage(false, __('common.forbidden'));
     }
 
     /**
