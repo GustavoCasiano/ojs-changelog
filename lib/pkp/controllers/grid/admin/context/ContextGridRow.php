@@ -22,7 +22,6 @@ use PKP\core\PKPApplication;
 use PKP\linkAction\LinkAction;
 use PKP\linkAction\request\AjaxModal;
 use PKP\linkAction\request\RedirectAction;
-use PKP\linkAction\request\RemoteActionConfirmationModal;
 
 class ContextGridRow extends GridRow
 {
@@ -60,20 +59,7 @@ class ContextGridRow extends GridRow
                 'edit'
             )
         );
-        $this->addAction(
-            new LinkAction(
-                'delete',
-                new RemoteActionConfirmationModal(
-                    $request->getSession(),
-                    __('admin.contexts.confirmDelete', ['contextName' => $element->getLocalizedName()]),
-                    null,
-                    $router->url($request, null, null, 'deleteContext', null, ['rowId' => $rowId]),
-                    'negative'
-                ),
-                __('grid.action.remove'),
-                'delete'
-            )
-        );
+        // PATCHED: journal deletion button is disabled for security reasons.
         $dispatcher = $router->getDispatcher();
         $this->addAction(
             new LinkAction(

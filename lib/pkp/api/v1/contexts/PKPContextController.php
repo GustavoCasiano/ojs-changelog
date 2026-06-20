@@ -105,9 +105,8 @@ class PKPContextController extends PKPBaseController
             Route::post('', $this->add(...))
                 ->name('context.add');
 
-            Route::delete('{contextId}', $this->delete(...))
-                ->name('context.delete')
-                ->whereNumber('contextId');
+            // PATCHED: Route::delete disabled for security reasons.
+            // Route::delete('{contextId}', $this->delete(...))->name('context.delete')->whereNumber('contextId');
         });
     }
 
@@ -665,42 +664,13 @@ class PKPContextController extends PKPBaseController
 
     /**
      * Delete a context
+     * PATCHED: journal deletion is disabled for security reasons.
      */
     public function delete(Request $illuminateRequest): JsonResponse
     {
-        // This endpoint is only available at the site-wide level
-        if ($this->getRequest()->getContext()) {
-            return response()->json([
-                'error' => __('api.submissions.404.siteWideEndpoint'),
-            ], Response::HTTP_NOT_FOUND);
-        }
-
-        $userRoles = $this->getAuthorizedContextObject(Application::ASSOC_TYPE_USER_ROLES);
-        if (!in_array(Role::ROLE_ID_SITE_ADMIN, $userRoles)) {
-            return response()->json([
-                'error' => __('api.contexts.403.notAllowedDelete'),
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        $contextId = (int) $illuminateRequest->route('contextId');
-
-        $contextService = app()->get('context'); /** @var PKPContextService $contextService */
-        $context = $contextService->get($contextId);
-
-        if (!$context) {
-            return response()->json([
-                'error' => __('api.contexts.404.contextNotFound'),
-            ], Response::HTTP_NOT_FOUND);
-        }
-
-        $contextProps = $contextService->getSummaryProperties($context, [
-            'request' => $this->getRequest(),
-            'apiRequest' => $illuminateRequest
-        ]);
-
-        $contextService->delete($context);
-
-        return response()->json($contextProps, Response::HTTP_OK);
+        return response()->json([
+            'error' => __('api.contexts.403.notAllowedDelete'),
+        ], Response::HTTP_FORBIDDEN);
     }
 
     /**
