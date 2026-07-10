@@ -197,11 +197,18 @@ p.intro {
 <!--  verb: [<xsl:value-of select="oai:request/@verb" />]<br /> -->
   <xsl:choose>
     <xsl:when test="oai:error">
-      <h2>OAI Error(s)</h2>
-      <p>The request could not be completed due to the following error or errors.</p>
-      <div class="results">
-        <xsl:apply-templates select="oai:error"/>
-      </div>
+      <xsl:choose>
+        <xsl:when test="oai:error/@code='badVerb'">
+          <p>Select an operation using the links in the top menu.</p>
+        </xsl:when>
+        <xsl:otherwise>
+          <h2>OAI Error(s)</h2>
+          <p>The request could not be completed due to the following error or errors.</p>
+          <div class="results">
+            <xsl:apply-templates select="oai:error"/>
+          </div>
+        </xsl:otherwise>
+      </xsl:choose>
     </xsl:when>
     <xsl:otherwise>
       <p>Request was of type <xsl:value-of select="oai:request/@verb"/>.</p>
